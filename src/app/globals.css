@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #f7f5f1;
+}
+
+.card {
+  @apply rounded-xl border border-stone-200 bg-white p-5 shadow-sm;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors;
+}
+
+.btn-primary {
+  @apply btn bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply btn bg-stone-100 text-stone-700 hover:bg-stone-200;
+}
+
+.btn-danger {
+  @apply btn bg-red-50 text-red-700 hover:bg-red-100;
+}
+
+.input {
+  @apply w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+}
+
+.label {
+  @apply mb-1 block text-xs font-medium text-stone-600;
+}
+
+.table-base {
+  @apply w-full text-left text-sm;
+}
+
+.table-base th {
+  @apply border-b border-stone-200 px-3 py-2 font-medium text-stone-500;
+}
+
+.table-base td {
+  @apply border-b border-stone-100 px-3 py-2;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
