@@ -29,7 +29,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         </p>
       </div>
 
-      <div className="card grid grid-cols-3 gap-4">
+      <div className="card grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <p className="text-xs text-stone-500">Lifetime value</p>
           <p className="text-lg font-semibold">{formatMoney(lifetimeValue)}</p>

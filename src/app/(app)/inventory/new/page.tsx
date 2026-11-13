@@ -42,7 +42,7 @@ export default async function NewInventoryItemPage() {
           <input type="hidden" name="branchId" value={session.branchId ?? ""} />
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="label">SKU (leave blank to auto-generate)</label>
             <input className="input" name="sku" />
@@ -64,7 +64,7 @@ export default async function NewInventoryItemPage() {
           <input className="input" name="name" required placeholder="18k Gold Solitaire Ring" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Metal type</label>
             <input className="input" name="metalType" placeholder="Gold, Silver, Platinum…" />
@@ -83,7 +83,7 @@ export default async function NewInventoryItemPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Gemstone type</label>
             <input className="input" name="gemstoneType" placeholder="Diamond, Ruby, Emerald…" />
@@ -107,7 +107,7 @@ export default async function NewInventoryItemPage() {
           <input className="input" name="certification" placeholder="GIA report #, IGI, none…" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Cost price</label>
             <input className="input" name="costPrice" type="number" step="0.01" required />

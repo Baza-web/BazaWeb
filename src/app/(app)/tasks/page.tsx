@@ -128,7 +128,7 @@ export default async function TasksPage({
               <label className="label">Description</label>
               <textarea className="input" name="description" rows={2} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="label">Type</label>
                 <select className="input" name="type" defaultValue="DAILY">

@@ -98,7 +98,7 @@ export default async function CustomersPage({
             <label className="label">Name</label>
             <input className="input" name="name" required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Phone</label>
               <input className="input" name="phone" />

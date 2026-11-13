@@ -116,7 +116,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="card">
+      <div className="card overflow-x-auto">
         <h2 className="mb-3 font-medium">Recent sales</h2>
         <table className="table-base">
           <thead>

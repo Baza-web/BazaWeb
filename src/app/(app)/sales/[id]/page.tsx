@@ -39,7 +39,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           {sale.customer?.phone && <p className="text-sm text-stone-500">{sale.customer.phone}</p>}
         </div>
 
-        <table className="table-base mb-4">
+        <div className="mb-4 overflow-x-auto">
+        <table className="table-base">
           <thead>
             <tr>
               <th>Item</th>
@@ -61,6 +62,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             ))}
           </tbody>
         </table>
+        </div>
 
         <div className="ml-auto max-w-xs space-y-1 text-sm">
           <div className="flex justify-between">

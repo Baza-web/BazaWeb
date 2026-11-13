@@ -101,9 +101,9 @@ export function SaleForm({
           {lines.map((line, index) => {
             const item = inventory.find((i) => i.id === line.inventoryItemId);
             return (
-              <div key={index} className="flex items-center gap-2">
+              <div key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                 <select
-                  className="input flex-1"
+                  className="input w-full sm:flex-1"
                   value={line.inventoryItemId}
                   onChange={(e) => onItemChange(index, e.target.value)}
                 >
@@ -114,7 +114,7 @@ export function SaleForm({
                   ))}
                 </select>
                 <input
-                  className="input w-20"
+                  className="input w-20 shrink-0"
                   type="number"
                   min={1}
                   max={item?.quantity ?? 1}
@@ -122,13 +122,17 @@ export function SaleForm({
                   onChange={(e) => updateLine(index, { quantity: Number(e.target.value) })}
                 />
                 <input
-                  className="input w-28"
+                  className="input w-24 shrink-0 sm:w-28"
                   type="number"
                   step="0.01"
                   value={line.priceEach}
                   onChange={(e) => updateLine(index, { priceEach: Number(e.target.value) })}
                 />
-                <button type="button" onClick={() => removeLine(index)} className="btn-danger text-xs">
+                <button
+                  type="button"
+                  onClick={() => removeLine(index)}
+                  className="btn-danger shrink-0 text-xs"
+                >
                   Remove
                 </button>
               </div>
@@ -138,7 +142,7 @@ export function SaleForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Discount</label>
           <input

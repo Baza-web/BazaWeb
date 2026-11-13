@@ -24,7 +24,7 @@ export default async function StaffPage() {
         </Link>
       </div>
 
-      <div className="card">
+      <div className="card overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
