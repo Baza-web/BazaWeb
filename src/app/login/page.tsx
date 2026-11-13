@@ -1,4 +1,5 @@
 import { login } from "./actions";
+import { googleSignInConfigured } from "@/lib/google-auth";
 
 export default async function LoginPage({
   searchParams,
@@ -6,6 +7,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const showGoogle = googleSignInConfigured();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
@@ -14,10 +16,46 @@ export default async function LoginPage({
           <h1 className="text-2xl font-semibold text-brand-700">Baza ERP</h1>
           <p className="mt-1 text-sm text-stone-500">Jewelry & Gem Business Suite</p>
         </div>
-        <form action={login} className="card space-y-4">
+        <div className="card space-y-4">
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           )}
+
+          {showGoogle && (
+            <>
+              <a
+                href="/api/auth/google"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48">
+                  <path
+                    fill="#FFC107"
+                    d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"
+                  />
+                  <path
+                    fill="#FF3D00"
+                    d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.1 29.3 4 24 4c-7.5 0-13.9 4.3-17.1 10.5z"
+                  />
+                  <path
+                    fill="#4CAF50"
+                    d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.5 26.7 36 24 36c-5.2 0-9.6-3.1-11.3-7.5l-6.6 5.1C9.9 39.6 16.4 44 24 44z"
+                  />
+                  <path
+                    fill="#1976D2"
+                    d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.2 5.2C40.5 36.5 44 31 44 24c0-1.3-.1-2.3-.4-3.5z"
+                  />
+                </svg>
+                Sign in with Google
+              </a>
+              <div className="flex items-center gap-3 text-xs text-stone-400">
+                <div className="h-px flex-1 bg-stone-200" />
+                or sign in with email
+                <div className="h-px flex-1 bg-stone-200" />
+              </div>
+            </>
+          )}
+
+          <form action={login} className="space-y-4">
           <div>
             <label className="label" htmlFor="email">
               Email
@@ -33,7 +71,8 @@ export default async function LoginPage({
           <button type="submit" className="btn-primary w-full">
             Sign in
           </button>
-        </form>
+          </form>
+        </div>
         <p className="mt-4 text-center text-xs text-stone-400">
           Ask your branch manager or admin if you don&apos;t have an account yet.
         </p>

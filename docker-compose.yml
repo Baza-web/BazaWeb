@@ -31,6 +31,9 @@ services:
       SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:-ChangeMe123!}
       SEED_OWNER_NAME: ${SEED_OWNER_NAME:-Business Owner}
       SEED_BRANCH_NAME: ${SEED_BRANCH_NAME:-Main Branch}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
     volumes:
       - uploads_data:/app/public/uploads
 

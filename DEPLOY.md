@@ -110,6 +110,36 @@ Then, in order:
 4. Share each person's email + temporary password with them directly
    (there's no self-service password reset yet — see Limitations below).
 
+## Optional: "Sign in with Google"
+
+Staff can sign in with their Google account instead of a password. This is
+optional and additive — password login keeps working either way.
+
+1. Go to **console.cloud.google.com** → create a project (or use an existing
+   one) → **APIs & Services** → **OAuth consent screen**: set it to
+   **External**, fill in an app name and your support email, and add the
+   staff emails you'll use as test users (or publish it once you're ready).
+2. **APIs & Services** → **Credentials** → **Create credentials** →
+   **OAuth client ID** → Application type **Web application**.
+3. Under **Authorized redirect URIs**, add exactly:
+   ```
+   https://erp.yourbusiness.com/api/auth/google/callback
+   ```
+   (your real domain, must match exactly, including `https://`).
+4. Copy the **Client ID** and **Client secret** it gives you.
+5. In your `.env` on the server, fill in:
+   ```
+   GOOGLE_CLIENT_ID=<the client id>
+   GOOGLE_CLIENT_SECRET=<the client secret>
+   GOOGLE_REDIRECT_URI=https://erp.yourbusiness.com/api/auth/google/callback
+   ```
+6. Redeploy: `docker compose up -d --build app`
+
+A "Sign in with Google" button now appears on the login page automatically.
+It only works for emails that already have an active Staff account in the
+app — Google doesn't create accounts, it just confirms who someone is, the
+same as password login does today.
+
 ## Updating the app later
 
 ```bash
