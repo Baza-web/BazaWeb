@@ -36,7 +36,12 @@ npx tsx prisma/seed.ts        # creates the first Owner account + branch
 npm run dev
 ```
 
-## Deploying to your own server
+## Deploying
 
-See [DEPLOY.md](./DEPLOY.md) for the full step-by-step guide to running this
-on a VPS with Docker, your own domain, and HTTPS.
+Two options:
+
+- **[VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md)** — easiest. No terminal, no
+  server to maintain, HTTPS is automatic. Recommended for most people.
+- **[DEPLOY.md](./DEPLOY.md)** — self-hosted on your own VPS with Docker.
+  More control, but you manage the server, HTTPS certificate renewal, etc.
+  yourself.
