@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "crypto-trader-skill": {
+      "source": {
+        "source": "github",
+        "repo": "syedishaq7262-svg/crypto-trader-skill"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "crypto-trader-skill@crypto-trader-skill": true
+  }
+}
