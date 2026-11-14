@@ -41,6 +41,8 @@ import {
   Target,
   UsersFour,
   Crown,
+  ChartLineDown,
+  Wallet,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -106,4 +108,6 @@ export {
   Target,
   UsersFour,
   Crown,
+  ChartLineDown,
+  Wallet,
 };
