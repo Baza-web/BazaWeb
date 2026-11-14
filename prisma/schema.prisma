@@ -130,6 +130,7 @@ model Branch {
   name            String
   address         String?
   phone           String?
+  isMain          Boolean  @default(false)
   latitude        Float?
   longitude       Float?
   geofenceRadiusM Int?

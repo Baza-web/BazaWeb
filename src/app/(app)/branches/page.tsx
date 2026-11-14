@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageStaff } from "@/lib/rbac";
 import { GeofenceForm } from "@/components/GeofenceForm";
-import { createBranch } from "./actions";
+import { createBranch, setMainBranch } from "./actions";
 
 export default async function BranchesPage() {
   const session = await requireSessionOrRedirect();
@@ -28,6 +28,7 @@ export default async function BranchesPage() {
               <th>Phone</th>
               <th>Staff</th>
               <th>Inventory items</th>
+              <th>Main location</th>
             </tr>
           </thead>
           <tbody>
@@ -38,11 +39,22 @@ export default async function BranchesPage() {
                 <td>{b.phone ?? "—"}</td>
                 <td>{b._count.staff}</td>
                 <td>{b._count.inventoryItems}</td>
+                <td>
+                  {b.isMain ? (
+                    <span className="badge bg-brand-50 text-brand-700">Main</span>
+                  ) : (
+                    <form action={setMainBranch.bind(null, b.id)}>
+                      <button type="submit" className="text-xs text-brand-700 hover:underline">
+                        Set as main
+                      </button>
+                    </form>
+                  )}
+                </td>
               </tr>
             ))}
             {branches.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-stone-400">
+                <td colSpan={6} className="py-6 text-center text-stone-400">
                   No branches yet.
                 </td>
               </tr>
