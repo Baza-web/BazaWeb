@@ -289,6 +289,21 @@ Note: "statement" here is a real `.xlsx` spreadsheet generated on each
 send, not a Google Sheet — no Google Drive/Sheets account or setup is
 needed for this feature.
 
+## AI receipt scanning (Accounting)
+
+On the **Accounting** page, "Record an expense" has a **Scan a receipt**
+box: upload a photo of a receipt/invoice, or paste the text of an order
+email, and it fills in the amount, category, description, and date for
+you to check before saving — it never saves anything on its own.
+
+To enable it, add `ANTHROPIC_API_KEY` to your `.env` (get one at
+[console.anthropic.com](https://console.anthropic.com)), then redeploy:
+`docker compose up -d --build app`. Leave it blank and the Scan button
+still appears but explains it isn't set up yet — typing expenses in by
+hand always works either way. Each scan costs a small amount against your
+Anthropic account (a few cents at most per receipt); there's no other
+setup needed.
+
 ## Where things live
 
 | What | Where |

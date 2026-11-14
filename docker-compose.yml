@@ -37,6 +37,7 @@ services:
       CRON_TOKEN: ${CRON_TOKEN:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-Baza ERP <onboarding@resend.dev>}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - uploads_data:/app/public/uploads
 

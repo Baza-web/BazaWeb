@@ -17,7 +17,7 @@ function useBlobStorage() {
  * uploaded file out with an extension (.html, .svg, .js, …) that a browser
  * would treat as active content when served from our own origin.
  */
-function detectFileKind(buffer: Buffer): { ext: string; kind: "image" | "pdf" } | null {
+export function detectFileKind(buffer: Buffer): { ext: string; kind: "image" | "pdf" } | null {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
     return { ext: ".jpg", kind: "image" };
   }

@@ -309,6 +309,7 @@ model Expense {
   date        DateTime @default(now())
   createdById String
   createdAt   DateTime @default(now())
+  receiptImage String?
 
   purchaseOrderId String?
 
