@@ -94,6 +94,11 @@ export function canEditAttendance(role: Role) {
   return role === "OWNER";
 }
 
+/** Owner only — adding/removing a branch outright is a bigger structural change than editing one's details (Admin can still set its geofence/main-location). */
+export function canAddOrDeleteBranches(role: Role) {
+  return role === "OWNER";
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`

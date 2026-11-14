@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageStaff } from "@/lib/rbac";
+import { canManageStaff, canAddOrDeleteBranches } from "@/lib/rbac";
 
 const numOrUndef = z.preprocess(
   (v) => (v === "" || v === null ? undefined : v),
@@ -19,7 +19,7 @@ const schema = z.object({
 
 export async function createBranch(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canAddOrDeleteBranches(session.role)) throw new Error("Forbidden");
 
   const parsed = schema.parse({
     name: formData.get("name"),
@@ -28,6 +28,46 @@ export async function createBranch(formData: FormData) {
   });
 
   await db.branch.create({ data: parsed });
+  revalidatePath("/branches");
+}
+
+/** Owner-only. Refuses to delete a branch that still has any real data attached — that's for the Owner to move or clear out first, never silently cascaded away. */
+export async function deleteBranch(branchId: string) {
+  const session = await requireSessionOrRedirect();
+  if (!canAddOrDeleteBranches(session.role)) throw new Error("Forbidden");
+
+  const branch = await db.branch.findUniqueOrThrow({
+    where: { id: branchId },
+    include: {
+      _count: {
+        select: {
+          staff: true,
+          inventoryItems: true,
+          customers: true,
+          sales: true,
+          expenses: true,
+          ledgerEntries: true,
+          tasks: true,
+          attendanceLogs: true,
+          repairOrders: true,
+          purchaseOrders: true,
+          staffGroups: true,
+          salesTargets: true,
+          brokers: true,
+          brokerMemos: true,
+        },
+      },
+    },
+  });
+
+  const totalRecords = Object.values(branch._count).reduce((sum, n) => sum + n, 0);
+  if (totalRecords > 0) {
+    throw new Error(
+      `${branch.name} still has data attached (staff, inventory, sales, etc.) — move or remove that first before deleting the branch.`,
+    );
+  }
+
+  await db.branch.delete({ where: { id: branchId } });
   revalidatePath("/branches");
 }
 
