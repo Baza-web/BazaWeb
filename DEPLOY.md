@@ -223,23 +223,46 @@ then add one more cron line so it checks every day at 7 AM:
 That's it — Sales staff and the Branch Manager get notified 3 days
 before any of their branch's customers' birthdays or anniversaries.
 
-## Requiring staff to be on-site to clock in/out (geofencing)
+## Staff attendance: clock in/out and on-site enforcement (geofencing)
 
-Every clock-in/out already records the staff member's device location (shown
-to managers as a "Map" link on the Attendance page). To also *require* staff
-to be physically at the branch:
+Everyone with a staff account clocks in and out from the header button —
+**except the Owner**, who never sees that button and can't clock in (Admin
+and every other role must, same as anyone else). Every clock-in/out records
+the staff member's device location (shown to managers as a "Map" link on the
+Attendance page) and **requires them to be physically at the branch**:
 
 1. Go to **Branches** (Owner/Admin only) and find the branch's "Clock-in
    location" section.
-2. Click **Use my location** while standing at the branch (or type in the
-   coordinates), set a **radius** in meters (e.g. `100`), and **Save**.
+2. Click **Use my location** while standing at the branch, or click the
+   spot on the map (see below), set a **radius** in meters (e.g. `100`),
+   and **Save**.
 3. From then on, staff at that branch must be within that radius to clock in
-   or out — otherwise they get an error naming how far away they are.
+   or out — otherwise they get an error naming how far away they are. A
+   branch with no location set yet blocks clock-in entirely, with a message
+   telling staff to ask an Owner/Admin to set one — there's no way to skip
+   the location check.
 
-Leave all three fields blank to turn the requirement back off for a branch;
-location is still recorded either way. Geolocation requires the staff
-member's browser to allow location access, and (outside of `localhost`)
-only works over HTTPS, which your deployment already has.
+Geolocation requires the staff member's browser to allow location access,
+and (outside of `localhost`) only works over HTTPS, which your deployment
+already has.
+
+### Picking the location on a map
+
+The Branches page can show an interactive Google Map for setting a branch's
+clock-in location (click or drag the pin, see the radius circle live)
+instead of typing latitude/longitude by hand. Add
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to your `.env` — get a key at
+[console.cloud.google.com](https://console.cloud.google.com), enabling the
+"Maps JavaScript API" and restricting the key to your domain — then
+redeploy (`docker compose up -d --build app`). Leave it blank and the plain
+number fields keep working exactly as before.
+
+### Correcting a clock in/out record
+
+Only the **Owner** can edit or delete an attendance record (a missed
+clock-out, a wrong time) — not even Admin. On the Attendance page's team
+table, the Owner sees **Edit**/**Delete** on every row; everyone else sees a
+read-only history.
 
 ## Staff Groups (for projects worked on by several people)
 

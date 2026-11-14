@@ -454,7 +454,7 @@ export default async function DashboardPage() {
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-50">
             <Package size={22} className="text-amber-600" aria-hidden="true" />
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-stone-500">Low stock items</p>
             <p className="text-xl font-semibold text-ink-900">{lowStockItems}</p>
           </div>
@@ -463,7 +463,7 @@ export default async function DashboardPage() {
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50">
             <ListChecks size={22} className="text-brand-600" aria-hidden="true" />
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-stone-500">Your open tasks</p>
             <p className="text-xl font-semibold text-ink-900">{myOpenTasks}</p>
           </div>
@@ -473,7 +473,7 @@ export default async function DashboardPage() {
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-50">
               <Wrench size={22} className="text-orange-600" aria-hidden="true" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-stone-500">Open repairs</p>
               <p className="text-xl font-semibold text-ink-900">{pendingRepairs}</p>
             </div>
@@ -484,7 +484,7 @@ export default async function DashboardPage() {
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-50">
               <CalendarCheck size={22} className="text-blue-600" aria-hidden="true" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-stone-500">Leave awaiting review</p>
               <p className="text-xl font-semibold text-ink-900">{pendingLeave}</p>
             </div>
@@ -495,7 +495,7 @@ export default async function DashboardPage() {
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-50">
               <ClockCountdown size={22} className="text-green-600" aria-hidden="true" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-stone-500">Clocked in today</p>
               <p className="text-xl font-semibold text-ink-900">
                 {attendanceTodayCount}
@@ -509,7 +509,7 @@ export default async function DashboardPage() {
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-purple-50">
               <Truck size={22} className="text-purple-600" aria-hidden="true" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-stone-500">Owed to suppliers</p>
               <p className="text-xl font-semibold text-ink-900">{formatMoney(openPOBalance)}</p>
             </div>
@@ -520,7 +520,7 @@ export default async function DashboardPage() {
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-50">
               <Handshake size={22} className="text-rose-600" aria-hidden="true" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-stone-500">With brokers</p>
               <p className="text-xl font-semibold text-ink-900">{formatMoney(brokerOutstandingValue)}</p>
               <p className="text-xs text-stone-400">{brokerOutstandingCount} stone(s) out</p>

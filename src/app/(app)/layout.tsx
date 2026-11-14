@@ -74,6 +74,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       unreadMessages={unreadMessages}
       unreadNotifications={unreadNotifications}
       isClockedIn={Boolean(openAttendanceLog)}
+      showClockButton={session.role !== "OWNER"}
       logoutAction={logout}
     >
       {children}

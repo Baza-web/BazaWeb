@@ -36,12 +36,16 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#a66316",
+  // The app only has a light theme — without this, some phones (notably
+  // Android's "Force dark"/"Darken web pages" setting) auto-invert the
+  // colors instead of leaving them alone, producing a washed-out dashboard.
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${cormorant.variable} ${montserrat.variable}`}>
-      <body className="min-h-screen bg-stone-50 font-sans text-stone-900">{children}</body>
+      <body className="min-h-screen overflow-x-hidden bg-stone-50 font-sans text-stone-900">{children}</body>
     </html>
   );
 }

@@ -80,6 +80,7 @@ export default async function BranchesPage() {
               latitude={b.latitude}
               longitude={b.longitude}
               geofenceRadiusM={b.geofenceRadiusM}
+              googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || null}
             />
           </div>
         ))}

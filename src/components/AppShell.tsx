@@ -17,6 +17,7 @@ export function AppShell({
   unreadMessages,
   unreadNotifications,
   isClockedIn,
+  showClockButton,
   logoutAction,
   children,
 }: {
@@ -26,6 +27,7 @@ export function AppShell({
   unreadMessages: number;
   unreadNotifications: number;
   isClockedIn: boolean;
+  showClockButton: boolean;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -89,7 +91,7 @@ export function AppShell({
             <span className="hidden text-sm text-stone-500 sm:inline">{roleLabel}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <ClockButton isClockedIn={isClockedIn} />
+            {showClockButton && <ClockButton isClockedIn={isClockedIn} />}
             <Link
               href="/inbox"
               className="relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-stone-600 transition-colors hover:bg-stone-100 hover:text-ink-900"
