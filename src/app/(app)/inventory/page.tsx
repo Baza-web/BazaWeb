@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope } from "@/lib/rbac";
+import { branchScope, canViewCost } from "@/lib/rbac";
 import { formatMoney } from "@/lib/utils";
 import { Plus } from "@phosphor-icons/react/ssr";
 
@@ -19,6 +19,7 @@ export default async function InventoryPage({
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
+  const showCost = canViewCost(session.role);
   const { q, status } = await searchParams;
 
   const items = await db.inventoryItem.findMany({
@@ -87,7 +88,7 @@ export default async function InventoryPage({
               <th>Category</th>
               <th>Branch</th>
               <th>Qty</th>
-              <th>Cost</th>
+              {showCost && <th>Cost</th>}
               <th>Price</th>
               <th>Status</th>
             </tr>
@@ -113,7 +114,7 @@ export default async function InventoryPage({
                     </span>
                   )}
                 </td>
-                <td>{formatMoney(item.costPrice)}</td>
+                {showCost && <td>{formatMoney(item.costPrice)}</td>}
                 <td>{formatMoney(item.sellingPrice)}</td>
                 <td>
                   <span className={`badge ${STATUS_COLORS[item.status]}`}>
@@ -124,7 +125,7 @@ export default async function InventoryPage({
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-6 text-center text-stone-400">
+                <td colSpan={showCost ? 8 : 7} className="py-6 text-center text-stone-400">
                   No items match.
                 </td>
               </tr>

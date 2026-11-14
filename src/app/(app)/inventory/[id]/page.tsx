@@ -2,7 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canManageInventory } from "@/lib/rbac";
+import { branchScope, canManageInventory, canViewCost } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink } from "../actions";
 import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
@@ -57,10 +57,12 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
             <p className="font-medium">{d.value}</p>
           </div>
         ))}
-        <div>
-          <p className="text-xs text-stone-500">Cost price</p>
-          <p className="font-medium">{formatMoney(item.costPrice)}</p>
-        </div>
+        {canViewCost(session.role) && (
+          <div>
+            <p className="text-xs text-stone-500">Cost price</p>
+            <p className="font-medium">{formatMoney(item.costPrice)}</p>
+          </div>
+        )}
         <div>
           <p className="text-xs text-stone-500">Selling price</p>
           <p className="font-medium">{formatMoney(item.sellingPrice)}</p>
