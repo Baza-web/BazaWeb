@@ -52,6 +52,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/staff", label: "Staff", iconKey: "staff", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/groups", label: "Groups", iconKey: "groups", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/branches", label: "Branches", iconKey: "branches", roles: ["OWNER", "ADMIN"] },
+  { href: "/brokers", label: "Brokers & Memos", iconKey: "brokers", roles: ["OWNER", "ADMIN"] },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -73,6 +74,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       unreadMessages={unreadMessages}
       unreadNotifications={unreadNotifications}
       isClockedIn={Boolean(openAttendanceLog)}
+      showClockButton={session.role !== "OWNER"}
       logoutAction={logout}
     >
       {children}

@@ -40,3 +40,13 @@ export function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: n
 export function mapsLink(lat: number, lng: number) {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
+
+/** Round to the nearest cent to avoid floating-point comparison drift (e.g. 0.1 + 0.2). */
+export function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+/** Compact axis-friendly number: 1500 -> "1.5K", 2000000 -> "2M". */
+export function formatCompact(n: number) {
+  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}

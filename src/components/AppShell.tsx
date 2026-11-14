@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { NavLink } from "./NavLink";
 import { ClockButton } from "./ClockButton";
-import { Diamond, List, X, ChatCircle, Bell, SignOut } from "./icons";
+import { LogoutButton } from "./LogoutButton";
+import { Diamond, List, X, ChatCircle, Bell } from "./icons";
 import { initials } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; iconKey: string };
@@ -16,6 +17,7 @@ export function AppShell({
   unreadMessages,
   unreadNotifications,
   isClockedIn,
+  showClockButton,
   logoutAction,
   children,
 }: {
@@ -25,7 +27,8 @@ export function AppShell({
   unreadMessages: number;
   unreadNotifications: number;
   isClockedIn: boolean;
-  logoutAction: () => void;
+  showClockButton: boolean;
+  logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -88,7 +91,7 @@ export function AppShell({
             <span className="hidden text-sm text-stone-500 sm:inline">{roleLabel}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <ClockButton isClockedIn={isClockedIn} />
+            {showClockButton && <ClockButton isClockedIn={isClockedIn} />}
             <Link
               href="/inbox"
               className="relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-stone-600 transition-colors hover:bg-stone-100 hover:text-ink-900"
@@ -123,16 +126,7 @@ export function AppShell({
               <span className="avatar h-8 w-8">{initials(staffName)}</span>
               <span className="text-sm font-medium text-ink-800">{staffName}</span>
             </Link>
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-stone-500 transition-colors hover:bg-stone-100 hover:text-red-700"
-                title="Sign out"
-              >
-                <SignOut size={19} aria-hidden="true" />
-                <span className="hidden sm:inline">Sign out</span>
-              </button>
-            </form>
+            <LogoutButton logoutAction={logoutAction} />
           </div>
         </header>
         <main className="min-w-0 p-4 sm:p-6">{children}</main>

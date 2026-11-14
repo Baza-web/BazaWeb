@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canViewAttendance, isCompanyWide } from "@/lib/rbac";
+import { canViewAttendance, canEditAttendance, isCompanyWide } from "@/lib/rbac";
 import { formatDateTime, distanceMeters, mapsLink } from "@/lib/utils";
 import { ClockCountdown, MapPin } from "@/components/icons";
+import { AttendanceRowActions } from "@/components/AttendanceRowActions";
 
 function duration(inAt: Date, outAt: Date | null) {
   const end = outAt ?? new Date();
@@ -50,6 +51,7 @@ function LocationCell({
 export default async function AttendancePage() {
   const session = await requireSessionOrRedirect();
   const canViewTeam = canViewAttendance(session.role);
+  const canEdit = canEditAttendance(session.role);
 
   const [myLogs, teamLogs] = await Promise.all([
     db.attendanceLog.findMany({
@@ -88,6 +90,7 @@ export default async function AttendancePage() {
                 <th>Clock out</th>
                 <th>Out @</th>
                 <th>Duration</th>
+                {canEdit && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -110,11 +113,16 @@ export default async function AttendancePage() {
                       duration(log.clockInAt, log.clockOutAt)
                     )}
                   </td>
+                  {canEdit && (
+                    <td>
+                      <AttendanceRowActions logId={log.id} clockInAt={log.clockInAt} clockOutAt={log.clockOutAt} />
+                    </td>
+                  )}
                 </tr>
               ))}
               {teamLogs.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-stone-400">
+                  <td colSpan={canEdit ? 8 : 7} className="py-6 text-center text-stone-400">
                     No attendance recorded yet.
                   </td>
                 </tr>

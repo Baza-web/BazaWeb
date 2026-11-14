@@ -47,11 +47,14 @@ export async function createTask(formData: FormData) {
       where: { id: targetId },
       include: { members: true },
     });
+    if (group.branchId !== parsed.branchId) throw new Error("Forbidden");
     if (group.members.length === 0) throw new Error("This group has no members yet.");
     groupId = group.id;
     groupMemberIds = group.members.map((m) => m.id);
     assignedToId = groupMemberIds[0];
   } else {
+    const assignee = await db.staff.findUniqueOrThrow({ where: { id: targetId } });
+    if (assignee.branchId !== parsed.branchId || !assignee.active) throw new Error("Forbidden");
     assignedToId = targetId;
   }
 
@@ -86,9 +89,14 @@ export async function createTask(formData: FormData) {
   redirect("/tasks");
 }
 
-async function canActOnTask(task: { assignedToId: string; groupId: string | null }, session: SessionPayload) {
+async function canActOnTask(
+  task: { assignedToId: string; groupId: string | null; branchId: string },
+  session: SessionPayload,
+) {
   if (task.assignedToId === session.staffId) return true;
-  if (canAssignTasks(session.role)) return true;
+  if (canAssignTasks(session.role) && (isCompanyWide(session.role) || task.branchId === session.branchId)) {
+    return true;
+  }
   if (!task.groupId) return false;
   const membership = await db.staffGroup.findFirst({
     where: { id: task.groupId, members: { some: { id: session.staffId } } },
@@ -135,6 +143,9 @@ export async function addTaskComment(taskId: string, formData: FormData) {
     where: { id: taskId },
     include: { group: { include: { members: true } } },
   });
+  const allowed = await canActOnTask(task, session);
+  if (!allowed) throw new Error("Forbidden");
+
   await db.taskComment.create({
     data: { taskId, staffId: session.staffId, body: parsed.body },
   });

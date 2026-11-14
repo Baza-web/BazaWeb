@@ -9,6 +9,15 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
+async function registerSubscription(subscription: PushSubscription) {
+  const res = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subscription.toJSON()),
+  });
+  if (!res.ok) throw new Error("Failed to register this device for push notifications.");
+}
+
 export function PushSubscribeButton() {
   const [status, setStatus] = useState<"idle" | "subscribing" | "subscribed" | "unsupported" | "error">(
     "idle",
@@ -21,7 +30,16 @@ export function PushSubscribeButton() {
     }
     navigator.serviceWorker.getRegistration().then(async (reg) => {
       const sub = await reg?.pushManager.getSubscription();
-      if (sub) setStatus("subscribed");
+      if (!sub) return;
+      try {
+        // A subscription may already exist on this device from a previous
+        // staff member who used it. Always re-register it for whoever is
+        // signed in now, rather than assuming it already belongs to them.
+        await registerSubscription(sub);
+        setStatus("subscribed");
+      } catch {
+        setStatus("error");
+      }
     });
   }, []);
 
@@ -29,6 +47,10 @@ export function PushSubscribeButton() {
     setStatus("subscribing");
     try {
       const keyRes = await fetch("/api/push/vapid-public-key");
+      if (!keyRes.ok) {
+        setStatus("unsupported");
+        return;
+      }
       const { publicKey } = await keyRes.json();
       if (!publicKey) {
         setStatus("unsupported");
@@ -36,17 +58,13 @@ export function PushSubscribeButton() {
       }
 
       const registration = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
 
-      await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(subscription.toJSON()),
-      });
-
+      await registerSubscription(subscription);
       setStatus("subscribed");
     } catch (err) {
       console.error(err);

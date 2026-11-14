@@ -115,21 +115,21 @@ export default async function ReportsPage({
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Revenue (range)</p>
             <ChartPieSlice size={18} className="text-brand-500" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-2xl font-semibold text-ink-900">{formatMoney(totalRevenue)}</p>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{formatMoney(totalRevenue)}</p>
         </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Gross profit</p>
             <Percent size={18} className="text-green-600" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-2xl font-semibold text-green-700">{formatMoney(totalProfit)}</p>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-green-700">{formatMoney(totalProfit)}</p>
         </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Margin</p>
             <Percent size={18} className="text-brand-500" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-2xl font-semibold text-ink-900">{margin.toFixed(1)}%</p>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{margin.toFixed(1)}%</p>
         </div>
       </div>
 

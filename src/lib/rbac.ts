@@ -84,6 +84,16 @@ export function canManageSalesTargets(role: Role) {
   return STAFF_SCOPED_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin only — brokers hold valuable consignment stock, so this stays tighter than general inventory access. */
+export function canManageBrokers(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
+/** Owner only — clock in/out records are the source of truth for attendance; nobody else may change them after the fact. */
+export function canEditAttendance(role: Role) {
+  return role === "OWNER";
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`

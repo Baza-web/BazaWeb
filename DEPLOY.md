@@ -50,8 +50,11 @@ Fill in:
   (You can leave these blank to launch without push notifications — in-app
   notifications still work either way. You can add these later and redeploy.)
 - `SEED_OWNER_EMAIL` / `SEED_OWNER_PASSWORD` / `SEED_OWNER_NAME` — the first
-  account you'll log in with. **Change this password after your first
-  login** — go to Staff → your account.
+  account you'll log in with. **`SEED_OWNER_PASSWORD` is required** — pick a
+  real, unique password yourself; the app refuses to create the account
+  with no password, a short one, or a known default like `ChangeMe123!`, so
+  the very first login can't be guessed. You can still change it later from
+  Staff → your account.
 
 ## 5. First boot: get a TLS certificate
 
@@ -94,6 +97,14 @@ docker compose up -d certbot   # starts the auto-renewal loop
 ```
 
 Your team can now reach the app at `https://erp.yourbusiness.com`.
+
+Renewing the certificate on disk doesn't make Nginx pick it up — Nginx only
+re-reads certificate files on a reload. Add a weekly cron job to renew (if
+due) and reload:
+
+```bash
+(crontab -l 2>/dev/null; echo "0 3 * * 0 cd $HOME/bazaweb && ./scripts/renew-cert.sh >> $HOME/baza-backups/renew.log 2>&1") | crontab -
+```
 
 ## 6. First login
 
@@ -152,6 +163,12 @@ git pull
 docker compose up -d --build app
 ```
 
+If the update changed anything under `nginx/` (check `git log -p nginx/`),
+also re-copy your config and reload: redo step 5's `cp nginx/app.ssl.conf
+nginx/conf.d/app.conf` + `sed` substitution, then `docker compose up -d
+nginx`. `nginx/conf.d/app.conf` is generated on the server and isn't
+tracked by git, so a plain `git pull` never updates it on its own.
+
 Migrations run automatically on container start, so this is safe to do
 without extra steps. Nginx and the database are untouched.
 
@@ -206,23 +223,46 @@ then add one more cron line so it checks every day at 7 AM:
 That's it — Sales staff and the Branch Manager get notified 3 days
 before any of their branch's customers' birthdays or anniversaries.
 
-## Requiring staff to be on-site to clock in/out (geofencing)
+## Staff attendance: clock in/out and on-site enforcement (geofencing)
 
-Every clock-in/out already records the staff member's device location (shown
-to managers as a "Map" link on the Attendance page). To also *require* staff
-to be physically at the branch:
+Everyone with a staff account clocks in and out from the header button —
+**except the Owner**, who never sees that button and can't clock in (Admin
+and every other role must, same as anyone else). Every clock-in/out records
+the staff member's device location (shown to managers as a "Map" link on the
+Attendance page) and **requires them to be physically at the branch**:
 
 1. Go to **Branches** (Owner/Admin only) and find the branch's "Clock-in
    location" section.
-2. Click **Use my location** while standing at the branch (or type in the
-   coordinates), set a **radius** in meters (e.g. `100`), and **Save**.
+2. Click **Use my location** while standing at the branch, or click the
+   spot on the map (see below), set a **radius** in meters (e.g. `100`),
+   and **Save**.
 3. From then on, staff at that branch must be within that radius to clock in
-   or out — otherwise they get an error naming how far away they are.
+   or out — otherwise they get an error naming how far away they are. A
+   branch with no location set yet blocks clock-in entirely, with a message
+   telling staff to ask an Owner/Admin to set one — there's no way to skip
+   the location check.
 
-Leave all three fields blank to turn the requirement back off for a branch;
-location is still recorded either way. Geolocation requires the staff
-member's browser to allow location access, and (outside of `localhost`)
-only works over HTTPS, which your deployment already has.
+Geolocation requires the staff member's browser to allow location access,
+and (outside of `localhost`) only works over HTTPS, which your deployment
+already has.
+
+### Picking the location on a map
+
+The Branches page can show an interactive Google Map for setting a branch's
+clock-in location (click or drag the pin, see the radius circle live)
+instead of typing latitude/longitude by hand. Add
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to your `.env` — get a key at
+[console.cloud.google.com](https://console.cloud.google.com), enabling the
+"Maps JavaScript API" and restricting the key to your domain — then
+redeploy (`docker compose up -d --build app`). Leave it blank and the plain
+number fields keep working exactly as before.
+
+### Correcting a clock in/out record
+
+Only the **Owner** can edit or delete an attendance record (a missed
+clock-out, a wrong time) — not even Admin. On the Attendance page's team
+table, the Owner sees **Edit**/**Delete** on every row; everyone else sees a
+read-only history.
 
 ## Staff Groups (for projects worked on by several people)
 
@@ -239,6 +279,74 @@ staff member over a date range (e.g. a calendar month). Progress is
 calculated live from their recorded sales, so it updates the moment a new
 sale comes in — no manual recalculation needed. Sales staff see their own
 progress bar and days remaining; managers see the whole team's.
+
+## Brokers & Memos
+
+**Brokers & Memos** (Owner/Admin only — this is deliberately tighter than
+other inventory access, since a memo sends real stock out the door) is
+for stones and jewelry given to a broker on consignment:
+
+1. Add the broker once (name, phone, email).
+2. Issue a memo: pick the broker and the items they're taking. This
+   removes that stock from what's sellable (same as a sale would), marks
+   the item **Consignment** if that was the last unit, and — if you've set
+   up email below — emails the broker an `.xlsx` statement of everything
+   currently with them.
+3. When stones come back, open the broker's page and **propose a return**.
+   This doesn't take effect immediately: it needs a **different** Owner or
+   Admin to approve it first (you can't approve your own proposal) — a
+   second set of eyes on stock leaving/returning. Once approved, the stock
+   returns to sellable inventory and the broker's statement is re-emailed
+   automatically. Rejecting a proposal changes nothing.
+
+**To enable the emailed statement:** add `RESEND_API_KEY` to your `.env`
+(a free account at [resend.com](https://resend.com) works — the statement
+emails from `onboarding@resend.dev` by default, which only verified
+Resend accounts' own email can receive; verify your own sending domain in
+the Resend dashboard and set `EMAIL_FROM` to send from your business's
+address instead). Leave it blank to skip this — memos and approvals still
+work fully, the broker just won't get an automatic email; you can still
+open their page and click **Email statement now** once it's configured.
+
+Note: "statement" here is a real `.xlsx` spreadsheet generated on each
+send, not a Google Sheet — no Google Drive/Sheets account or setup is
+needed for this feature.
+
+## AI receipt scanning (Accounting)
+
+On the **Accounting** page, "Record an expense" has a **Scan a receipt**
+box: upload a photo of a receipt/invoice, or paste the text of an order
+email, and it fills in the amount, category, description, and date for
+you to check before saving — it never saves anything on its own.
+
+To enable it, add `ANTHROPIC_API_KEY` to your `.env` (get one at
+[console.anthropic.com](https://console.anthropic.com)), then redeploy:
+`docker compose up -d --build app`. Leave it blank and the Scan button
+still appears but explains it isn't set up yet — typing expenses in by
+hand always works either way. Each scan costs a small amount against your
+Anthropic account (a few cents at most per receipt); there's no other
+setup needed.
+
+## Demo data (optional, for testing navigation)
+
+To click through the whole app with realistic sample data instead of
+empty pages — customers, inventory, sales, expenses, tasks, repairs,
+purchase orders, staff groups, sales targets, and a broker memo — run:
+
+```
+docker compose exec app node_modules/.bin/tsx prisma/demo-data.ts
+```
+
+It creates 5 demo staff accounts (one of each role, password `Demo@12345`
+for all) so you can log in and see what each role actually sees, plus
+sample records across every module. It never touches your real Owner
+account, is safe to run on a live system, and running it twice is a
+no-op (it checks for `admin.demo@example.com` first). Everything it
+creates is tagged "Demo" — staff emails end in `@example.com`, inventory
+SKUs start with `DEMO-` — so it's easy to tell apart from real data.
+There's no one-click removal once it's there (the records reference each
+other), so only run it if you're fine leaving it in for a while, or ask
+for a cleanup script when you want it gone.
 
 ## Where things live
 

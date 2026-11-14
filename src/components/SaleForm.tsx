@@ -9,9 +9,10 @@ type InventoryOption = {
   name: string;
   sellingPrice: number;
   quantity: number;
+  branchId: string;
 };
 
-type CustomerOption = { id: string; name: string };
+type CustomerOption = { id: string; name: string; branchId: string };
 type BranchOption = { id: string; name: string };
 
 type Line = { inventoryItemId: string; quantity: number; priceEach: number };
@@ -29,9 +30,14 @@ export function SaleForm({
   showBranchSelect: boolean;
   defaultBranchId: string;
 }) {
+  const [branchId, setBranchId] = useState(defaultBranchId);
   const [lines, setLines] = useState<Line[]>([]);
+  const [customerId, setCustomerId] = useState("");
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
+
+  const branchInventory = useMemo(() => inventory.filter((i) => i.branchId === branchId), [inventory, branchId]);
+  const branchCustomers = useMemo(() => customers.filter((c) => c.branchId === branchId), [customers, branchId]);
 
   const subtotal = useMemo(
     () => lines.reduce((sum, l) => sum + l.priceEach * l.quantity, 0),
@@ -39,8 +45,16 @@ export function SaleForm({
   );
   const total = Math.max(subtotal - discount + tax, 0);
 
+  function onBranchChange(nextBranchId: string) {
+    setBranchId(nextBranchId);
+    // Items and the selected customer belong to a specific branch — clear
+    // them so a branch switch can never submit another branch's selections.
+    setLines([]);
+    setCustomerId("");
+  }
+
   function addLine() {
-    const first = inventory.find((i) => !lines.some((l) => l.inventoryItemId === i.id));
+    const first = branchInventory.find((i) => !lines.some((l) => l.inventoryItemId === i.id));
     if (!first) return;
     setLines((prev) => [...prev, { inventoryItemId: first.id, quantity: 1, priceEach: first.sellingPrice }]);
   }
@@ -54,7 +68,7 @@ export function SaleForm({
   }
 
   function onItemChange(index: number, inventoryItemId: string) {
-    const item = inventory.find((i) => i.id === inventoryItemId);
+    const item = branchInventory.find((i) => i.id === inventoryItemId);
     updateLine(index, { inventoryItemId, priceEach: item?.sellingPrice ?? 0 });
   }
 
@@ -65,7 +79,13 @@ export function SaleForm({
       {showBranchSelect ? (
         <div>
           <label className="label">Branch</label>
-          <select className="input" name="branchId" defaultValue={defaultBranchId} required>
+          <select
+            className="input"
+            name="branchId"
+            value={branchId}
+            onChange={(e) => onBranchChange(e.target.value)}
+            required
+          >
             {branches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -79,9 +99,14 @@ export function SaleForm({
 
       <div>
         <label className="label">Customer (optional — leave blank for walk-in)</label>
-        <select className="input" name="customerId" defaultValue="">
+        <select
+          className="input"
+          name="customerId"
+          value={customerId}
+          onChange={(e) => setCustomerId(e.target.value)}
+        >
           <option value="">Walk-in customer</option>
-          {customers.map((c) => (
+          {branchCustomers.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -99,7 +124,7 @@ export function SaleForm({
 
         <div className="space-y-2">
           {lines.map((line, index) => {
-            const item = inventory.find((i) => i.id === line.inventoryItemId);
+            const item = branchInventory.find((i) => i.id === line.inventoryItemId);
             return (
               <div key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                 <select
@@ -107,7 +132,7 @@ export function SaleForm({
                   value={line.inventoryItemId}
                   onChange={(e) => onItemChange(index, e.target.value)}
                 >
-                  {inventory.map((i) => (
+                  {branchInventory.map((i) => (
                     <option key={i.id} value={i.id}>
                       {i.sku} — {i.name} ({i.quantity} in stock)
                     </option>

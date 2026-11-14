@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { isCompanyWide } from "@/lib/rbac";
+import { branchScope, isCompanyWide } from "@/lib/rbac";
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
   if (value === null) return undefined;
@@ -51,6 +51,11 @@ const noteSchema = z.object({
 
 export async function addCustomerNote(customerId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
+
+  const customer = await db.customer.findFirst({
+    where: { id: customerId, ...branchScope(session) },
+  });
+  if (!customer) throw new Error("Forbidden");
 
   const parsed = noteSchema.parse({
     body: formData.get("body"),

@@ -31,6 +31,17 @@ export async function createBranch(formData: FormData) {
   revalidatePath("/branches");
 }
 
+export async function setMainBranch(branchId: string) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+
+  await db.$transaction([
+    db.branch.updateMany({ where: { isMain: true }, data: { isMain: false } }),
+    db.branch.update({ where: { id: branchId }, data: { isMain: true } }),
+  ]);
+  revalidatePath("/branches");
+}
+
 const geofenceSchema = z.object({
   latitude: numOrUndef,
   longitude: numOrUndef,

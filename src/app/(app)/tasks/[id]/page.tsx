@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canAssignTasks } from "@/lib/rbac";
+import { canAssignTasks, isCompanyWide } from "@/lib/rbac";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { updateTaskStatus, addTaskComment } from "../actions";
 import { UsersFour } from "@/components/icons";
@@ -22,7 +22,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   if (!task) notFound();
 
   const isGroupMember = task.group?.members.some((m) => m.id === session.staffId) ?? false;
-  const canEdit = task.assignedToId === session.staffId || canAssignTasks(session.role) || isGroupMember;
+  const isInScopeManager =
+    canAssignTasks(session.role) && (isCompanyWide(session.role) || task.branchId === session.branchId);
+  const canEdit = task.assignedToId === session.staffId || isInScopeManager || isGroupMember;
+
+  if (!canEdit) notFound();
 
   return (
     <div className="max-w-2xl space-y-6">

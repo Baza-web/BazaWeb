@@ -17,7 +17,7 @@ export default async function NewSalePage() {
       where: { ...scope, status: "IN_STOCK", quantity: { gt: 0 } },
       orderBy: { name: "asc" },
     }),
-    db.customer.findMany({ where: scope, orderBy: { name: "asc" } }),
+    db.customer.findMany({ where: scope, orderBy: { name: "asc" }, select: { id: true, name: true, branchId: true } }),
     isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
@@ -31,6 +31,7 @@ export default async function NewSalePage() {
           name: i.name,
           sellingPrice: i.sellingPrice,
           quantity: i.quantity,
+          branchId: i.branchId,
         }))}
         customers={customers}
         branches={branches}

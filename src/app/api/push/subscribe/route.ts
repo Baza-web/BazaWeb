@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
+import { isTrustedPushEndpoint } from "@/lib/push";
 
 const schema = z.object({
   endpoint: z.string().url(),
@@ -20,6 +21,10 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
+  }
+
+  if (!(await isTrustedPushEndpoint(parsed.data.endpoint))) {
+    return NextResponse.json({ error: "Unsupported push endpoint" }, { status: 400 });
   }
 
   await db.pushSubscription.upsert({

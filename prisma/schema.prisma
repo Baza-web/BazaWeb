@@ -88,6 +88,8 @@ enum NotificationType {
   CUSTOMER_OCCASION
   REPAIR_UPDATE
   PURCHASE_ORDER_UPDATE
+  MEMO_EDIT_REQUESTED
+  MEMO_EDIT_DECIDED
 }
 
 enum LeaveType {
@@ -128,6 +130,7 @@ model Branch {
   name            String
   address         String?
   phone           String?
+  isMain          Boolean  @default(false)
   latitude        Float?
   longitude       Float?
   geofenceRadiusM Int?
@@ -145,6 +148,8 @@ model Branch {
   purchaseOrders PurchaseOrder[]
   staffGroups    StaffGroup[]
   salesTargets   SalesTarget[]
+  brokers        Broker[]
+  brokerMemos    BrokerMemo[]
 }
 
 model Staff {
@@ -156,6 +161,8 @@ model Staff {
   role         Role
   branchId     String?
   active       Boolean  @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   createdAt    DateTime @default(now())
 
   branch Branch? @relation(fields: [branchId], references: [id])
@@ -178,6 +185,10 @@ model Staff {
   purchaseOrdersCreated PurchaseOrder[]
   groups            StaffGroup[]    @relation("GroupMembers")
   salesTargets      SalesTarget[]
+  brokersCreated    Broker[]
+  memosCreated      BrokerMemo[]            @relation("MemoCreatedBy")
+  memoEditsRequested BrokerMemoEditRequest[] @relation("MemoEditRequester")
+  memoEditsReviewed  BrokerMemoEditRequest[] @relation("MemoEditReviewer")
 
   @@index([branchId])
 }
@@ -212,6 +223,7 @@ model InventoryItem {
   branch       Branch        @relation(fields: [branchId], references: [id])
   saleItems    SaleItem[]
   repairOrders RepairOrder[]
+  brokerMemoItems BrokerMemoItem[]
 
   @@index([branchId])
   @@index([status])
@@ -298,6 +310,7 @@ model Expense {
   date        DateTime @default(now())
   createdById String
   createdAt   DateTime @default(now())
+  receiptImage String?
 
   purchaseOrderId String?
 
@@ -555,4 +568,97 @@ model SalesTarget {
 
   @@index([staffId])
   @@index([branchId])
+}
+
+enum MemoStatus {
+  OPEN
+  PARTIALLY_RETURNED
+  RETURNED
+}
+
+enum MemoEditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Broker {
+  id          String   @id @default(cuid())
+  name        String
+  company     String?
+  email       String?
+  phone       String?
+  address     String?
+  notes       String?
+  active      Boolean  @default(true)
+  branchId    String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  branch    Branch       @relation(fields: [branchId], references: [id])
+  createdBy Staff        @relation(fields: [createdById], references: [id])
+  memos     BrokerMemo[]
+
+  @@index([branchId])
+}
+
+model BrokerMemo {
+  id               String     @id @default(cuid())
+  memoNumber       String     @unique
+  brokerId         String
+  branchId         String
+  status           MemoStatus @default(OPEN)
+  issuedAt         DateTime   @default(now())
+  expectedReturnAt DateTime?
+  notes            String?
+  createdById      String
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  broker       Broker                  @relation(fields: [brokerId], references: [id])
+  branch       Branch                  @relation(fields: [branchId], references: [id])
+  createdBy    Staff                   @relation("MemoCreatedBy", fields: [createdById], references: [id])
+  items        BrokerMemoItem[]
+  editRequests BrokerMemoEditRequest[]
+
+  @@index([brokerId])
+  @@index([branchId])
+}
+
+model BrokerMemoItem {
+  id               String @id @default(cuid())
+  memoId           String
+  inventoryItemId  String
+  quantity         Int    @default(1)
+  returnedQuantity Int    @default(0)
+  valueEach        Float
+
+  memo          BrokerMemo    @relation(fields: [memoId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@index([memoId])
+}
+
+// Maker-checker control: a change to an already-created memo (recording a
+// return, editing notes) is proposed here and only takes effect once a
+// different Owner/Admin approves it — the requester can never approve
+// their own request. itemReturns is a JSON array of
+// { memoItemId, returnQuantity }.
+model BrokerMemoEditRequest {
+  id            String                 @id @default(cuid())
+  memoId        String
+  status        MemoEditRequestStatus  @default(PENDING)
+  itemReturns   Json
+  notesChange   String?
+  reason        String?
+  requestedById String
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime               @default(now())
+
+  memo        BrokerMemo @relation(fields: [memoId], references: [id], onDelete: Cascade)
+  requestedBy Staff      @relation("MemoEditRequester", fields: [requestedById], references: [id])
+  reviewedBy  Staff?     @relation("MemoEditReviewer", fields: [reviewedById], references: [id])
+
+  @@index([memoId])
 }

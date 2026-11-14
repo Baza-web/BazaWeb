@@ -90,6 +90,14 @@ body {
   @apply card relative overflow-hidden;
 }
 
+/* Intl.NumberFormat joins the currency code to the amount with a
+   non-breaking space (e.g. "LKR 461,250.00"), so a large figure that
+   doesn't fit on one line has nowhere to wrap and gets clipped by
+   overflow-hidden above. Letting it break anywhere avoids losing digits. */
+.stat-tile p {
+  overflow-wrap: anywhere;
+}
+
 .stat-tile::before {
   content: "";
   @apply absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-400 via-brand-600 to-brand-400;

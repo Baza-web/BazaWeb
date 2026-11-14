@@ -1,15 +1,16 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
+import { branchScope } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { PrintButton } from "@/components/PrintButton";
 
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireSessionOrRedirect();
+  const session = await requireSessionOrRedirect();
   const { id } = await params;
 
-  const sale = await db.sale.findUnique({
-    where: { id },
+  const sale = await db.sale.findFirst({
+    where: { id, ...branchScope(session) },
     include: {
       customer: true,
       branch: true,

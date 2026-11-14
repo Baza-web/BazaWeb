@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canManageAccounting, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
-import { createExpense } from "./actions";
+import { ExpenseForm } from "@/components/ExpenseForm";
 
 function startOfMonth() {
   const d = new Date();
@@ -94,43 +94,11 @@ export default async function AccountingPage({
 
       <div className="card max-w-lg">
         <h2 className="mb-3 font-medium">Record an expense</h2>
-        <form action={createExpense} className="space-y-3">
-          {isCompanyWide(session.role) ? (
-            <div>
-              <label className="label">Branch</label>
-              <select className="input" name="branchId" required>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <input type="hidden" name="branchId" value={session.branchId ?? ""} />
-          )}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="label">Category</label>
-              <input className="input" name="category" placeholder="Rent, Supplies, Utilities…" required />
-            </div>
-            <div>
-              <label className="label">Amount</label>
-              <input className="input" name="amount" type="number" step="0.01" required />
-            </div>
-          </div>
-          <div>
-            <label className="label">Description</label>
-            <input className="input" name="description" required />
-          </div>
-          <div>
-            <label className="label">Date</label>
-            <input className="input" name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
-          </div>
-          <button type="submit" className="btn-primary">
-            Add expense
-          </button>
-        </form>
+        <ExpenseForm
+          branches={branches}
+          showBranchSelect={isCompanyWide(session.role)}
+          defaultBranchId={session.branchId ?? branches[0]?.id ?? ""}
+        />
       </div>
 
       <div className="card overflow-x-auto">
@@ -159,7 +127,19 @@ export default async function AccountingPage({
                     {entry.type}
                   </span>
                 </td>
-                <td>{entry.description}</td>
+                <td>
+                  {entry.description}
+                  {entry.expense?.receiptImage && (
+                    <a
+                      href={entry.expense.receiptImage}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 text-xs text-brand-700 hover:underline"
+                    >
+                      Receipt
+                    </a>
+                  )}
+                </td>
                 <td className={entry.type === "INCOME" ? "text-green-700" : "text-red-700"}>
                   {entry.type === "INCOME" ? "+" : "-"}
                   {formatMoney(entry.amount)}
