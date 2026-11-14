@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, hashPassword } from "@/lib/auth";
-import { canManageStaff } from "@/lib/rbac";
+import { canManageStaffScoped, isCompanyWide, MANAGER_GRANTABLE_ROLES } from "@/lib/rbac";
 
 const createSchema = z.object({
   name: z.string().min(2),
@@ -18,7 +18,10 @@ const createSchema = z.object({
 
 export async function createStaff(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+
+  const companyWide = isCompanyWide(session.role);
+  const branchId = companyWide ? String(formData.get("branchId")) : session.branchId ?? "";
 
   const parsed = createSchema.parse({
     name: formData.get("name"),
@@ -26,8 +29,15 @@ export async function createStaff(formData: FormData) {
     phone: formData.get("phone") || undefined,
     password: formData.get("password"),
     role: formData.get("role"),
-    branchId: formData.get("branchId"),
+    branchId,
   });
+
+  // A Branch Manager may only grant branch-level roles, for their own branch —
+  // never a company-wide role (Owner/Admin/Accountant) and never another branch.
+  if (!companyWide) {
+    if (!MANAGER_GRANTABLE_ROLES.includes(parsed.role)) throw new Error("Forbidden");
+    if (parsed.branchId !== session.branchId) throw new Error("Forbidden");
+  }
 
   const passwordHash = await hashPassword(parsed.password);
 
@@ -47,10 +57,16 @@ export async function createStaff(formData: FormData) {
 
 export async function toggleStaffActive(staffId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
   if (staffId === session.staffId) throw new Error("You can't deactivate your own account.");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+
+  if (!isCompanyWide(session.role)) {
+    if (staff.branchId !== session.branchId) throw new Error("Forbidden");
+    if (!MANAGER_GRANTABLE_ROLES.includes(staff.role)) throw new Error("Forbidden");
+  }
+
   await db.staff.update({ where: { id: staffId }, data: { active: !staff.active } });
   revalidatePath("/staff");
 }

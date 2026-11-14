@@ -4,8 +4,14 @@ import type { SessionPayload } from "./auth";
 /** Roles that can see and act across every branch, not just their own. */
 export const COMPANY_WIDE_ROLES: Role[] = ["OWNER", "ADMIN", "ACCOUNTANT"];
 
-/** Roles allowed to manage staff accounts and branches. */
+/** Roles allowed to manage branches company-wide. */
 export const STAFF_MANAGER_ROLES: Role[] = ["OWNER", "ADMIN"];
+
+/** Roles allowed to manage staff accounts — Owner/Admin everywhere, Manager within their own branch. */
+export const STAFF_SCOPED_MANAGER_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER"];
+
+/** Roles a Branch Manager is allowed to grant — never company-wide roles, to prevent privilege escalation. */
+export const MANAGER_GRANTABLE_ROLES: Role[] = ["MANAGER", "SALES", "CRAFTSMAN"];
 
 export function isCompanyWide(role: Role) {
   return COMPANY_WIDE_ROLES.includes(role);
@@ -15,8 +21,13 @@ export function canManageStaff(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin manage staff everywhere; Manager manages staff within their own branch only. */
+export function canManageStaffScoped(role: Role) {
+  return STAFF_SCOPED_MANAGER_ROLES.includes(role);
+}
+
 const INVENTORY_MANAGER_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER", "SALES"];
-const SALE_RECORDER_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER", "SALES"];
+const SALE_RECORDER_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"];
 const ACCOUNTING_MANAGER_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"];
 const TASK_ASSIGNER_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER"];
 

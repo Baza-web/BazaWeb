@@ -111,10 +111,14 @@ export function AppShell({
                 </span>
               )}
             </Link>
-            <div className="hidden items-center gap-2 border-l border-stone-200 pl-3 sm:flex">
+            <Link
+              href="/account"
+              className="hidden cursor-pointer items-center gap-2 rounded-lg border-l border-stone-200 py-1 pl-3 pr-2 transition-colors hover:bg-stone-100 sm:flex"
+              title="Your account"
+            >
               <span className="avatar h-8 w-8">{initials(staffName)}</span>
               <span className="text-sm font-medium text-ink-800">{staffName}</span>
-            </div>
+            </Link>
             <form action={logoutAction}>
               <button
                 type="submit"

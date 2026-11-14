@@ -9,7 +9,12 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/dashboard", label: "Dashboard", iconKey: "dashboard" },
   { href: "/inventory", label: "Inventory", iconKey: "inventory" },
   { href: "/customers", label: "Customers", iconKey: "customers" },
-  { href: "/sales", label: "Sales", iconKey: "sales", roles: ["OWNER", "ADMIN", "MANAGER", "SALES"] },
+  {
+    href: "/sales",
+    label: "Sales",
+    iconKey: "sales",
+    roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"],
+  },
   {
     href: "/accounting",
     label: "Accounting",
@@ -18,7 +23,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   },
   { href: "/tasks", label: "Tasks", iconKey: "tasks" },
   { href: "/inbox", label: "Inbox", iconKey: "inbox" },
-  { href: "/staff", label: "Staff", iconKey: "staff", roles: ["OWNER", "ADMIN"] },
+  { href: "/staff", label: "Staff", iconKey: "staff", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/branches", label: "Branches", iconKey: "branches", roles: ["OWNER", "ADMIN"] },
 ];
 
