@@ -23,7 +23,7 @@ export default async function NewSalePage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-xl font-semibold">New sale</h1>
+      <h1 className="page-title">New sale</h1>
       <SaleForm
         inventory={inventory.map((i) => ({
           id: i.id,

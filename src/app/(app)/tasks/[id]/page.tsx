@@ -27,7 +27,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         <p className="text-sm text-stone-500">
           {task.type} · {task.priority}
         </p>
-        <h1 className="text-xl font-semibold">{task.title}</h1>
+        <h1 className="page-title">{task.title}</h1>
         <p className="text-sm text-stone-500">
           Assigned to {task.assignedTo.name} by {task.assignedBy.name}
           {task.dueDate ? ` · Due ${formatDate(task.dueDate)}` : ""}

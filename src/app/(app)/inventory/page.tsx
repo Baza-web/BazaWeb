@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope } from "@/lib/rbac";
 import { formatMoney } from "@/lib/utils";
+import { Plus } from "@phosphor-icons/react/ssr";
 
 const STATUS_COLORS: Record<string, string> = {
   IN_STOCK: "bg-green-100 text-green-700",
@@ -44,8 +45,9 @@ export default async function InventoryPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Inventory</h1>
+        <h1 className="page-title">Inventory</h1>
         <Link href="/inventory/new" className="btn-primary">
+          <Plus size={16} aria-hidden="true" />
           Add item
         </Link>
       </div>

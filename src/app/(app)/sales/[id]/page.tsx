@@ -24,7 +24,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       <div className="card">
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-semibold">{sale.branch.name}</h1>
+            <h1 className="page-title">{sale.branch.name}</h1>
             <p className="text-sm text-stone-500">Invoice {sale.invoiceNumber}</p>
           </div>
           <div className="text-right text-sm text-stone-500">

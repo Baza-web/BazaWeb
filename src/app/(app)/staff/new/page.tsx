@@ -15,7 +15,7 @@ export default async function NewStaffPage() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <h1 className="text-xl font-semibold">Add a staff account</h1>
+      <h1 className="page-title">Add a staff account</h1>
 
       <form action={createStaff} className="card space-y-4">
         <div>

@@ -23,7 +23,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">{customer.name}</h1>
+        <h1 className="page-title">{customer.name}</h1>
         <p className="text-sm text-stone-500">
           {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"}
         </p>

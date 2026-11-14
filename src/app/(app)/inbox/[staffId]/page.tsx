@@ -25,7 +25,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
 
   return (
     <div className="flex max-w-2xl flex-col space-y-4">
-      <h1 className="text-xl font-semibold">{other.name}</h1>
+      <h1 className="page-title">{other.name}</h1>
 
       <div className="card max-h-[60vh] space-y-3 overflow-y-auto">
         {messages.map((m) => {

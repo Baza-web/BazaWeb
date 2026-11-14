@@ -24,7 +24,7 @@ export default async function NewInventoryItemPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-xl font-semibold">Add inventory item</h1>
+      <h1 className="page-title">Add inventory item</h1>
 
       <form action={createInventoryItem} encType="multipart/form-data" className="card space-y-5">
         {isCompanyWide(session.role) ? (

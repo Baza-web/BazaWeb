@@ -1,5 +1,20 @@
 import type { Metadata, Viewport } from "next";
+import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
+
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Baza ERP",
@@ -25,8 +40,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen text-stone-900">{children}</body>
+    <html lang="en" className={`${cormorant.variable} ${montserrat.variable}`}>
+      <body className="min-h-screen bg-stone-50 font-sans text-stone-900">{children}</body>
     </html>
   );
 }

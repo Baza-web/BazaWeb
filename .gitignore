@@ -6,3 +6,5 @@ node_modules
 dist
 *.tsbuildinfo
 /public/uploads
+__pycache__/
+*.pyc

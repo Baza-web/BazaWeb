@@ -35,7 +35,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
     <div className="max-w-3xl space-y-6">
       <div>
         <p className="text-sm text-stone-500">{item.sku}</p>
-        <h1 className="text-xl font-semibold">{item.name}</h1>
+        <h1 className="page-title">{item.name}</h1>
         <p className="text-sm text-stone-500">{item.branch.name}</p>
       </div>
 

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canRecordSale } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { Plus } from "@phosphor-icons/react/ssr";
 
 const PAYMENT_COLORS: Record<string, string> = {
   PAID: "bg-green-100 text-green-700",
@@ -23,9 +24,10 @@ export default async function SalesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Sales</h1>
+        <h1 className="page-title">Sales</h1>
         {canRecordSale(session.role) && (
           <Link href="/sales/new" className="btn-primary">
+            <Plus size={16} aria-hidden="true" />
             New sale
           </Link>
         )}

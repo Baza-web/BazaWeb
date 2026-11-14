@@ -41,7 +41,7 @@ export default async function AccountingPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Accounting</h1>
+      <h1 className="page-title">Accounting</h1>
 
       <form className="card flex flex-wrap items-end gap-3" action="/accounting">
         <div>

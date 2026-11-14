@@ -16,7 +16,7 @@ export default async function BranchesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Branches</h1>
+      <h1 className="page-title">Branches</h1>
 
       <div className="card overflow-x-auto">
         <table className="table-base">

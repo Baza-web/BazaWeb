@@ -16,7 +16,7 @@ export default async function NotificationsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Notifications</h1>
+        <h1 className="page-title">Notifications</h1>
         <form action={markAllNotificationsRead}>
           <button type="submit" className="btn-secondary text-xs">
             Mark all read

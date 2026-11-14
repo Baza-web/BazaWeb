@@ -5,16 +5,21 @@ import { ROLE_LABELS } from "@/lib/rbac";
 import { AppShell } from "@/components/AppShell";
 import { logout } from "./actions";
 
-const NAV: { href: string; label: string; roles?: Role[] }[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/inventory", label: "Inventory" },
-  { href: "/customers", label: "Customers" },
-  { href: "/sales", label: "Sales", roles: ["OWNER", "ADMIN", "MANAGER", "SALES"] },
-  { href: "/accounting", label: "Accounting", roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"] },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/staff", label: "Staff", roles: ["OWNER", "ADMIN"] },
-  { href: "/branches", label: "Branches", roles: ["OWNER", "ADMIN"] },
+const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = [
+  { href: "/dashboard", label: "Dashboard", iconKey: "dashboard" },
+  { href: "/inventory", label: "Inventory", iconKey: "inventory" },
+  { href: "/customers", label: "Customers", iconKey: "customers" },
+  { href: "/sales", label: "Sales", iconKey: "sales", roles: ["OWNER", "ADMIN", "MANAGER", "SALES"] },
+  {
+    href: "/accounting",
+    label: "Accounting",
+    iconKey: "accounting",
+    roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"],
+  },
+  { href: "/tasks", label: "Tasks", iconKey: "tasks" },
+  { href: "/inbox", label: "Inbox", iconKey: "inbox" },
+  { href: "/staff", label: "Staff", iconKey: "staff", roles: ["OWNER", "ADMIN"] },
+  { href: "/branches", label: "Branches", iconKey: "branches", roles: ["OWNER", "ADMIN"] },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

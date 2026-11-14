@@ -35,7 +35,7 @@ export default async function CustomersPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Customers</h1>
+      <h1 className="page-title">Customers</h1>
 
       <form className="card flex flex-wrap gap-3" action="/customers">
         <input className="input max-w-xs" name="q" placeholder="Search name, phone, email…" defaultValue={q} />

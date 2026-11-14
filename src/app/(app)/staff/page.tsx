@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageStaff, ROLE_LABELS } from "@/lib/rbac";
 import { toggleStaffActive } from "./actions";
+import { Plus } from "@phosphor-icons/react/ssr";
 
 export default async function StaffPage() {
   const session = await requireSessionOrRedirect();
@@ -18,8 +19,9 @@ export default async function StaffPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Staff accounts</h1>
+        <h1 className="page-title">Staff accounts</h1>
         <Link href="/staff/new" className="btn-primary">
+          <Plus size={16} aria-hidden="true" />
           Add staff
         </Link>
       </div>

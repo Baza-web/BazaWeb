@@ -39,7 +39,7 @@ export default async function InboxPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-xl font-semibold">Inbox</h1>
+      <h1 className="page-title">Inbox</h1>
 
       <div className="card divide-y divide-stone-100 p-0">
         {contacts.map(({ staff: s, thread }) => (

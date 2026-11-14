@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { Receipt, ChartLineUp, ChartLineDown, Sparkle, Package, ListChecks, Storefront } from "@phosphor-icons/react/ssr";
 
 function startOfDay() {
   const d = new Date();
@@ -60,26 +61,38 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
+      <h1 className="page-title">Dashboard</h1>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="card">
-          <p className="text-xs text-stone-500">Today&apos;s sales</p>
-          <p className="text-xl font-semibold">{formatMoney(todaySales._sum.total ?? 0)}</p>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Today&apos;s sales</p>
+            <Receipt size={18} className="text-brand-500" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-2xl font-semibold text-ink-900">{formatMoney(todaySales._sum.total ?? 0)}</p>
           <p className="text-xs text-stone-400">{todaySales._count} transaction(s)</p>
         </div>
-        <div className="card">
-          <p className="text-xs text-stone-500">This month income</p>
-          <p className="text-xl font-semibold text-green-700">{formatMoney(monthIncome)}</p>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Month income</p>
+            <ChartLineUp size={18} className="text-green-600" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-2xl font-semibold text-green-700">{formatMoney(monthIncome)}</p>
         </div>
-        <div className="card">
-          <p className="text-xs text-stone-500">This month expenses</p>
-          <p className="text-xl font-semibold text-red-700">{formatMoney(monthExpense)}</p>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Month expenses</p>
+            <ChartLineDown size={18} className="text-red-500" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-2xl font-semibold text-red-700">{formatMoney(monthExpense)}</p>
         </div>
-        <div className="card">
-          <p className="text-xs text-stone-500">Net this month</p>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Net this month</p>
+            <Sparkle size={18} className="text-brand-500" aria-hidden="true" />
+          </div>
           <p
-            className={`text-xl font-semibold ${
+            className={`mt-1 text-2xl font-semibold ${
               monthIncome - monthExpense >= 0 ? "text-green-700" : "text-red-700"
             }`}
           >
@@ -89,24 +102,37 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Link href="/inventory?status=IN_STOCK" className="card block hover:border-brand-300">
-          <p className="text-xs text-stone-500">Low stock items</p>
-          <p className="text-xl font-semibold">{lowStockItems}</p>
+        <Link href="/inventory?status=IN_STOCK" className="card-interactive flex items-center gap-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-50">
+            <Package size={22} className="text-amber-600" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs text-stone-500">Low stock items</p>
+            <p className="text-xl font-semibold text-ink-900">{lowStockItems}</p>
+          </div>
         </Link>
-        <Link href="/tasks?view=mine" className="card block hover:border-brand-300">
-          <p className="text-xs text-stone-500">Your open tasks</p>
-          <p className="text-xl font-semibold">{myOpenTasks}</p>
+        <Link href="/tasks?view=mine" className="card-interactive flex items-center gap-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50">
+            <ListChecks size={22} className="text-brand-600" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs text-stone-500">Your open tasks</p>
+            <p className="text-xl font-semibold text-ink-900">{myOpenTasks}</p>
+          </div>
         </Link>
       </div>
 
       {branches.length > 0 && (
         <div className="card">
-          <h2 className="mb-3 font-medium">Today by branch</h2>
-          <ul className="space-y-1 text-sm">
+          <h2 className="section-title mb-3 flex items-center gap-2">
+            <Storefront size={18} className="text-brand-500" aria-hidden="true" />
+            Today by branch
+          </h2>
+          <ul className="divide-y divide-stone-100 text-sm">
             {branchBreakdown.map((b) => {
               const branch = branches.find((br) => br.id === b.branchId);
               return (
-                <li key={b.branchId} className="flex justify-between">
+                <li key={b.branchId} className="flex justify-between py-2">
                   <span>{branch?.name ?? "Unknown"}</span>
                   <span className="font-medium">{formatMoney(b._sum.total ?? 0)}</span>
                 </li>
@@ -117,7 +143,7 @@ export default async function DashboardPage() {
       )}
 
       <div className="card overflow-x-auto">
-        <h2 className="mb-3 font-medium">Recent sales</h2>
+        <h2 className="section-title mb-3">Recent sales</h2>
         <table className="table-base">
           <thead>
             <tr>
