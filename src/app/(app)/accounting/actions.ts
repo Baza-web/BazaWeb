@@ -34,31 +34,36 @@ export async function scanReceipt(formData: FormData): Promise<ExtractedExpense 
     };
   }
 
-  const file = formData.get("image");
-  const text = formData.get("text");
+  try {
+    const file = formData.get("image");
+    const text = formData.get("text");
 
-  if (file instanceof File && file.size > 0) {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const detected = detectFileKind(buffer);
-    if (!detected || detected.kind !== "image") {
-      return { amount: null, description: null, category: null, date: null, error: "That doesn't look like a photo — try a JPG, PNG, GIF, or WEBP." };
+    if (file instanceof File && file.size > 0) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const detected = detectFileKind(buffer);
+      if (!detected || detected.kind !== "image") {
+        return { amount: null, description: null, category: null, date: null, error: "That doesn't look like a photo — try a JPG, PNG, GIF, or WEBP." };
+      }
+      const result = await extractExpenseFromImage(buffer, EXT_TO_MEDIA_TYPE[detected.ext]);
+      if (result.amount === null && result.description === null) {
+        return { ...result, error: "Couldn't read this clearly — enter the details manually below." };
+      }
+      return result;
     }
-    const result = await extractExpenseFromImage(buffer, EXT_TO_MEDIA_TYPE[detected.ext]);
-    if (result.amount === null && result.description === null) {
-      return { ...result, error: "Couldn't read this clearly — enter the details manually below." };
+
+    if (typeof text === "string" && text.trim().length > 0) {
+      const result = await extractExpenseFromText(text.trim());
+      if (result.amount === null && result.description === null) {
+        return { ...result, error: "Couldn't find expense details in that text — enter manually below." };
+      }
+      return result;
     }
-    return result;
+
+    return { amount: null, description: null, category: null, date: null, error: "Add a photo or paste some text first." };
+  } catch (err) {
+    console.error("scanReceipt failed:", err);
+    return { amount: null, description: null, category: null, date: null, error: "Something went wrong reading that — enter the details manually below." };
   }
-
-  if (typeof text === "string" && text.trim().length > 0) {
-    const result = await extractExpenseFromText(text.trim());
-    if (result.amount === null && result.description === null) {
-      return { ...result, error: "Couldn't find expense details in that text — enter manually below." };
-    }
-    return result;
-  }
-
-  return { amount: null, description: null, category: null, date: null, error: "Add a photo or paste some text first." };
 }
 
 const expenseSchema = z.object({

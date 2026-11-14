@@ -64,7 +64,13 @@ export function SaleForm({
     }
 
     startScan(async () => {
-      const result = await scanOrder(branchId, fd);
+      let result;
+      try {
+        result = await scanOrder(branchId, fd);
+      } catch {
+        setScanError("That screenshot was too large or something went wrong — try a smaller image, or paste the chat text instead.");
+        return;
+      }
       if (result.error) {
         setScanError(result.error);
         return;
