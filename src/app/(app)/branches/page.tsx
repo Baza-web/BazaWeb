@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageStaff } from "@/lib/rbac";
+import { GeofenceForm } from "@/components/GeofenceForm";
 import { createBranch } from "./actions";
 
 export default async function BranchesPage() {
@@ -48,6 +49,28 @@ export default async function BranchesPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="card space-y-4">
+        <div>
+          <h2 className="section-title">Clock-in location (geofence)</h2>
+          <p className="text-sm text-stone-500">
+            Set a branch's coordinates and radius to require staff to be physically there to clock in
+            or out. Leave all three blank to disable the requirement for that branch — their location
+            is still recorded either way.
+          </p>
+        </div>
+        {branches.map((b) => (
+          <div key={b.id} className="border-t border-stone-100 pt-3 first:border-t-0 first:pt-0">
+            <p className="mb-2 text-sm font-medium">{b.name}</p>
+            <GeofenceForm
+              branchId={b.id}
+              latitude={b.latitude}
+              longitude={b.longitude}
+              geofenceRadiusM={b.geofenceRadiusM}
+            />
+          </div>
+        ))}
       </div>
 
       <div className="card max-w-md">

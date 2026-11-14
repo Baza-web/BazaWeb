@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { updateTaskStatus } from "@/app/(app)/tasks/actions";
 import { initials, formatDate } from "@/lib/utils";
-import { Plus, CaretDown, Clock, WarningCircle } from "./icons";
+import { Plus, CaretDown, Clock, WarningCircle, UsersFour } from "./icons";
 import { TaskAssignModal } from "./TaskAssignModal";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "DONE";
@@ -19,6 +19,7 @@ export type BoardTask = {
   dueDate: string | null;
   assignedTo: { id: string; name: string };
   assignedBy: { id: string; name: string };
+  group: { id: string; name: string; members: { id: string; name: string }[] } | null;
 };
 
 const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
@@ -44,6 +45,7 @@ export function TaskBoard({
   canEditAny,
   currentStaffId,
   staffOptions,
+  groupOptions,
   branchOptions,
   showBranchSelect,
   defaultBranchId,
@@ -53,6 +55,7 @@ export function TaskBoard({
   canEditAny: boolean;
   currentStaffId: string;
   staffOptions: { id: string; name: string }[];
+  groupOptions: { id: string; name: string; memberNames: string[] }[];
   branchOptions: { id: string; name: string }[];
   showBranchSelect: boolean;
   defaultBranchId: string;
@@ -65,7 +68,11 @@ export function TaskBoard({
   const [, startTransition] = useTransition();
 
   function canEdit(task: BoardTask) {
-    return canEditAny || task.assignedTo.id === currentStaffId;
+    return (
+      canEditAny ||
+      task.assignedTo.id === currentStaffId ||
+      Boolean(task.group?.members.some((m) => m.id === currentStaffId))
+    );
   }
 
   function moveTask(taskId: string, status: TaskStatus) {
@@ -151,10 +158,19 @@ export function TaskBoard({
                       )}
                     </div>
 
+                    {task.group && (
+                      <div className="flex items-center gap-1 text-xs text-brand-700">
+                        <UsersFour size={13} aria-hidden="true" />
+                        {task.group.name}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between pt-1">
                       <div className="flex items-center gap-1.5">
                         <span className="avatar h-6 w-6 text-[10px]">{initials(task.assignedTo.name)}</span>
-                        <span className="text-xs text-stone-600">{task.assignedTo.name}</span>
+                        <span className="text-xs text-stone-600">
+                          {task.group ? `${task.assignedTo.name} (lead)` : task.assignedTo.name}
+                        </span>
                       </div>
 
                       {editable && (
@@ -194,6 +210,7 @@ export function TaskBoard({
           open={modalOpen}
           onClose={() => setModalOpen(false)}
           staffOptions={staffOptions}
+          groupOptions={groupOptions}
           branchOptions={branchOptions}
           showBranchSelect={showBranchSelect}
           defaultBranchId={defaultBranchId}

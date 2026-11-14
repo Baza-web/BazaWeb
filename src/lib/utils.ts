@@ -1,4 +1,4 @@
-const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "USD";
+const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "LKR";
 
 export function formatMoney(amount: number) {
   return new Intl.NumberFormat(undefined, {
@@ -23,4 +23,20 @@ export function formatDateTime(date: Date | string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
     new Date(date),
   );
+}
+
+/** Great-circle distance between two coordinates, in meters. */
+export function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function mapsLink(lat: number, lng: number) {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
 }

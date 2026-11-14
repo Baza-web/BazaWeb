@@ -8,6 +8,7 @@ export function TaskAssignModal({
   open,
   onClose,
   staffOptions,
+  groupOptions,
   branchOptions,
   showBranchSelect,
   defaultBranchId,
@@ -15,6 +16,7 @@ export function TaskAssignModal({
   open: boolean;
   onClose: () => void;
   staffOptions: { id: string; name: string }[];
+  groupOptions: { id: string; name: string; memberNames: string[] }[];
   branchOptions: { id: string; name: string }[];
   showBranchSelect: boolean;
   defaultBranchId: string;
@@ -103,12 +105,26 @@ export function TaskAssignModal({
             </div>
             <div>
               <label className="label">Assign to</label>
-              <select className="input" name="assignedToId" required>
-                {staffOptions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
+              <select className="input" name="assignTarget" required defaultValue="">
+                <option value="" disabled>
+                  Select staff or a group…
+                </option>
+                <optgroup label="Staff">
+                  {staffOptions.map((s) => (
+                    <option key={s.id} value={`staff:${s.id}`}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+                {groupOptions.length > 0 && (
+                  <optgroup label="Groups">
+                    {groupOptions.map((g) => (
+                      <option key={g.id} value={`group:${g.id}`}>
+                        {g.name} ({g.memberNames.join(", ") || "no members"})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
           </div>

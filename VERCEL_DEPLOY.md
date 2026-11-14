@@ -43,7 +43,7 @@ Environment Variables** after the first deploy), add these:
 | `DATABASE_URL` | the connection string you copied from Neon |
 | `AUTH_SECRET` | a long random string — ask Claude to generate one for you, or run `openssl rand -base64 48` |
 | `SETUP_TOKEN` | another random string, same way — this one just protects the one-time setup URL below |
-| `NEXT_PUBLIC_CURRENCY` | `USD` (or your currency code) |
+| `NEXT_PUBLIC_CURRENCY` | `LKR` (or your currency code) |
 | `SEED_OWNER_EMAIL` | `bazaboutiquelk@gmail.com` |
 | `SEED_OWNER_PASSWORD` | pick your own real password here |
 | `SEED_OWNER_NAME` | `Business Owner` (or your name) |

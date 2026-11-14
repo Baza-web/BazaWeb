@@ -41,6 +41,7 @@ const itemSchema = z.object({
   lowStockAt: z.coerce.number().int().min(0).default(1),
   notes: z.string().optional(),
   branchId: z.string().min(1),
+  driveLink: z.string().url().optional(),
 });
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
@@ -76,13 +77,46 @@ export async function createInventoryItem(formData: FormData) {
     lowStockAt: formData.get("lowStockAt") || 1,
     notes: emptyToUndefined(formData.get("notes")),
     branchId,
+    driveLink: emptyToUndefined(formData.get("driveLink")),
   });
 
   const files = formData.getAll("images").filter((f) => f instanceof File) as File[];
   const images = await saveUploadedImages(files, "inventory");
 
-  const item = await db.inventoryItem.create({ data: { ...parsed, images } });
+  const docFiles = formData.getAll("documents").filter((f) => f instanceof File) as File[];
+  const documents = await saveUploadedImages(docFiles, "inventory-documents");
+
+  const item = await db.inventoryItem.create({ data: { ...parsed, images, documents } });
   redirect(`/inventory/${item.id}`);
+}
+
+export async function addInventoryDocuments(itemId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+
+  const files = formData.getAll("documents").filter((f) => f instanceof File) as File[];
+  if (files.length === 0) return;
+
+  const newDocs = await saveUploadedImages(files, "inventory-documents");
+
+  const item = await db.inventoryItem.findUniqueOrThrow({ where: { id: itemId } });
+  await db.inventoryItem.update({
+    where: { id: itemId },
+    data: { documents: [...item.documents, ...newDocs] },
+  });
+
+  revalidatePath(`/inventory/${itemId}`);
+}
+
+export async function updateInventoryDriveLink(itemId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+
+  const raw = emptyToUndefined(formData.get("driveLink"));
+  const driveLink = raw ? z.string().url().parse(raw) : null;
+
+  await db.inventoryItem.update({ where: { id: itemId }, data: { driveLink } });
+  revalidatePath(`/inventory/${itemId}`);
 }
 
 const statusSchema = z.enum(["IN_STOCK", "RESERVED", "SOLD", "IN_REPAIR", "CONSIGNMENT"]);

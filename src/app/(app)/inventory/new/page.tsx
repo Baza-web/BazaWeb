@@ -136,6 +136,25 @@ export default async function NewInventoryItemPage() {
           <input className="input" name="images" type="file" accept="image/*" multiple />
         </div>
 
+        <div>
+          <label className="label">Certificates / documents (optional)</label>
+          <input className="input" name="documents" type="file" accept="image/*,.pdf" multiple />
+          <p className="mt-1 text-xs text-stone-400">E.g. a GIA grading report, as a PDF or photo.</p>
+        </div>
+
+        <div>
+          <label className="label">Google Drive link (optional)</label>
+          <input
+            className="input"
+            name="driveLink"
+            type="url"
+            placeholder="https://drive.google.com/…"
+          />
+          <p className="mt-1 text-xs text-stone-400">
+            Link to a Drive folder with extra photos, videos, or files for this item.
+          </p>
+        </div>
+
         <button type="submit" className="btn-primary">
           Save item
         </button>

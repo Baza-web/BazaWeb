@@ -103,7 +103,16 @@ export default async function InventoryPage({
                 <td>{item.name}</td>
                 <td>{item.category.replace("_", " ")}</td>
                 <td>{item.branch.name}</td>
-                <td>{item.quantity}</td>
+                <td>
+                  <span className={item.quantity <= item.lowStockAt ? "font-semibold text-amber-700" : undefined}>
+                    {item.quantity}
+                  </span>
+                  {item.status === "IN_STOCK" && item.quantity <= item.lowStockAt && (
+                    <span className="badge ml-2 bg-amber-100 text-amber-700">
+                      {item.quantity === 1 ? "Last piece" : "Low stock"}
+                    </span>
+                  )}
+                </td>
                 <td>{formatMoney(item.costPrice)}</td>
                 <td>{formatMoney(item.sellingPrice)}</td>
                 <td>

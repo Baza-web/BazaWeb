@@ -158,15 +158,87 @@ without extra steps. Nginx and the database are untouched.
 ## Backups
 
 Everything that matters lives in two Docker volumes: `db_data` (the
-database) and `uploads_data` (inventory photos). Back up the database
-regularly:
+database) and `uploads_data` (inventory photos). `scripts/backup.sh`
+backs up both automatically, keeping the last 14 days and deleting
+anything older. Backups are written to `~/baza-backups` — outside the
+git repo, so they're never at risk of being committed.
+
+**Set it up once:**
 
 ```bash
-docker compose exec db pg_dump -U baza baza > backup-$(date +%F).sql
+cd ~/bazaweb
+./scripts/backup.sh   # run it once by hand to confirm it works
 ```
 
-Consider putting that in a daily cron job and copying the result off the
-server (e.g. to S3, Backblaze, or another machine).
+You should see `Backup complete.` and two files appear under
+`~/baza-backups`. Then add it to cron so it runs every night at 2 AM:
+
+```bash
+(crontab -l 2>/dev/null; echo "0 2 * * * cd $HOME/bazaweb && ./scripts/backup.sh >> $HOME/baza-backups/backup.log 2>&1") | crontab -
+```
+
+Check it's there with `crontab -l`.
+
+**To restore a backup** (e.g. after moving to a new server, or undoing a
+mistake):
+
+```bash
+cd ~/bazaweb
+./scripts/restore.sh ~/baza-backups/db-2026-01-15.sql.gz ~/baza-backups/uploads-2026-01-15.tar.gz
+```
+
+**Offsite copy (recommended):** backups on the same VPS protect you from
+mistakes, but not from that VPS itself failing or being lost. Once you
+have a destination ready (another server you control, or a cloud storage
+account like Backblaze B2 via `rclone`), uncomment the matching lines at
+the bottom of `scripts/backup.sh` — ask me and I'll wire it up for you.
+
+## Daily customer birthday/anniversary reminders
+
+Add a `CRON_TOKEN` to your `.env` (any random string — generate one the
+same way as `AUTH_SECRET`), redeploy (`docker compose up -d --build app`),
+then add one more cron line so it checks every day at 7 AM:
+
+```bash
+(crontab -l 2>/dev/null; echo "0 7 * * * curl -s 'https://operation.baza-boutique.com/api/cron/reminders?token=YOUR_CRON_TOKEN'") | crontab -
+```
+
+That's it — Sales staff and the Branch Manager get notified 3 days
+before any of their branch's customers' birthdays or anniversaries.
+
+## Requiring staff to be on-site to clock in/out (geofencing)
+
+Every clock-in/out already records the staff member's device location (shown
+to managers as a "Map" link on the Attendance page). To also *require* staff
+to be physically at the branch:
+
+1. Go to **Branches** (Owner/Admin only) and find the branch's "Clock-in
+   location" section.
+2. Click **Use my location** while standing at the branch (or type in the
+   coordinates), set a **radius** in meters (e.g. `100`), and **Save**.
+3. From then on, staff at that branch must be within that radius to clock in
+   or out — otherwise they get an error naming how far away they are.
+
+Leave all three fields blank to turn the requirement back off for a branch;
+location is still recorded either way. Geolocation requires the staff
+member's browser to allow location access, and (outside of `localhost`)
+only works over HTTPS, which your deployment already has.
+
+## Staff Groups (for projects worked on by several people)
+
+**Groups** (Owner/Admin/Manager) lets you put several staff into a named
+group — e.g. a 3-person custom-order team. When assigning a task, choose
+the group instead of one person: every member sees it on their own board and
+any of them can update its status or comment, so the whole team stays in
+sync on one shared card instead of duplicating the task.
+
+## Sales Targets
+
+**Targets** (Owner/Admin/Manager) lets you set a revenue goal for a sales
+staff member over a date range (e.g. a calendar month). Progress is
+calculated live from their recorded sales, so it updates the moment a new
+sale comes in — no manual recalculation needed. Sales staff see their own
+progress bar and days remaining; managers see the whole team's.
 
 ## Where things live
 

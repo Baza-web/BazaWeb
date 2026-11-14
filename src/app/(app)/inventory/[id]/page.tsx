@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageInventory } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
-import { updateInventoryStatus } from "../actions";
+import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink } from "../actions";
+import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
 
 export default async function InventoryItemPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -66,7 +67,14 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         </div>
         <div>
           <p className="text-xs text-stone-500">Quantity</p>
-          <p className="font-medium">{item.quantity}</p>
+          <p className="flex items-center gap-2 font-medium">
+            {item.quantity}
+            {item.status === "IN_STOCK" && item.quantity <= item.lowStockAt && (
+              <span className="badge bg-amber-100 text-amber-700">
+                {item.quantity === 1 ? "Last piece" : "Low stock"}
+              </span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -94,6 +102,78 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
           </form>
         </div>
       )}
+
+      <div className="card">
+        <p className="mb-2 text-sm font-medium">Certificates &amp; documents</p>
+        {item.documents.length > 0 ? (
+          <ul className="mb-3 space-y-1">
+            {item.documents.map((doc, i) => (
+              <li key={doc}>
+                <a
+                  href={doc}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-brand-700 hover:underline"
+                >
+                  <FileText size={16} aria-hidden="true" />
+                  Document {i + 1}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mb-3 text-sm text-stone-400">No certificates or documents uploaded yet.</p>
+        )}
+        {canManageInventory(session.role) && (
+          <form
+            action={addInventoryDocuments.bind(null, item.id)}
+            encType="multipart/form-data"
+            className="flex flex-wrap items-center gap-2"
+          >
+            <input className="input max-w-xs" name="documents" type="file" accept="image/*,.pdf" multiple />
+            <button type="submit" className="btn-secondary text-xs">
+              <Plus size={14} aria-hidden="true" />
+              Add
+            </button>
+          </form>
+        )}
+      </div>
+
+      <div className="card">
+        <p className="mb-2 flex items-center gap-2 text-sm font-medium">
+          <GoogleDriveLogo size={16} aria-hidden="true" />
+          Google Drive link
+        </p>
+        {item.driveLink ? (
+          <a
+            href={item.driveLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all text-sm text-brand-700 hover:underline"
+          >
+            {item.driveLink}
+          </a>
+        ) : (
+          <p className="mb-3 text-sm text-stone-400">No Drive link added yet.</p>
+        )}
+        {canManageInventory(session.role) && (
+          <form
+            action={updateInventoryDriveLink.bind(null, item.id)}
+            className="mt-3 flex flex-wrap items-center gap-2"
+          >
+            <input
+              className="input max-w-sm"
+              name="driveLink"
+              type="url"
+              placeholder="https://drive.google.com/…"
+              defaultValue={item.driveLink ?? ""}
+            />
+            <button type="submit" className="btn-secondary text-xs">
+              Save
+            </button>
+          </form>
+        )}
+      </div>
 
       {item.saleItems.length > 0 && (
         <div className="card">

@@ -16,16 +16,41 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
     roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"],
   },
   {
+    href: "/targets",
+    label: "Targets",
+    iconKey: "targets",
+    roles: ["OWNER", "ADMIN", "MANAGER", "SALES"],
+  },
+  {
     href: "/accounting",
     label: "Accounting",
     iconKey: "accounting",
     roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"],
   },
+  {
+    href: "/reports",
+    label: "Reports",
+    iconKey: "reports",
+    roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"],
+  },
   { href: "/tasks", label: "Tasks", iconKey: "tasks" },
+  {
+    href: "/repairs",
+    label: "Repairs & Custom Orders",
+    iconKey: "repairs",
+    roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "CRAFTSMAN"],
+  },
+  {
+    href: "/purchasing",
+    label: "Purchasing",
+    iconKey: "purchasing",
+    roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"],
+  },
   { href: "/leave", label: "Leave", iconKey: "leave" },
   { href: "/attendance", label: "Attendance", iconKey: "attendance" },
   { href: "/inbox", label: "Inbox", iconKey: "inbox" },
   { href: "/staff", label: "Staff", iconKey: "staff", roles: ["OWNER", "ADMIN", "MANAGER"] },
+  { href: "/groups", label: "Groups", iconKey: "groups", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/branches", label: "Branches", iconKey: "branches", roles: ["OWNER", "ADMIN"] },
 ];
 

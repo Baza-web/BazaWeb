@@ -32,6 +32,14 @@ import {
   CalendarCheck,
   PhoneCall,
   VideoCamera,
+  ChartBar,
+  Wrench,
+  Truck,
+  GoogleDriveLogo,
+  FileText,
+  MapPin,
+  Target,
+  UsersFour,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -42,11 +50,16 @@ export const NAV_ICONS: Record<string, Icon> = {
   sales: Receipt,
   accounting: ChartLineUp,
   tasks: ListChecks,
+  reports: ChartBar,
   leave: CalendarCheck,
   attendance: ClockCountdown,
   inbox: ChatCircle,
   staff: IdentificationBadge,
   branches: Storefront,
+  repairs: Wrench,
+  purchasing: Truck,
+  groups: UsersFour,
+  targets: Target,
 };
 
 export {
@@ -83,4 +96,12 @@ export {
   CalendarCheck,
   PhoneCall,
   VideoCamera,
+  ChartBar,
+  Wrench,
+  Truck,
+  GoogleDriveLogo,
+  FileText,
+  MapPin,
+  Target,
+  UsersFour,
 };

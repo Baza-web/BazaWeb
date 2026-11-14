@@ -14,10 +14,17 @@ export default async function TasksPage({
   const manager = canAssignTasks(session.role);
   const mineOnly = view === "mine" || !manager;
 
-  const [tasks, staffForAssignment, branches] = await Promise.all([
+  const [tasks, staffForAssignment, branches, groupsForAssignment] = await Promise.all([
     db.task.findMany({
-      where: mineOnly ? { assignedToId: session.staffId } : branchScope(session),
-      include: { assignedTo: true, assignedBy: true },
+      where: mineOnly
+        ? {
+            OR: [
+              { assignedToId: session.staffId },
+              { group: { members: { some: { id: session.staffId } } } },
+            ],
+          }
+        : branchScope(session),
+      include: { assignedTo: true, assignedBy: true, group: { include: { members: true } } },
       orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
     }),
     manager
@@ -27,6 +34,13 @@ export default async function TasksPage({
         })
       : Promise.resolve([]),
     manager && isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    manager
+      ? db.staffGroup.findMany({
+          where: isCompanyWide(session.role) ? {} : { branchId: session.branchId ?? "__none__" },
+          include: { members: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   const boardTasks = tasks.map((t) => ({
@@ -38,6 +52,9 @@ export default async function TasksPage({
     dueDate: t.dueDate ? t.dueDate.toISOString() : null,
     assignedTo: { id: t.assignedTo.id, name: t.assignedTo.name },
     assignedBy: { id: t.assignedBy.id, name: t.assignedBy.name },
+    group: t.group
+      ? { id: t.group.id, name: t.group.name, members: t.group.members.map((m) => ({ id: m.id, name: m.name })) }
+      : null,
   }));
 
   return (
@@ -66,6 +83,11 @@ export default async function TasksPage({
         canEditAny={manager}
         currentStaffId={session.staffId}
         staffOptions={staffForAssignment.map((s) => ({ id: s.id, name: s.name }))}
+        groupOptions={groupsForAssignment.map((g) => ({
+          id: g.id,
+          name: g.name,
+          memberNames: g.members.map((m) => m.name),
+        }))}
         branchOptions={branches.map((b) => ({ id: b.id, name: b.name }))}
         showBranchSelect={isCompanyWide(session.role)}
         defaultBranchId={session.branchId ?? ""}

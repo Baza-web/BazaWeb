@@ -10,10 +10,25 @@ export function ClockButton({ isClockedIn }: { isClockedIn: boolean }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  function getCoords(): Promise<{ lat: number; lng: number } | null> {
+    return new Promise((resolve) => {
+      if (!("geolocation" in navigator)) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
+    });
+  }
+
   function handleClick() {
     setError(null);
     startTransition(async () => {
-      const result = isClockedIn ? await clockOut() : await clockIn();
+      const coords = await getCoords();
+      const result = isClockedIn ? await clockOut(coords) : await clockIn(coords);
       if (result.error) {
         setError(result.error);
       } else {

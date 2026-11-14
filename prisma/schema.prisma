@@ -85,6 +85,9 @@ enum NotificationType {
   LEAVE_DECIDED
   ATTENDANCE
   CALL_INVITE
+  CUSTOMER_OCCASION
+  REPAIR_UPDATE
+  PURCHASE_ORDER_UPDATE
 }
 
 enum LeaveType {
@@ -100,12 +103,35 @@ enum LeaveStatus {
   REJECTED
 }
 
+enum RepairType {
+  REPAIR
+  CUSTOM
+}
+
+enum RepairStatus {
+  RECEIVED
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
 model Branch {
-  id        String   @id @default(cuid())
-  name      String
-  address   String?
-  phone     String?
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  name            String
+  address         String?
+  phone           String?
+  latitude        Float?
+  longitude       Float?
+  geofenceRadiusM Int?
+  createdAt       DateTime @default(now())
 
   staff          Staff[]
   inventoryItems InventoryItem[]
@@ -115,6 +141,10 @@ model Branch {
   ledgerEntries  LedgerEntry[]
   tasks          Task[]
   attendanceLogs AttendanceLog[]
+  repairOrders   RepairOrder[]
+  purchaseOrders PurchaseOrder[]
+  staffGroups    StaffGroup[]
+  salesTargets   SalesTarget[]
 }
 
 model Staff {
@@ -143,6 +173,11 @@ model Staff {
   leaveRequests     LeaveRequest[]   @relation("LeaveRequester")
   leaveReviews      LeaveRequest[]   @relation("LeaveReviewer")
   attendanceLogs    AttendanceLog[]
+  repairOrdersAssigned RepairOrder[] @relation("RepairAssignedTo")
+  repairOrdersCreated  RepairOrder[] @relation("RepairCreatedBy")
+  purchaseOrdersCreated PurchaseOrder[]
+  groups            StaffGroup[]    @relation("GroupMembers")
+  salesTargets      SalesTarget[]
 
   @@index([branchId])
 }
@@ -164,6 +199,8 @@ model InventoryItem {
   costPrice      Float
   sellingPrice   Float
   images         String[]     @default([])
+  documents      String[]     @default([])
+  driveLink      String?
   status         ItemStatus   @default(IN_STOCK)
   quantity       Int          @default(1)
   lowStockAt     Int          @default(1)
@@ -172,8 +209,9 @@ model InventoryItem {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  branch    Branch     @relation(fields: [branchId], references: [id])
-  saleItems SaleItem[]
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  saleItems    SaleItem[]
+  repairOrders RepairOrder[]
 
   @@index([branchId])
   @@index([status])
@@ -190,9 +228,10 @@ model Customer {
   branchId  String
   createdAt DateTime @default(now())
 
-  branch Branch         @relation(fields: [branchId], references: [id])
-  sales  Sale[]
-  notes  CustomerNote[]
+  branch       Branch         @relation(fields: [branchId], references: [id])
+  sales        Sale[]
+  notes        CustomerNote[]
+  repairOrders RepairOrder[]
 
   @@index([branchId])
 }
@@ -260,11 +299,15 @@ model Expense {
   createdById String
   createdAt   DateTime @default(now())
 
-  branch      Branch       @relation(fields: [branchId], references: [id])
-  createdBy   Staff        @relation(fields: [createdById], references: [id])
-  ledgerEntry LedgerEntry?
+  purchaseOrderId String?
+
+  branch        Branch         @relation(fields: [branchId], references: [id])
+  createdBy     Staff          @relation(fields: [createdById], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  ledgerEntry   LedgerEntry?
 
   @@index([branchId])
+  @@index([purchaseOrderId])
 }
 
 model LedgerEntry {
@@ -296,6 +339,7 @@ model Task {
   branchId     String
   assignedToId String
   assignedById String
+  groupId      String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   completedAt  DateTime?
@@ -303,10 +347,12 @@ model Task {
   branch     Branch        @relation(fields: [branchId], references: [id])
   assignedTo Staff         @relation("AssignedTo", fields: [assignedToId], references: [id])
   assignedBy Staff         @relation("AssignedBy", fields: [assignedById], references: [id])
+  group      StaffGroup?   @relation(fields: [groupId], references: [id])
   comments   TaskComment[]
 
   @@index([branchId])
   @@index([assignedToId])
+  @@index([groupId])
 }
 
 model TaskComment {
@@ -389,10 +435,124 @@ model AttendanceLog {
   branchId    String
   clockInAt   DateTime  @default(now())
   clockOutAt  DateTime?
+  clockInLat  Float?
+  clockInLng  Float?
+  clockOutLat Float?
+  clockOutLng Float?
 
   staff  Staff  @relation(fields: [staffId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])
 
   @@index([staffId])
   @@index([branchId, clockInAt])
+}
+
+model RepairOrder {
+  id                  String       @id @default(cuid())
+  customerId          String
+  branchId            String
+  type                RepairType   @default(REPAIR)
+  description         String
+  intakeDate          DateTime     @default(now())
+  promisedDate        DateTime?
+  status              RepairStatus @default(RECEIVED)
+  estimatedCost       Float?
+  finalCost           Float?
+  relatedInventoryItemId String?
+  assignedToId        String?
+  createdById         String
+  photos              String[]     @default([])
+  notes               String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  completedAt         DateTime?
+
+  customer            Customer       @relation(fields: [customerId], references: [id])
+  branch               Branch        @relation(fields: [branchId], references: [id])
+  relatedInventoryItem InventoryItem? @relation(fields: [relatedInventoryItemId], references: [id])
+  assignedTo           Staff?         @relation("RepairAssignedTo", fields: [assignedToId], references: [id])
+  createdBy            Staff          @relation("RepairCreatedBy", fields: [createdById], references: [id])
+
+  @@index([branchId])
+  @@index([customerId])
+  @@index([assignedToId])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  contactName String?
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id            String              @id @default(cuid())
+  orderNumber   String              @unique
+  supplierId    String
+  branchId      String
+  status        PurchaseOrderStatus @default(DRAFT)
+  orderDate     DateTime            @default(now())
+  expectedDate  DateTime?
+  totalAmount   Float               @default(0)
+  amountPaid    Float               @default(0)
+  notes         String?
+  createdById   String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  branch    Branch              @relation(fields: [branchId], references: [id])
+  createdBy Staff               @relation(fields: [createdById], references: [id])
+  items     PurchaseOrderItem[]
+  expenses  Expense[]
+
+  @@index([branchId])
+  @@index([supplierId])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  description     String
+  quantity        Int           @default(1)
+  unitCost        Float
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+}
+
+model StaffGroup {
+  id        String   @id @default(cuid())
+  name      String
+  branchId  String
+  createdAt DateTime @default(now())
+
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  members Staff[] @relation("GroupMembers")
+  tasks   Task[]
+
+  @@index([branchId])
+}
+
+model SalesTarget {
+  id           String   @id @default(cuid())
+  staffId      String
+  branchId     String
+  periodStart  DateTime
+  periodEnd    DateTime
+  targetAmount Float
+  createdAt    DateTime @default(now())
+
+  staff  Staff  @relation(fields: [staffId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([staffId])
+  @@index([branchId])
 }

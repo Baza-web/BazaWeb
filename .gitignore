@@ -8,3 +8,6 @@ dist
 /public/uploads
 __pycache__/
 *.pyc
+
+baza-backups/
+backups/

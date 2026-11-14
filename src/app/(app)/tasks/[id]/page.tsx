@@ -4,6 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canAssignTasks } from "@/lib/rbac";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { updateTaskStatus, addTaskComment } from "../actions";
+import { UsersFour } from "@/components/icons";
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -14,12 +15,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     include: {
       assignedTo: true,
       assignedBy: true,
+      group: { include: { members: true } },
       comments: { include: { staff: true }, orderBy: { createdAt: "asc" } },
     },
   });
   if (!task) notFound();
 
-  const canEdit = task.assignedToId === session.staffId || canAssignTasks(session.role);
+  const isGroupMember = task.group?.members.some((m) => m.id === session.staffId) ?? false;
+  const canEdit = task.assignedToId === session.staffId || canAssignTasks(session.role) || isGroupMember;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -32,6 +35,12 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           Assigned to {task.assignedTo.name} by {task.assignedBy.name}
           {task.dueDate ? ` · Due ${formatDate(task.dueDate)}` : ""}
         </p>
+        {task.group && (
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-brand-700">
+            <UsersFour size={15} aria-hidden="true" />
+            {task.group.name}: {task.group.members.map((m) => m.name).join(", ")}
+          </p>
+        )}
       </div>
 
       {task.description && <div className="card">{task.description}</div>}
