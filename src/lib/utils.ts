@@ -13,6 +13,15 @@ export function formatDate(date: Date | string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: TIME_ZONE }).format(new Date(date));
 }
 
+export function slugify(input: string) {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
 export function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";

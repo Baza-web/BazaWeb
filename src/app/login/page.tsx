@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { login } from "./actions";
 import { googleSignInConfigured } from "@/lib/google-auth";
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/branding";
 import { Diamond } from "@phosphor-icons/react/ssr";
 
 export default async function LoginPage({
@@ -17,8 +19,8 @@ export default async function LoginPage({
           <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600/20">
             <Diamond size={26} weight="fill" className="text-brand-300" aria-hidden="true" />
           </span>
-          <h1 className="font-display text-3xl font-semibold text-white">Baza ERP</h1>
-          <p className="mt-1 text-sm text-ink-300">Jewelry &amp; Gem Business Suite</p>
+          <h1 className="font-display text-3xl font-semibold text-white">{PRODUCT_NAME}</h1>
+          <p className="mt-1 text-sm text-ink-300">{PRODUCT_TAGLINE}</p>
         </div>
         <div className="card space-y-4">
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -76,7 +78,11 @@ export default async function LoginPage({
           </form>
         </div>
         <p className="mt-4 text-center text-xs text-ink-400">
-          Ask your branch manager or admin if you don&apos;t have an account yet.
+          New business?{" "}
+          <Link href="/signup" className="text-brand-300 hover:underline">
+            Start your free trial
+          </Link>
+          . Already have a team account? Ask your branch manager or admin to add you under Staff.
         </p>
       </div>
     </div>

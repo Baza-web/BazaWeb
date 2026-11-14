@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Montserrat } from "next/font/google";
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/branding";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -17,8 +18,8 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "Baza ERP",
-  description: "Jewelry & gem business management",
+  title: PRODUCT_NAME,
+  description: PRODUCT_TAGLINE,
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Baza ERP",
+    title: PRODUCT_NAME,
     statusBarStyle: "default",
   },
 };

@@ -32,6 +32,8 @@ async function sendBrokerStatement(db: ScopedDb, brokerId: string) {
   const broker = await db.broker.findUniqueOrThrow({ where: { id: brokerId } });
   if (!broker.email) return;
 
+  const organization = await db.organization.findUniqueOrThrow({ where: { id: broker.organizationId } });
+
   const items = await db.brokerMemoItem.findMany({
     where: { memo: { brokerId } },
     include: { memo: true, inventoryItem: true },
@@ -53,12 +55,12 @@ async function sendBrokerStatement(db: ScopedDb, brokerId: string) {
     rows.reduce((sum, r) => sum + (r.quantity - r.returnedQuantity) * r.valueEach, 0),
   );
 
-  const xlsx = await generateBrokerStatementXlsx(broker.name, rows);
+  const xlsx = await generateBrokerStatementXlsx(broker.name, rows, organization.name);
 
   await sendEmail({
     to: broker.email,
-    subject: `Your Baza ERP memo statement — ${broker.name}`,
-    html: brokerStatementEmailHtml(broker.name, totalOutstandingValue),
+    subject: `Your ${organization.name} memo statement — ${broker.name}`,
+    html: brokerStatementEmailHtml(broker.name, totalOutstandingValue, organization.name),
     attachment: { filename: `${broker.name.replace(/\s+/g, "-")}-statement.xlsx`, content: xlsx },
   });
 }

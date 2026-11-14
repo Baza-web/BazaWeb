@@ -18,9 +18,13 @@ type StatementRow = {
  * to them — every memo item, with quantity taken, quantity returned, and
  * what's still outstanding. Emailed to the broker after every memo change.
  */
-export async function generateBrokerStatementXlsx(brokerName: string, rows: StatementRow[]): Promise<Buffer> {
+export async function generateBrokerStatementXlsx(
+  brokerName: string,
+  rows: StatementRow[],
+  businessName: string,
+): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Baza ERP";
+  workbook.creator = businessName;
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet("Statement", { views: [{ state: "frozen", ySplit: 4 }] });
@@ -101,10 +105,10 @@ export async function generateBrokerStatementXlsx(brokerName: string, rows: Stat
   return Buffer.from(buffer);
 }
 
-export function brokerStatementEmailHtml(brokerName: string, totalOutstandingValue: number) {
+export function brokerStatementEmailHtml(brokerName: string, totalOutstandingValue: number, businessName: string) {
   return `
     <div style="font-family: Arial, sans-serif; color: #1c1917;">
-      <h2 style="color: #a66316;">Baza ERP — Memo statement</h2>
+      <h2 style="color: #a66316;">${businessName} — Memo statement</h2>
       <p>Dear ${brokerName},</p>
       <p>Attached is your updated memo statement listing the gemstones and jewelry currently with you,
       along with your full memo history.</p>

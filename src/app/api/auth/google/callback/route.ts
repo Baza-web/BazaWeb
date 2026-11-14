@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { createSessionCookie } from "@/lib/auth";
 import { exchangeGoogleCode, verifyGoogleIdToken } from "@/lib/google-auth";
-import { resolveOrganizationForRequest } from "@/lib/tenant-resolve";
+import { resolveOrganizationForLogin } from "@/lib/tenant-resolve";
+import { PRODUCT_NAME } from "@/lib/branding";
 
 function redirectToLogin(request: Request, message: string) {
   const url = new URL("/login", request.url);
@@ -33,18 +34,14 @@ export async function GET(request: Request) {
     return redirectToLogin(request, "Google sign-in failed. Please try again or use your password.");
   }
 
-  const organization = await resolveOrganizationForRequest();
-  if (!organization) {
-    return redirectToLogin(request, "Couldn't determine your organization. Use your organization's own sign-in link.");
-  }
-
-  const staff = await db.staff.findFirst({
-    where: { organizationId: organization.id, email: email.toLowerCase() },
-  });
+  const organization = await resolveOrganizationForLogin(email);
+  const staff = organization
+    ? await db.staff.findFirst({ where: { organizationId: organization.id, email: email.toLowerCase() } })
+    : null;
   if (!staff || !staff.active) {
     return redirectToLogin(
       request,
-      "No active Baza ERP account found for that Google account. Ask your admin to add you under Staff.",
+      `No active ${PRODUCT_NAME} account found for that Google account. Ask your admin to add you under Staff.`,
     );
   }
 

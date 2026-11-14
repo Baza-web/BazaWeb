@@ -1,5 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
+import { PRODUCT_NAME } from "./branding";
 
 let client: Resend | null = null;
 
@@ -32,7 +33,7 @@ export async function sendEmail(params: {
     return { sent: false as const };
   }
 
-  const from = process.env.EMAIL_FROM || "Baza ERP <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM || `${PRODUCT_NAME} <onboarding@resend.dev>`;
 
   const { error } = await resend.emails.send({
     from,
