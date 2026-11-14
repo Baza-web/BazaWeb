@@ -2,10 +2,12 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageAccounting, canManagePurchasing, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
+import { round2 } from "@/lib/utils";
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
   if (value === null) return undefined;
@@ -54,7 +56,8 @@ const poSchema = z.object({
 });
 
 function orderNumber() {
-  return `PO-${Date.now().toString(36).toUpperCase()}`;
+  const random = crypto.randomBytes(4).toString("hex").toUpperCase();
+  return `PO-${Date.now().toString(36).toUpperCase()}-${random}`;
 }
 
 export async function createPurchaseOrder(formData: FormData) {
@@ -75,7 +78,7 @@ export async function createPurchaseOrder(formData: FormData) {
     items: rawItems,
   });
 
-  const totalAmount = parsed.items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
+  const totalAmount = round2(parsed.items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0));
 
   await db.purchaseOrder.create({
     data: {
@@ -143,6 +146,7 @@ export async function recordPurchaseOrderPayment(orderId: string, formData: Form
   if (!isCompanyWide(session.role) && order.branchId !== session.branchId) throw new Error("Forbidden");
 
   const { amount } = paymentSchema.parse({ amount: formData.get("amount") });
+  const roundedAmount = round2(amount);
 
   await db.$transaction(async (tx) => {
     const expense = await tx.expense.create({
@@ -150,7 +154,7 @@ export async function recordPurchaseOrderPayment(orderId: string, formData: Form
         branchId: order.branchId,
         category: "Purchase order",
         description: `Payment for ${order.orderNumber} — ${order.supplier.name}`,
-        amount,
+        amount: roundedAmount,
         createdById: session.staffId,
         purchaseOrderId: order.id,
       },
@@ -160,7 +164,7 @@ export async function recordPurchaseOrderPayment(orderId: string, formData: Form
       data: {
         branchId: order.branchId,
         type: "EXPENSE",
-        amount,
+        amount: roundedAmount,
         description: `${order.orderNumber}: payment to ${order.supplier.name}`,
         date: expense.date,
         expenseId: expense.id,
@@ -169,7 +173,7 @@ export async function recordPurchaseOrderPayment(orderId: string, formData: Form
 
     await tx.purchaseOrder.update({
       where: { id: order.id },
-      data: { amountPaid: order.amountPaid + amount },
+      data: { amountPaid: round2(order.amountPaid + roundedAmount) },
     });
   });
 

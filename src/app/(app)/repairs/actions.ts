@@ -51,6 +51,19 @@ export async function createRepairOrder(formData: FormData) {
     notes: emptyToUndefined(formData.get("notes")),
   });
 
+  const customer = await db.customer.findFirst({ where: { id: parsed.customerId, branchId } });
+  if (!customer) throw new Error("That customer does not belong to this branch.");
+
+  if (parsed.relatedInventoryItemId) {
+    const item = await db.inventoryItem.findFirst({ where: { id: parsed.relatedInventoryItemId, branchId } });
+    if (!item) throw new Error("That inventory item does not belong to this branch.");
+  }
+
+  if (parsed.assignedToId) {
+    const craftsman = await db.staff.findFirst({ where: { id: parsed.assignedToId, branchId, active: true } });
+    if (!craftsman) throw new Error("That staff member does not belong to this branch.");
+  }
+
   const files = formData.getAll("photos").filter((f) => f instanceof File) as File[];
   const photos = await saveUploadedImages(files, "repairs");
 
@@ -125,11 +138,20 @@ export async function assignRepairOrder(orderId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   if (!canManageRepairs(session.role)) throw new Error("Forbidden");
 
+  const existing = await db.repairOrder.findUniqueOrThrow({ where: { id: orderId } });
+  if (!isCompanyWide(session.role) && existing.branchId !== session.branchId) throw new Error("Forbidden");
+
   const assignedToId = emptyToUndefined(formData.get("assignedToId"));
+  if (assignedToId) {
+    const craftsman = await db.staff.findFirst({
+      where: { id: assignedToId, branchId: existing.branchId, active: true },
+    });
+    if (!craftsman) throw new Error("That staff member does not belong to this branch.");
+  }
 
   const order = await db.repairOrder.update({
     where: { id: orderId },
-    data: { assignedToId },
+    data: { assignedToId: assignedToId ?? null },
     include: { customer: true },
   });
 

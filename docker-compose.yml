@@ -28,7 +28,7 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
       SEED_OWNER_EMAIL: ${SEED_OWNER_EMAIL:-owner@example.com}
-      SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:-ChangeMe123!}
+      SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:-}
       SEED_OWNER_NAME: ${SEED_OWNER_NAME:-Business Owner}
       SEED_BRANCH_NAME: ${SEED_BRANCH_NAME:-Main Branch}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -50,9 +50,15 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - certbot_www:/var/www/certbot
       - certbot_conf:/etc/letsencrypt
+      # Nginx serves uploaded photos/documents directly from this shared
+      # volume (read-only) instead of proxying to the app — the Next.js
+      # standalone server only serves public/ files that existed at build
+      # time, so anything uploaded later would otherwise 404. See DEPLOY.md.
+      - uploads_data:/uploads-data:ro
 
   certbot:
     image: certbot/certbot
+    restart: unless-stopped
     volumes:
       - certbot_www:/var/www/certbot
       - certbot_conf:/etc/letsencrypt

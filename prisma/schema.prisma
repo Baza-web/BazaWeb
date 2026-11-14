@@ -156,6 +156,8 @@ model Staff {
   role         Role
   branchId     String?
   active       Boolean  @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   createdAt    DateTime @default(now())
 
   branch Branch? @relation(fields: [branchId], references: [id])

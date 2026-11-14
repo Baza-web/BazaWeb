@@ -2,15 +2,16 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
+import { branchScope } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
 import { addCustomerNote } from "../actions";
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireSessionOrRedirect();
+  const session = await requireSessionOrRedirect();
   const { id } = await params;
 
-  const customer = await db.customer.findUnique({
-    where: { id },
+  const customer = await db.customer.findFirst({
+    where: { id, ...branchScope(session) },
     include: {
       sales: { orderBy: { createdAt: "desc" } },
       notes: { include: { staff: true }, orderBy: { createdAt: "desc" } },

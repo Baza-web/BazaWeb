@@ -50,8 +50,11 @@ Fill in:
   (You can leave these blank to launch without push notifications — in-app
   notifications still work either way. You can add these later and redeploy.)
 - `SEED_OWNER_EMAIL` / `SEED_OWNER_PASSWORD` / `SEED_OWNER_NAME` — the first
-  account you'll log in with. **Change this password after your first
-  login** — go to Staff → your account.
+  account you'll log in with. **`SEED_OWNER_PASSWORD` is required** — pick a
+  real, unique password yourself; the app refuses to create the account
+  with no password, a short one, or a known default like `ChangeMe123!`, so
+  the very first login can't be guessed. You can still change it later from
+  Staff → your account.
 
 ## 5. First boot: get a TLS certificate
 
@@ -94,6 +97,14 @@ docker compose up -d certbot   # starts the auto-renewal loop
 ```
 
 Your team can now reach the app at `https://erp.yourbusiness.com`.
+
+Renewing the certificate on disk doesn't make Nginx pick it up — Nginx only
+re-reads certificate files on a reload. Add a weekly cron job to renew (if
+due) and reload:
+
+```bash
+(crontab -l 2>/dev/null; echo "0 3 * * 0 cd $HOME/bazaweb && ./scripts/renew-cert.sh >> $HOME/baza-backups/renew.log 2>&1") | crontab -
+```
 
 ## 6. First login
 
@@ -151,6 +162,12 @@ cd bazaweb
 git pull
 docker compose up -d --build app
 ```
+
+If the update changed anything under `nginx/` (check `git log -p nginx/`),
+also re-copy your config and reload: redo step 5's `cp nginx/app.ssl.conf
+nginx/conf.d/app.conf` + `sed` substitution, then `docker compose up -d
+nginx`. `nginx/conf.d/app.conf` is generated on the server and isn't
+tracked by git, so a plain `git pull` never updates it on its own.
 
 Migrations run automatically on container start, so this is safe to do
 without extra steps. Nginx and the database are untouched.
