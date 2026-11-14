@@ -257,6 +257,38 @@ calculated live from their recorded sales, so it updates the moment a new
 sale comes in — no manual recalculation needed. Sales staff see their own
 progress bar and days remaining; managers see the whole team's.
 
+## Brokers & Memos
+
+**Brokers & Memos** (Owner/Admin only — this is deliberately tighter than
+other inventory access, since a memo sends real stock out the door) is
+for stones and jewelry given to a broker on consignment:
+
+1. Add the broker once (name, phone, email).
+2. Issue a memo: pick the broker and the items they're taking. This
+   removes that stock from what's sellable (same as a sale would), marks
+   the item **Consignment** if that was the last unit, and — if you've set
+   up email below — emails the broker an `.xlsx` statement of everything
+   currently with them.
+3. When stones come back, open the broker's page and **propose a return**.
+   This doesn't take effect immediately: it needs a **different** Owner or
+   Admin to approve it first (you can't approve your own proposal) — a
+   second set of eyes on stock leaving/returning. Once approved, the stock
+   returns to sellable inventory and the broker's statement is re-emailed
+   automatically. Rejecting a proposal changes nothing.
+
+**To enable the emailed statement:** add `RESEND_API_KEY` to your `.env`
+(a free account at [resend.com](https://resend.com) works — the statement
+emails from `onboarding@resend.dev` by default, which only verified
+Resend accounts' own email can receive; verify your own sending domain in
+the Resend dashboard and set `EMAIL_FROM` to send from your business's
+address instead). Leave it blank to skip this — memos and approvals still
+work fully, the broker just won't get an automatic email; you can still
+open their page and click **Email statement now** once it's configured.
+
+Note: "statement" here is a real `.xlsx` spreadsheet generated on each
+send, not a Google Sheet — no Google Drive/Sheets account or setup is
+needed for this feature.
+
 ## Where things live
 
 | What | Where |

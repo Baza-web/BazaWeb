@@ -10,6 +10,7 @@ import {
   canManageAccounting,
   canManageSalesTargets,
   canManageRepairs,
+  canManageBrokers,
 } from "@/lib/rbac";
 import { formatMoney, formatDate, round2 } from "@/lib/utils";
 import { RankedBarChart } from "@/components/RankedBarChart";
@@ -31,6 +32,7 @@ import {
   CalendarCheck,
   ClockCountdown,
   Truck,
+  Handshake,
 } from "@/components/icons";
 
 function startOfDay(d = new Date()) {
@@ -103,6 +105,7 @@ export default async function DashboardPage() {
     activeStaffCount,
     openPOs,
     activeTargets,
+    brokerMemoItems,
   ] = await Promise.all([
     db.sale.aggregate({ where: { ...scope, createdAt: { gte: today } }, _sum: { total: true }, _count: true }),
     db.sale.aggregate({ where: { ...scope, createdAt: { gte: monthStart } }, _sum: { total: true }, _count: true }),
@@ -172,6 +175,12 @@ export default async function DashboardPage() {
         ...(canManageSalesTargets(session.role) ? scope : { staffId: session.staffId }),
       },
     }),
+    canManageBrokers(session.role)
+      ? db.brokerMemoItem.findMany({
+          where: { memo: { ...scope, status: { not: "RETURNED" } } },
+          select: { quantity: true, returnedQuantity: true, valueEach: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   const lowStockItems = lowStockCandidates.filter((i) => i.quantity <= i.lowStockAt).length;
@@ -242,6 +251,13 @@ export default async function DashboardPage() {
 
   const attendanceTodayCount = attendanceToday ? new Set(attendanceToday.map((a) => a.staffId)).size : null;
   const openPOBalance = openPOs ? round2((openPOs._sum.totalAmount ?? 0) - (openPOs._sum.amountPaid ?? 0)) : null;
+
+  const brokerOutstandingCount = brokerMemoItems
+    ? brokerMemoItems.reduce((s, i) => s + (i.quantity - i.returnedQuantity), 0)
+    : null;
+  const brokerOutstandingValue = brokerMemoItems
+    ? round2(brokerMemoItems.reduce((s, i) => s + (i.quantity - i.returnedQuantity) * i.valueEach, 0))
+    : null;
 
   return (
     <div className="space-y-6">
@@ -496,6 +512,18 @@ export default async function DashboardPage() {
             <div>
               <p className="text-xs text-stone-500">Owed to suppliers</p>
               <p className="text-xl font-semibold text-ink-900">{formatMoney(openPOBalance)}</p>
+            </div>
+          </Link>
+        )}
+        {brokerOutstandingValue !== null && (
+          <Link href="/brokers" className="card-interactive flex items-center gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-50">
+              <Handshake size={22} className="text-rose-600" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-xs text-stone-500">With brokers</p>
+              <p className="text-xl font-semibold text-ink-900">{formatMoney(brokerOutstandingValue)}</p>
+              <p className="text-xs text-stone-400">{brokerOutstandingCount} stone(s) out</p>
             </div>
           </Link>
         )}
