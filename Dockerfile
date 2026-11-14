@@ -20,7 +20,11 @@ RUN npx prisma generate
 # (while the image still has normal network access) so `migrate deploy`
 # never needs to reach the internet when the container starts for real.
 RUN npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /dev/null
-RUN npm run build
+# V8 sizes its default heap ceiling off detected physical RAM, not RAM+swap,
+# so on a small VPS it can hit "JavaScript heap out of memory" well before
+# actually running out of memory — raising this explicitly fixes that
+# without needing a bigger server. Needs enough RAM+swap to back it (~3GB).
+RUN NODE_OPTIONS="--max-old-space-size=3072" npm run build
 
 # --- runner: production image ---
 FROM node:22-alpine AS runner
