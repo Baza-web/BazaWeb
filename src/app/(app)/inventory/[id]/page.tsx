@@ -1,14 +1,13 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canManageInventory, canViewCost } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink } from "../actions";
 import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
 
 export default async function InventoryItemPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const { id } = await params;
 
   const item = await db.inventoryItem.findFirst({

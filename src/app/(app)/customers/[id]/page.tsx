@@ -1,13 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
 import { addCustomerNote } from "../actions";
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const { id } = await params;
 
   const customer = await db.customer.findFirst({

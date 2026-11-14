@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canManageBrokers } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime, initials } from "@/lib/utils";
 import { RecordReturnForm } from "@/components/RecordReturnForm";
@@ -14,7 +13,7 @@ const MEMO_STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function BrokerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageBrokers(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

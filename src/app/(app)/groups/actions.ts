@@ -2,12 +2,12 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
+import { type SessionPayload } from "@/lib/auth";
+import { requireScopedSessionOrRedirect, type ScopedDb } from "@/lib/tenant-db";
 import { canManageGroups, isCompanyWide } from "@/lib/rbac";
 
 export async function createGroup(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageGroups(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -16,11 +16,11 @@ export async function createGroup(formData: FormData) {
 
   const { name } = z.object({ name: z.string().min(2) }).parse({ name: formData.get("name") });
 
-  await db.staffGroup.create({ data: { name, branchId } });
+  await db.staffGroup.create({ data: { name, branchId, organizationId: session.organizationId } });
   revalidatePath("/groups");
 }
 
-async function assertGroupInScope(groupId: string, session: SessionPayload) {
+async function assertGroupInScope(db: ScopedDb, groupId: string, session: SessionPayload) {
   const group = await db.staffGroup.findUniqueOrThrow({ where: { id: groupId } });
   if (!isCompanyWide(session.role) && group.branchId !== session.branchId) {
     throw new Error("Forbidden");
@@ -29,10 +29,10 @@ async function assertGroupInScope(groupId: string, session: SessionPayload) {
 }
 
 export async function addGroupMember(groupId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageGroups(session.role)) throw new Error("Forbidden");
 
-  const group = await assertGroupInScope(groupId, session);
+  const group = await assertGroupInScope(db, groupId, session);
   const staffId = String(formData.get("staffId"));
   if (!staffId) return;
 
@@ -47,10 +47,10 @@ export async function addGroupMember(groupId: string, formData: FormData) {
 }
 
 export async function removeGroupMember(groupId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageGroups(session.role)) throw new Error("Forbidden");
 
-  await assertGroupInScope(groupId, session);
+  await assertGroupInScope(db, groupId, session);
   const staffId = String(formData.get("staffId"));
 
   await db.staffGroup.update({

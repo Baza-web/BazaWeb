@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canAssignTasks, isCompanyWide } from "@/lib/rbac";
 import { TaskBoard } from "@/components/TaskBoard";
 
@@ -9,7 +8,7 @@ export default async function TasksPage({
 }: {
   searchParams: Promise<{ view?: string }>;
 }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const { view } = await searchParams;
   const manager = canAssignTasks(session.role);
   const mineOnly = view === "mine" || !manager;

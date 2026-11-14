@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canManageBrokers, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, initials } from "@/lib/utils";
 import { emailConfigured } from "@/lib/email";
@@ -9,7 +8,7 @@ import { createBroker } from "./actions";
 import { Handshake, WarningCircle } from "@/components/icons";
 
 export default async function BrokersPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageBrokers(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

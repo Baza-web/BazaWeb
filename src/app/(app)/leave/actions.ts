@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canReviewLeave, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 
@@ -20,7 +19,7 @@ const createSchema = z
   });
 
 export async function createLeaveRequest(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const parsed = createSchema.parse({
     type: formData.get("type"),
@@ -30,7 +29,7 @@ export async function createLeaveRequest(formData: FormData) {
   });
 
   await db.leaveRequest.create({
-    data: { ...parsed, staffId: session.staffId },
+    data: { ...parsed, staffId: session.staffId, organizationId: session.organizationId },
   });
 
   const reviewers = await db.staff.findMany({
@@ -59,7 +58,7 @@ export async function createLeaveRequest(formData: FormData) {
 const decisionSchema = z.enum(["APPROVED", "REJECTED"]);
 
 export async function reviewLeaveRequest(requestId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canReviewLeave(session.role)) throw new Error("Forbidden");
 
   const decision = decisionSchema.parse(formData.get("decision"));

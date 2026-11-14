@@ -1,5 +1,4 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canReviewLeave, isCompanyWide } from "@/lib/rbac";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { createLeaveRequest, reviewLeaveRequest } from "./actions";
@@ -12,7 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function LeavePage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const reviewer = canReviewLeave(session.role);
 
   const [myRequests, pendingRequests] = await Promise.all([

@@ -1,12 +1,11 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageStaff, canAddOrDeleteBranches } from "@/lib/rbac";
 import { GeofenceForm } from "@/components/GeofenceForm";
 import { DeleteBranchButton } from "@/components/DeleteBranchButton";
 import { createBranch, setMainBranch } from "./actions";
 
 export default async function BranchesPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageStaff(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

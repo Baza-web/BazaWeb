@@ -19,6 +19,7 @@ function secretKey() {
 
 export type SessionPayload = {
   staffId: string;
+  organizationId: string;
   name: string;
   email: string;
   role: Role;
@@ -64,6 +65,7 @@ export async function getSession(): Promise<SessionPayload | null> {
     const { payload } = await jwtVerify(token, secretKey());
     return {
       staffId: payload.staffId as string,
+      organizationId: payload.organizationId as string,
       name: payload.name as string,
       email: payload.email as string,
       role: payload.role as Role,
@@ -80,9 +82,11 @@ export async function requireSession(): Promise<SessionPayload> {
   if (!session) {
     throw new Error("UNAUTHENTICATED");
   }
-  // Guard against a stale session referencing a deactivated/deleted account.
+  // Guard against a stale session referencing a deactivated/deleted account,
+  // or a token whose organizationId no longer matches the account's own
+  // (e.g. after a data migration) — never trust the JWT's org claim alone.
   const staff = await db.staff.findUnique({ where: { id: session.staffId } });
-  if (!staff || !staff.active) {
+  if (!staff || !staff.active || staff.organizationId !== session.organizationId) {
     throw new Error("UNAUTHENTICATED");
   }
   return session;
@@ -95,7 +99,7 @@ export async function requireSessionOrRedirect(): Promise<SessionPayload> {
     redirect("/login");
   }
   const staff = await db.staff.findUnique({ where: { id: session.staffId } });
-  if (!staff || !staff.active) {
+  if (!staff || !staff.active || staff.organizationId !== session.organizationId) {
     redirect("/login");
   }
   return session;

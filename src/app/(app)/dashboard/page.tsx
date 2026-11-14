@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
+import { type SessionPayload } from "@/lib/auth";
+import { requireScopedSessionOrRedirect, type ScopedDb } from "@/lib/tenant-db";
 import {
   branchScope,
   isCompanyWide,
@@ -82,7 +82,7 @@ function rankedBreakdown<T>(
  * that never reveals any individual colleague's numbers). No financial
  * (expenses/profit/outstanding), inventory, or other staff's sales data.
  */
-async function SalesStaffDashboard({ session }: { session: SessionPayload }) {
+async function SalesStaffDashboard({ db, session }: { db: ScopedDb; session: SessionPayload }) {
   const today = startOfDay();
   const monthStart = startOfMonth();
   const thirtyDaysAgo = startOfDay(new Date(today.getTime() - 29 * 86_400_000));
@@ -222,9 +222,9 @@ async function SalesStaffDashboard({ session }: { session: SessionPayload }) {
 }
 
 export default async function DashboardPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (session.role === "SALES") {
-    return <SalesStaffDashboard session={session} />;
+    return <SalesStaffDashboard db={db} session={session} />;
   }
   const scope = branchScope(session);
   const today = startOfDay();

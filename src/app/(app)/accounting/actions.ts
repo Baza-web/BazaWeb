@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageAccounting, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedFile, detectFileKind } from "@/lib/uploads";
 import { extractExpenseFromImage, extractExpenseFromText, aiConfigured, type ExtractedExpense } from "@/lib/ai";
@@ -21,7 +20,7 @@ const EXT_TO_MEDIA_TYPE: Record<string, string> = {
  * staff member to review — never saves anything on its own.
  */
 export async function scanReceipt(formData: FormData): Promise<ExtractedExpense & { error?: string }> {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageAccounting(session.role)) throw new Error("Forbidden");
 
   if (!aiConfigured()) {
@@ -75,7 +74,7 @@ const expenseSchema = z.object({
 });
 
 export async function createExpense(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageAccounting(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -104,6 +103,7 @@ export async function createExpense(formData: FormData) {
         date: parsed.date ?? new Date(),
         createdById: session.staffId,
         receiptImage,
+        organizationId: session.organizationId,
       },
     });
 
@@ -115,6 +115,7 @@ export async function createExpense(formData: FormData) {
         description: `${parsed.category}: ${parsed.description}`,
         date: expense.date,
         expenseId: expense.id,
+        organizationId: session.organizationId,
       },
     });
   });

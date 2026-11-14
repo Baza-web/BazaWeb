@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageStaff, canAddOrDeleteBranches } from "@/lib/rbac";
 
 const numOrUndef = z.preprocess(
@@ -18,7 +17,7 @@ const schema = z.object({
 });
 
 export async function createBranch(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canAddOrDeleteBranches(session.role)) throw new Error("Forbidden");
 
   const parsed = schema.parse({
@@ -27,13 +26,13 @@ export async function createBranch(formData: FormData) {
     phone: formData.get("phone") || undefined,
   });
 
-  await db.branch.create({ data: parsed });
+  await db.branch.create({ data: { ...parsed, organizationId: session.organizationId } });
   revalidatePath("/branches");
 }
 
 /** Owner-only. Refuses to delete a branch that still has any real data attached — that's for the Owner to move or clear out first, never silently cascaded away. */
 export async function deleteBranch(branchId: string) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canAddOrDeleteBranches(session.role)) throw new Error("Forbidden");
 
   const branch = await db.branch.findUniqueOrThrow({
@@ -72,7 +71,7 @@ export async function deleteBranch(branchId: string) {
 }
 
 export async function setMainBranch(branchId: string) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageStaff(session.role)) throw new Error("Forbidden");
 
   await db.$transaction([
@@ -92,7 +91,7 @@ const geofenceSchema = z.object({
 });
 
 export async function updateBranchGeofence(branchId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageStaff(session.role)) throw new Error("Forbidden");
 
   const parsed = geofenceSchema.parse({

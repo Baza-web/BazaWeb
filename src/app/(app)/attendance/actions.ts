@@ -2,13 +2,16 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect, type ScopedDb } from "@/lib/tenant-db";
 import { canEditAttendance } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { formatDateTime, distanceMeters } from "@/lib/utils";
 
-async function notifySupervisors(session: { staffId: string; name: string; branchId: string | null }, message: string) {
+async function notifySupervisors(
+  db: ScopedDb,
+  session: { staffId: string; name: string; branchId: string | null },
+  message: string,
+) {
   const supervisors = await db.staff.findMany({
     where: {
       active: true,
@@ -29,7 +32,7 @@ type Coords = { lat: number; lng: number } | null;
  * branch has no clock-in location set yet, that's a setup gap to fix on the
  * Branches page — not a reason to let someone clock in from anywhere.
  */
-async function checkGeofence(branchId: string, coords: Coords): Promise<{ error?: string }> {
+async function checkGeofence(db: ScopedDb, branchId: string, coords: Coords): Promise<{ error?: string }> {
   const branch = await db.branch.findUniqueOrThrow({ where: { id: branchId } });
   if (branch.latitude == null || branch.longitude == null || branch.geofenceRadiusM == null) {
     return {
@@ -49,7 +52,7 @@ async function checkGeofence(branchId: string, coords: Coords): Promise<{ error?
 }
 
 export async function clockIn(coords: Coords): Promise<{ error?: string }> {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (session.role === "OWNER") return { error: "Owners don't clock in." };
   if (!session.branchId) return { error: "Your account has no branch assigned." };
 
@@ -58,7 +61,7 @@ export async function clockIn(coords: Coords): Promise<{ error?: string }> {
   });
   if (open) return { error: "You're already clocked in." };
 
-  const geofence = await checkGeofence(session.branchId, coords);
+  const geofence = await checkGeofence(db, session.branchId, coords);
   if (geofence.error) return geofence;
 
   const log = await db.attendanceLog.create({
@@ -67,16 +70,17 @@ export async function clockIn(coords: Coords): Promise<{ error?: string }> {
       branchId: session.branchId,
       clockInLat: coords?.lat,
       clockInLng: coords?.lng,
+      organizationId: session.organizationId,
     },
   });
 
-  await notifySupervisors(session, `${session.name} clocked in at ${formatDateTime(log.clockInAt)}.`);
+  await notifySupervisors(db, session, `${session.name} clocked in at ${formatDateTime(log.clockInAt)}.`);
   revalidatePath("/attendance");
   return {};
 }
 
 export async function clockOut(coords: Coords): Promise<{ error?: string }> {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (session.role === "OWNER") return { error: "Owners don't clock in/out." };
 
   const open = await db.attendanceLog.findFirst({
@@ -85,7 +89,7 @@ export async function clockOut(coords: Coords): Promise<{ error?: string }> {
   });
   if (!open) return { error: "You're not clocked in." };
 
-  const geofence = await checkGeofence(open.branchId, coords);
+  const geofence = await checkGeofence(db, open.branchId, coords);
   if (geofence.error) return geofence;
 
   const now = new Date();
@@ -94,7 +98,7 @@ export async function clockOut(coords: Coords): Promise<{ error?: string }> {
     data: { clockOutAt: now, clockOutLat: coords?.lat, clockOutLng: coords?.lng },
   });
 
-  await notifySupervisors(session, `${session.name} clocked out at ${formatDateTime(now)}.`);
+  await notifySupervisors(db, session, `${session.name} clocked out at ${formatDateTime(now)}.`);
   revalidatePath("/attendance");
   return {};
 }
@@ -106,7 +110,7 @@ const editSchema = z.object({
 
 /** Owner-only correction for a clock in/out record — e.g. a missed clock-out or a wrong time. */
 export async function updateAttendanceLog(logId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canEditAttendance(session.role)) throw new Error("Forbidden");
 
   const parsed = editSchema.parse({
@@ -135,7 +139,7 @@ export async function updateAttendanceLog(logId: string, formData: FormData) {
 
 /** Owner-only — removes a mistaken record (e.g. an accidental double clock-in) entirely. */
 export async function deleteAttendanceLog(logId: string) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canEditAttendance(session.role)) throw new Error("Forbidden");
 
   await db.attendanceLog.delete({ where: { id: logId } });

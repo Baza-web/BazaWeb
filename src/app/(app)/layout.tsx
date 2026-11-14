@@ -1,6 +1,5 @@
 import type { Role } from "@prisma/client";
-import { requireSessionOrRedirect } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { ROLE_LABELS } from "@/lib/rbac";
 import { AppShell } from "@/components/AppShell";
 import { logout } from "./actions";
@@ -56,7 +55,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const [unreadNotifications, unreadMessages, openAttendanceLog] = await Promise.all([
     db.notification.count({ where: { staffId: session.staffId, readAt: null } }),

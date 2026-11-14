@@ -1,5 +1,4 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canManageRepairs, isCompanyWide } from "@/lib/rbac";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { createRepairOrder, updateRepairStatus, assignRepairOrder } from "./actions";
@@ -18,7 +17,7 @@ export default async function RepairsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const canManage = canManageRepairs(session.role);
   const canUpdateStatus = canManage || session.role === "CRAFTSMAN";
   const { status } = await searchParams;

@@ -1,13 +1,12 @@
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canAssignTasks, isCompanyWide } from "@/lib/rbac";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { updateTaskStatus, addTaskComment } from "../actions";
 import { UsersFour } from "@/components/icons";
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const { id } = await params;
 
   const task = await db.task.findUnique({

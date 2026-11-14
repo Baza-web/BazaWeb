@@ -3,8 +3,8 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
+import { type SessionPayload } from "@/lib/auth";
+import { requireScopedSessionOrRedirect, type ScopedDb } from "@/lib/tenant-db";
 import { branchScope, canManageBrokers, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { round2 } from "@/lib/utils";
@@ -17,7 +17,7 @@ function emptyToUndefined(value: FormDataEntryValue | null) {
   return s === "" ? undefined : s;
 }
 
-async function otherAdmins(session: SessionPayload) {
+async function otherAdmins(db: ScopedDb, session: SessionPayload) {
   return db.staff.findMany({
     where: {
       active: true,
@@ -28,7 +28,7 @@ async function otherAdmins(session: SessionPayload) {
 }
 
 /** Rebuilds and emails a broker's full statement (every memo item they've ever been issued). */
-async function sendBrokerStatement(brokerId: string) {
+async function sendBrokerStatement(db: ScopedDb, brokerId: string) {
   const broker = await db.broker.findUniqueOrThrow({ where: { id: brokerId } });
   if (!broker.email) return;
 
@@ -74,7 +74,7 @@ const brokerSchema = z.object({
 });
 
 export async function createBroker(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageBrokers(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -91,7 +91,9 @@ export async function createBroker(formData: FormData) {
     branchId,
   });
 
-  await db.broker.create({ data: { ...parsed, createdById: session.staffId } });
+  await db.broker.create({
+    data: { ...parsed, createdById: session.staffId, organizationId: session.organizationId },
+  });
   revalidatePath("/brokers");
 }
 
@@ -115,7 +117,7 @@ function memoNumber() {
 }
 
 export async function createMemo(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageBrokers(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -158,11 +160,13 @@ export async function createMemo(formData: FormData) {
         expectedReturnAt: parsed.expectedReturnAt,
         notes: parsed.notes,
         createdById: session.staffId,
+        organizationId: session.organizationId,
         items: {
           create: parsed.items.map((line) => ({
             inventoryItemId: line.inventoryItemId,
             quantity: line.quantity,
             valueEach: line.valueEach,
+            organizationId: session.organizationId,
           })),
         },
       },
@@ -190,14 +194,14 @@ export async function createMemo(formData: FormData) {
     return memo;
   });
 
-  const admins = await otherAdmins(session);
+  const admins = await otherAdmins(db, session);
   await Promise.all(
     admins.map((a) =>
       notifyStaff(a.id, "SYSTEM", "New broker memo issued", `${session.name} issued a memo to ${broker.name}.`, "/brokers"),
     ),
   );
 
-  await sendBrokerStatement(parsed.brokerId).catch((err) => console.error("Failed to email broker statement:", err));
+  await sendBrokerStatement(db, parsed.brokerId).catch((err) => console.error("Failed to email broker statement:", err));
 
   revalidatePath("/brokers");
   revalidatePath("/inventory");
@@ -210,7 +214,7 @@ const editRequestSchema = z.object({
 });
 
 export async function requestMemoEdit(memoId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageBrokers(session.role)) throw new Error("Forbidden");
 
   const memo = await db.brokerMemo.findFirst({
@@ -245,10 +249,11 @@ export async function requestMemoEdit(memoId: string, formData: FormData) {
       notesChange: parsed.notesChange,
       reason: parsed.reason,
       requestedById: session.staffId,
+      organizationId: session.organizationId,
     },
   });
 
-  const admins = await otherAdmins(session);
+  const admins = await otherAdmins(db, session);
   await Promise.all(
     admins.map((a) =>
       notifyStaff(
@@ -267,7 +272,7 @@ export async function requestMemoEdit(memoId: string, formData: FormData) {
 const decisionSchema = z.enum(["APPROVED", "REJECTED"]);
 
 export async function reviewMemoEditRequest(requestId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageBrokers(session.role)) throw new Error("Forbidden");
 
   const request = await db.brokerMemoEditRequest.findUniqueOrThrow({
@@ -330,7 +335,7 @@ export async function reviewMemoEditRequest(requestId: string, formData: FormDat
       });
     });
 
-    await sendBrokerStatement(request.memo.brokerId).catch((err) =>
+    await sendBrokerStatement(db, request.memo.brokerId).catch((err) =>
       console.error("Failed to email broker statement:", err),
     );
   }
@@ -348,12 +353,12 @@ export async function reviewMemoEditRequest(requestId: string, formData: FormDat
 }
 
 export async function resendBrokerStatement(brokerId: string, _formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageBrokers(session.role)) throw new Error("Forbidden");
 
   const broker = await db.broker.findFirst({ where: { id: brokerId, ...branchScope(session) } });
   if (!broker) throw new Error("Forbidden");
   if (!broker.email) throw new Error("This broker has no email address on file.");
 
-  await sendBrokerStatement(brokerId);
+  await sendBrokerStatement(db, brokerId);
 }

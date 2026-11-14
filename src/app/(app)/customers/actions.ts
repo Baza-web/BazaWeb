@@ -3,8 +3,7 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, isCompanyWide } from "@/lib/rbac";
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
@@ -24,7 +23,7 @@ const customerSchema = z.object({
 });
 
 export async function createCustomer(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const branchId = isCompanyWide(session.role)
     ? String(formData.get("branchId"))
@@ -40,7 +39,7 @@ export async function createCustomer(formData: FormData) {
     branchId,
   });
 
-  const customer = await db.customer.create({ data: parsed });
+  const customer = await db.customer.create({ data: { ...parsed, organizationId: session.organizationId } });
   redirect(`/customers/${customer.id}`);
 }
 
@@ -50,7 +49,7 @@ const noteSchema = z.object({
 });
 
 export async function addCustomerNote(customerId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const customer = await db.customer.findFirst({
     where: { id: customerId, ...branchScope(session) },
@@ -63,7 +62,7 @@ export async function addCustomerNote(customerId: string, formData: FormData) {
   });
 
   await db.customerNote.create({
-    data: { customerId, staffId: session.staffId, ...parsed },
+    data: { customerId, staffId: session.staffId, organizationId: session.organizationId, ...parsed },
   });
   revalidatePath(`/customers/${customerId}`);
 }

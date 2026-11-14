@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { createSessionCookie, verifyPassword } from "@/lib/auth";
+import { resolveOrganizationForRequest } from "@/lib/tenant-resolve";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
@@ -50,7 +51,17 @@ export async function login(formData: FormData) {
     redirect("/login?error=" + encodeURIComponent("Too many login attempts from your network. Please wait a few minutes and try again."));
   }
 
-  const staff = await db.staff.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
+  const organization = await resolveOrganizationForRequest();
+  if (!organization) {
+    redirect(
+      "/login?error=" +
+        encodeURIComponent("Couldn't determine your organization. Use your organization's own sign-in link."),
+    );
+  }
+
+  const staff = await db.staff.findFirst({
+    where: { organizationId: organization.id, email: parsed.data.email.toLowerCase() },
+  });
   if (!staff || !staff.active) {
     redirect("/login?error=" + encodeURIComponent("No active account found with that email."));
   }
@@ -87,6 +98,7 @@ export async function login(formData: FormData) {
 
   await createSessionCookie({
     staffId: staff.id,
+    organizationId: staff.organizationId,
     name: staff.name,
     email: staff.email,
     role: staff.role,

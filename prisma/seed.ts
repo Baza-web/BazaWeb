@@ -32,8 +32,18 @@ async function main() {
   const ownerPassword = process.env.SEED_OWNER_PASSWORD;
   const ownerName = process.env.SEED_OWNER_NAME ?? "Business Owner";
   const branchName = process.env.SEED_BRANCH_NAME ?? "Main Branch";
+  const orgName = process.env.SEED_ORG_NAME ?? branchName;
 
-  const existingOwner = await db.staff.findUnique({ where: { email: ownerEmail.toLowerCase() } });
+  // This self-hosted deployment is always exactly one Organization (tenant).
+  // The multi-tenant migration already created it (id "org_default") if this
+  // is an existing database; create it here for a brand-new one.
+  const organization =
+    (await db.organization.findFirst()) ??
+    (await db.organization.create({ data: { name: orgName, slug: "default", status: "ACTIVE", plan: "self-hosted" } }));
+
+  const existingOwner = await db.staff.findFirst({
+    where: { organizationId: organization.id, email: ownerEmail.toLowerCase() },
+  });
   if (existingOwner) {
     console.log(`Owner account already exists for ${ownerEmail}, skipping seed.`);
     return;
@@ -41,7 +51,9 @@ async function main() {
 
   assertStrongOwnerPassword(ownerPassword);
 
-  const branch = await db.branch.create({ data: { name: branchName } });
+  const branch = await db.branch.create({
+    data: { name: branchName, isMain: true, organizationId: organization.id },
+  });
 
   const passwordHash = await bcrypt.hash(ownerPassword, 12);
   await db.staff.create({
@@ -51,10 +63,12 @@ async function main() {
       passwordHash,
       role: "OWNER",
       branchId: branch.id,
+      organizationId: organization.id,
     },
   });
 
-  console.log("Seeded first branch and owner account:");
+  console.log("Seeded first organization, branch, and owner account:");
+  console.log(`  Organization: ${organization.name}`);
   console.log(`  Branch: ${branchName}`);
   console.log(`  Email:  ${ownerEmail}`);
   console.log("Sign in with the password you set in SEED_OWNER_PASSWORD, then create accounts for your team under Staff.");

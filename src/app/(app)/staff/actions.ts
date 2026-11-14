@@ -3,8 +3,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect, hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageStaffScoped, isCompanyWide, MANAGER_GRANTABLE_ROLES } from "@/lib/rbac";
 
 const createSchema = z.object({
@@ -17,7 +17,7 @@ const createSchema = z.object({
 });
 
 export async function createStaff(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
 
   const companyWide = isCompanyWide(session.role);
@@ -49,6 +49,7 @@ export async function createStaff(formData: FormData) {
       role: parsed.role,
       branchId: parsed.branchId,
       passwordHash,
+      organizationId: session.organizationId,
     },
   });
 
@@ -56,7 +57,7 @@ export async function createStaff(formData: FormData) {
 }
 
 export async function toggleStaffActive(staffId: string) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
   if (staffId === session.staffId) throw new Error("You can't deactivate your own account.");
 

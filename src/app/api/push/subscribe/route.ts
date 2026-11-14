@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireScopedSession, type ScopedDb } from "@/lib/tenant-db";
+import type { SessionPayload } from "@/lib/auth";
 import { isTrustedPushEndpoint } from "@/lib/push";
 
 const schema = z.object({
@@ -10,9 +10,10 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  let session;
+  let session: SessionPayload;
+  let db: ScopedDb;
   try {
-    session = await requireSession();
+    ({ session, db } = await requireScopedSession());
   } catch {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       endpoint: parsed.data.endpoint,
       p256dh: parsed.data.keys.p256dh,
       auth: parsed.data.keys.auth,
+      organizationId: session.organizationId,
     },
     update: {
       staffId: session.staffId,

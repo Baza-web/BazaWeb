@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { formatDateTime } from "@/lib/utils";
 
 export default async function InboxPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const [staff, messages] = await Promise.all([
     db.staff.findMany({

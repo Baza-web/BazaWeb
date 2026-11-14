@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { createSessionCookie } from "@/lib/auth";
 import { exchangeGoogleCode, verifyGoogleIdToken } from "@/lib/google-auth";
+import { resolveOrganizationForRequest } from "@/lib/tenant-resolve";
 
 function redirectToLogin(request: Request, message: string) {
   const url = new URL("/login", request.url);
@@ -32,7 +33,14 @@ export async function GET(request: Request) {
     return redirectToLogin(request, "Google sign-in failed. Please try again or use your password.");
   }
 
-  const staff = await db.staff.findUnique({ where: { email: email.toLowerCase() } });
+  const organization = await resolveOrganizationForRequest();
+  if (!organization) {
+    return redirectToLogin(request, "Couldn't determine your organization. Use your organization's own sign-in link.");
+  }
+
+  const staff = await db.staff.findFirst({
+    where: { organizationId: organization.id, email: email.toLowerCase() },
+  });
   if (!staff || !staff.active) {
     return redirectToLogin(
       request,
@@ -42,6 +50,7 @@ export async function GET(request: Request) {
 
   await createSessionCookie({
     staffId: staff.id,
+    organizationId: staff.organizationId,
     name: staff.name,
     email: staff.email,
     role: staff.role,

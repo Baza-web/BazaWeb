@@ -125,8 +125,54 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+enum OrganizationStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+}
+
+// A customer business (tenant) of the SaaS. Every other model below belongs
+// to exactly one Organization — see organizationId on each.
+model Organization {
+  id        String             @id @default(cuid())
+  name      String
+  slug      String             @unique
+  status    OrganizationStatus @default(TRIAL)
+  plan      String             @default("trial")
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  branches               Branch[]
+  staff                  Staff[]
+  inventoryItems         InventoryItem[]
+  customers              Customer[]
+  customerNotes          CustomerNote[]
+  sales                  Sale[]
+  saleItems              SaleItem[]
+  expenses               Expense[]
+  ledgerEntries          LedgerEntry[]
+  tasks                  Task[]
+  taskComments           TaskComment[]
+  messages               Message[]
+  notifications          Notification[]
+  pushSubscriptions      PushSubscription[]
+  leaveRequests          LeaveRequest[]
+  attendanceLogs         AttendanceLog[]
+  repairOrders           RepairOrder[]
+  suppliers              Supplier[]
+  purchaseOrders         PurchaseOrder[]
+  purchaseOrderItems     PurchaseOrderItem[]
+  staffGroups            StaffGroup[]
+  salesTargets           SalesTarget[]
+  brokers                Broker[]
+  brokerMemos            BrokerMemo[]
+  brokerMemoItems        BrokerMemoItem[]
+  brokerMemoEditRequests BrokerMemoEditRequest[]
+}
+
 model Branch {
   id              String   @id @default(cuid())
+  organizationId  String
   name            String
   address         String?
   phone           String?
@@ -136,6 +182,7 @@ model Branch {
   geofenceRadiusM Int?
   createdAt       DateTime @default(now())
 
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   staff          Staff[]
   inventoryItems InventoryItem[]
   customers      Customer[]
@@ -150,52 +197,59 @@ model Branch {
   salesTargets   SalesTarget[]
   brokers        Broker[]
   brokerMemos    BrokerMemo[]
+
+  @@index([organizationId])
 }
 
 model Staff {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  phone        String?
-  passwordHash String
-  role         Role
-  branchId     String?
-  active       Boolean  @default(true)
+  id                  String    @id @default(cuid())
+  organizationId      String
+  name                String
+  email               String
+  phone               String?
+  passwordHash        String
+  role                Role
+  branchId            String?
+  active              Boolean   @default(true)
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
-  createdAt    DateTime @default(now())
+  createdAt           DateTime  @default(now())
 
-  branch Branch? @relation(fields: [branchId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id])
 
-  assignedTasks     Task[]            @relation("AssignedTo")
-  createdTasks      Task[]            @relation("AssignedBy")
-  taskComments      TaskComment[]
-  sales             Sale[]
-  expensesCreated   Expense[]
-  sentMessages      Message[]         @relation("Sender")
-  receivedMessages  Message[]         @relation("Recipient")
-  notifications     Notification[]
-  pushSubscriptions PushSubscription[]
-  customerNotes     CustomerNote[]
-  leaveRequests     LeaveRequest[]   @relation("LeaveRequester")
-  leaveReviews      LeaveRequest[]   @relation("LeaveReviewer")
-  attendanceLogs    AttendanceLog[]
-  repairOrdersAssigned RepairOrder[] @relation("RepairAssignedTo")
-  repairOrdersCreated  RepairOrder[] @relation("RepairCreatedBy")
+  assignedTasks         Task[]                  @relation("AssignedTo")
+  createdTasks          Task[]                  @relation("AssignedBy")
+  taskComments          TaskComment[]
+  sales                 Sale[]
+  expensesCreated       Expense[]
+  sentMessages          Message[]               @relation("Sender")
+  receivedMessages      Message[]               @relation("Recipient")
+  notifications         Notification[]
+  pushSubscriptions     PushSubscription[]
+  customerNotes         CustomerNote[]
+  leaveRequests         LeaveRequest[]          @relation("LeaveRequester")
+  leaveReviews          LeaveRequest[]          @relation("LeaveReviewer")
+  attendanceLogs        AttendanceLog[]
+  repairOrdersAssigned  RepairOrder[]           @relation("RepairAssignedTo")
+  repairOrdersCreated   RepairOrder[]           @relation("RepairCreatedBy")
   purchaseOrdersCreated PurchaseOrder[]
-  groups            StaffGroup[]    @relation("GroupMembers")
-  salesTargets      SalesTarget[]
-  brokersCreated    Broker[]
-  memosCreated      BrokerMemo[]            @relation("MemoCreatedBy")
-  memoEditsRequested BrokerMemoEditRequest[] @relation("MemoEditRequester")
-  memoEditsReviewed  BrokerMemoEditRequest[] @relation("MemoEditReviewer")
+  groups                StaffGroup[]            @relation("GroupMembers")
+  salesTargets          SalesTarget[]
+  brokersCreated        Broker[]
+  memosCreated          BrokerMemo[]            @relation("MemoCreatedBy")
+  memoEditsRequested    BrokerMemoEditRequest[] @relation("MemoEditRequester")
+  memoEditsReviewed     BrokerMemoEditRequest[] @relation("MemoEditReviewer")
 
+  @@unique([organizationId, email])
   @@index([branchId])
+  @@index([organizationId])
 }
 
 model InventoryItem {
   id             String       @id @default(cuid())
-  sku            String       @unique
+  organizationId String
+  sku            String
   name           String
   category       ItemCategory
   metalType      String?
@@ -220,100 +274,118 @@ model InventoryItem {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  branch       Branch        @relation(fields: [branchId], references: [id])
-  saleItems    SaleItem[]
-  repairOrders RepairOrder[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch          Branch           @relation(fields: [branchId], references: [id])
+  saleItems       SaleItem[]
+  repairOrders    RepairOrder[]
   brokerMemoItems BrokerMemoItem[]
 
+  @@unique([organizationId, sku])
   @@index([branchId])
   @@index([status])
+  @@index([organizationId])
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?
-  email     String?
-  address   String?
-  birthday  DateTime?
-  anniversary DateTime?
-  branchId  String
-  createdAt DateTime @default(now())
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  phone          String?
+  email          String?
+  address        String?
+  birthday       DateTime?
+  anniversary    DateTime?
+  branchId       String
+  createdAt      DateTime  @default(now())
 
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   branch       Branch         @relation(fields: [branchId], references: [id])
   sales        Sale[]
   notes        CustomerNote[]
   repairOrders RepairOrder[]
 
   @@index([branchId])
+  @@index([organizationId])
 }
 
 model CustomerNote {
-  id         String   @id @default(cuid())
-  customerId String
-  staffId    String
-  body       String
-  followUpAt DateTime?
-  createdAt  DateTime @default(now())
+  id             String    @id @default(cuid())
+  organizationId String
+  customerId     String
+  staffId        String
+  body           String
+  followUpAt     DateTime?
+  createdAt      DateTime  @default(now())
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  staff    Staff    @relation(fields: [staffId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  staff        Staff        @relation(fields: [staffId], references: [id])
 
   @@index([customerId])
+  @@index([organizationId])
 }
 
 model Sale {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  customerId    String?
-  branchId      String
-  staffId       String
-  subtotal      Float
-  discount      Float         @default(0)
-  tax           Float         @default(0)
-  total         Float
-  amountPaid    Float         @default(0)
-  paymentStatus PaymentStatus @default(UNPAID)
-  paymentMethod PaymentMethod @default(CASH)
-  notes         String?
-  createdAt     DateTime      @default(now())
+  id             String        @id @default(cuid())
+  organizationId String
+  invoiceNumber  String
+  customerId     String?
+  branchId       String
+  staffId        String
+  subtotal       Float
+  discount       Float         @default(0)
+  tax            Float         @default(0)
+  total          Float
+  amountPaid     Float         @default(0)
+  paymentStatus  PaymentStatus @default(UNPAID)
+  paymentMethod  PaymentMethod @default(CASH)
+  notes          String?
+  createdAt      DateTime      @default(now())
 
-  branch   Branch     @relation(fields: [branchId], references: [id])
-  staff    Staff      @relation(fields: [staffId], references: [id])
-  customer Customer?  @relation(fields: [customerId], references: [id])
-  items    SaleItem[]
-  ledgerEntry LedgerEntry?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  staff        Staff        @relation(fields: [staffId], references: [id])
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+  items        SaleItem[]
+  ledgerEntry  LedgerEntry?
 
+  @@unique([organizationId, invoiceNumber])
   @@index([branchId])
   @@index([customerId])
+  @@index([organizationId])
 }
 
 model SaleItem {
-  id              String  @id @default(cuid())
+  id              String @id @default(cuid())
+  organizationId  String
   saleId          String
   inventoryItemId String
-  quantity        Int     @default(1)
+  quantity        Int    @default(1)
   priceEach       Float
 
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
 
   @@index([saleId])
+  @@index([organizationId])
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  branchId    String
-  category    String
-  description String
-  amount      Float
-  date        DateTime @default(now())
-  createdById String
-  createdAt   DateTime @default(now())
-  receiptImage String?
+  id             String   @id @default(cuid())
+  organizationId String
+  branchId       String
+  category       String
+  description    String
+  amount         Float
+  date           DateTime @default(now())
+  createdById    String
+  createdAt      DateTime @default(now())
+  receiptImage   String?
 
   purchaseOrderId String?
 
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   branch        Branch         @relation(fields: [branchId], references: [id])
   createdBy     Staff          @relation(fields: [createdById], references: [id])
   purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
@@ -321,167 +393,194 @@ model Expense {
 
   @@index([branchId])
   @@index([purchaseOrderId])
+  @@index([organizationId])
 }
 
 model LedgerEntry {
-  id          String     @id @default(cuid())
-  branchId    String
-  type        LedgerType
-  amount      Float
-  description String
-  date        DateTime   @default(now())
-  saleId      String?    @unique
-  expenseId   String?    @unique
-  createdAt   DateTime   @default(now())
+  id             String     @id @default(cuid())
+  organizationId String
+  branchId       String
+  type           LedgerType
+  amount         Float
+  description    String
+  date           DateTime   @default(now())
+  saleId         String?    @unique
+  expenseId      String?    @unique
+  createdAt      DateTime   @default(now())
 
-  branch  Branch   @relation(fields: [branchId], references: [id])
-  sale    Sale?    @relation(fields: [saleId], references: [id])
-  expense Expense? @relation(fields: [expenseId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  sale         Sale?        @relation(fields: [saleId], references: [id])
+  expense      Expense?     @relation(fields: [expenseId], references: [id])
 
   @@index([branchId, date])
+  @@index([organizationId])
 }
 
 model Task {
-  id           String       @id @default(cuid())
-  title        String
-  description  String?
-  type         TaskType     @default(DAILY)
-  priority     TaskPriority @default(NORMAL)
-  status       TaskStatus   @default(PENDING)
-  dueDate      DateTime?
-  branchId     String
-  assignedToId String
-  assignedById String
-  groupId      String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  completedAt  DateTime?
+  id             String       @id @default(cuid())
+  organizationId String
+  title          String
+  description    String?
+  type           TaskType     @default(DAILY)
+  priority       TaskPriority @default(NORMAL)
+  status         TaskStatus   @default(PENDING)
+  dueDate        DateTime?
+  branchId       String
+  assignedToId   String
+  assignedById   String
+  groupId        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  completedAt    DateTime?
 
-  branch     Branch        @relation(fields: [branchId], references: [id])
-  assignedTo Staff         @relation("AssignedTo", fields: [assignedToId], references: [id])
-  assignedBy Staff         @relation("AssignedBy", fields: [assignedById], references: [id])
-  group      StaffGroup?   @relation(fields: [groupId], references: [id])
-  comments   TaskComment[]
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  assignedTo   Staff         @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedBy   Staff         @relation("AssignedBy", fields: [assignedById], references: [id])
+  group        StaffGroup?   @relation(fields: [groupId], references: [id])
+  comments     TaskComment[]
 
   @@index([branchId])
   @@index([assignedToId])
   @@index([groupId])
+  @@index([organizationId])
 }
 
 model TaskComment {
-  id        String   @id @default(cuid())
-  taskId    String
-  staffId   String
-  body      String
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  taskId         String
+  staffId        String
+  body           String
+  createdAt      DateTime @default(now())
 
-  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  staff Staff @relation(fields: [staffId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task         Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  staff        Staff        @relation(fields: [staffId], references: [id])
 
   @@index([taskId])
+  @@index([organizationId])
 }
 
 model Message {
-  id          String    @id @default(cuid())
-  senderId    String
-  recipientId String
-  body        String
-  readAt      DateTime?
-  createdAt   DateTime  @default(now())
+  id             String    @id @default(cuid())
+  organizationId String
+  senderId       String
+  recipientId    String
+  body           String
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
 
-  sender    Staff @relation("Sender", fields: [senderId], references: [id])
-  recipient Staff @relation("Recipient", fields: [recipientId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sender       Staff        @relation("Sender", fields: [senderId], references: [id])
+  recipient    Staff        @relation("Recipient", fields: [recipientId], references: [id])
 
   @@index([recipientId, readAt])
   @@index([senderId])
+  @@index([organizationId])
 }
 
 model Notification {
-  id        String           @id @default(cuid())
-  staffId   String
-  type      NotificationType
-  title     String
-  body      String
-  link      String?
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
+  id             String           @id @default(cuid())
+  organizationId String
+  staffId        String
+  type           NotificationType
+  title          String
+  body           String
+  link           String?
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
 
-  staff Staff @relation(fields: [staffId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staff        Staff        @relation(fields: [staffId], references: [id])
 
   @@index([staffId, readAt])
+  @@index([organizationId])
 }
 
 model PushSubscription {
-  id        String   @id @default(cuid())
-  staffId   String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  staffId        String
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  createdAt      DateTime @default(now())
 
-  staff Staff @relation(fields: [staffId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staff        Staff        @relation(fields: [staffId], references: [id])
 
   @@index([staffId])
+  @@index([organizationId])
 }
 
 model LeaveRequest {
-  id           String      @id @default(cuid())
-  staffId      String
-  type         LeaveType
-  startDate    DateTime
-  endDate      DateTime
-  reason       String?
-  status       LeaveStatus @default(PENDING)
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt    DateTime    @default(now())
+  id             String      @id @default(cuid())
+  organizationId String
+  staffId        String
+  type           LeaveType
+  startDate      DateTime
+  endDate        DateTime
+  reason         String?
+  status         LeaveStatus @default(PENDING)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime    @default(now())
 
-  staff      Staff  @relation("LeaveRequester", fields: [staffId], references: [id])
-  reviewedBy Staff? @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staff        Staff        @relation("LeaveRequester", fields: [staffId], references: [id])
+  reviewedBy   Staff?       @relation("LeaveReviewer", fields: [reviewedById], references: [id])
 
   @@index([staffId])
+  @@index([organizationId])
 }
 
 model AttendanceLog {
-  id          String    @id @default(cuid())
-  staffId     String
-  branchId    String
-  clockInAt   DateTime  @default(now())
-  clockOutAt  DateTime?
-  clockInLat  Float?
-  clockInLng  Float?
-  clockOutLat Float?
-  clockOutLng Float?
+  id             String    @id @default(cuid())
+  organizationId String
+  staffId        String
+  branchId       String
+  clockInAt      DateTime  @default(now())
+  clockOutAt     DateTime?
+  clockInLat     Float?
+  clockInLng     Float?
+  clockOutLat    Float?
+  clockOutLng    Float?
 
-  staff  Staff  @relation(fields: [staffId], references: [id])
-  branch Branch @relation(fields: [branchId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staff        Staff        @relation(fields: [staffId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
 
   @@index([staffId])
   @@index([branchId, clockInAt])
+  @@index([organizationId])
 }
 
 model RepairOrder {
-  id                  String       @id @default(cuid())
-  customerId          String
-  branchId            String
-  type                RepairType   @default(REPAIR)
-  description         String
-  intakeDate          DateTime     @default(now())
-  promisedDate        DateTime?
-  status              RepairStatus @default(RECEIVED)
-  estimatedCost       Float?
-  finalCost           Float?
+  id                     String       @id @default(cuid())
+  organizationId         String
+  customerId             String
+  branchId               String
+  type                   RepairType   @default(REPAIR)
+  description            String
+  intakeDate             DateTime     @default(now())
+  promisedDate           DateTime?
+  status                 RepairStatus @default(RECEIVED)
+  estimatedCost          Float?
+  finalCost              Float?
   relatedInventoryItemId String?
-  assignedToId        String?
-  createdById         String
-  photos              String[]     @default([])
-  notes               String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  completedAt         DateTime?
+  assignedToId           String?
+  createdById            String
+  photos                 String[]     @default([])
+  notes                  String?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  completedAt            DateTime?
 
-  customer            Customer       @relation(fields: [customerId], references: [id])
-  branch               Branch        @relation(fields: [branchId], references: [id])
+  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer             Customer       @relation(fields: [customerId], references: [id])
+  branch               Branch         @relation(fields: [branchId], references: [id])
   relatedInventoryItem InventoryItem? @relation(fields: [relatedInventoryItemId], references: [id])
   assignedTo           Staff?         @relation("RepairAssignedTo", fields: [assignedToId], references: [id])
   createdBy            Staff          @relation("RepairCreatedBy", fields: [createdById], references: [id])
@@ -489,85 +588,103 @@ model RepairOrder {
   @@index([branchId])
   @@index([customerId])
   @@index([assignedToId])
+  @@index([organizationId])
 }
 
 model Supplier {
-  id        String   @id @default(cuid())
-  name      String
-  contactName String?
-  phone     String?
-  email     String?
-  address   String?
-  notes     String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  contactName    String?
+  phone          String?
+  email          String?
+  address        String?
+  notes          String?
+  createdAt      DateTime @default(now())
 
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   purchaseOrders PurchaseOrder[]
+
+  @@index([organizationId])
 }
 
 model PurchaseOrder {
-  id            String              @id @default(cuid())
-  orderNumber   String              @unique
-  supplierId    String
-  branchId      String
-  status        PurchaseOrderStatus @default(DRAFT)
-  orderDate     DateTime            @default(now())
-  expectedDate  DateTime?
-  totalAmount   Float               @default(0)
-  amountPaid    Float               @default(0)
-  notes         String?
-  createdById   String
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  id             String              @id @default(cuid())
+  organizationId String
+  orderNumber    String
+  supplierId     String
+  branchId       String
+  status         PurchaseOrderStatus @default(DRAFT)
+  orderDate      DateTime            @default(now())
+  expectedDate   DateTime?
+  totalAmount    Float               @default(0)
+  amountPaid     Float               @default(0)
+  notes          String?
+  createdById    String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
-  supplier  Supplier            @relation(fields: [supplierId], references: [id])
-  branch    Branch              @relation(fields: [branchId], references: [id])
-  createdBy Staff               @relation(fields: [createdById], references: [id])
-  items     PurchaseOrderItem[]
-  expenses  Expense[]
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  branch       Branch              @relation(fields: [branchId], references: [id])
+  createdBy    Staff               @relation(fields: [createdById], references: [id])
+  items        PurchaseOrderItem[]
+  expenses     Expense[]
 
+  @@unique([organizationId, orderNumber])
   @@index([branchId])
   @@index([supplierId])
+  @@index([organizationId])
 }
 
 model PurchaseOrderItem {
-  id              String        @id @default(cuid())
+  id              String @id @default(cuid())
+  organizationId  String
   purchaseOrderId String
   description     String
-  quantity        Int           @default(1)
+  quantity        Int    @default(1)
   unitCost        Float
 
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
   @@index([purchaseOrderId])
+  @@index([organizationId])
 }
 
 model StaffGroup {
-  id        String   @id @default(cuid())
-  name      String
-  branchId  String
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  branchId       String
+  createdAt      DateTime @default(now())
 
-  branch  Branch  @relation(fields: [branchId], references: [id])
-  members Staff[] @relation("GroupMembers")
-  tasks   Task[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  members      Staff[]      @relation("GroupMembers")
+  tasks        Task[]
 
   @@index([branchId])
+  @@index([organizationId])
 }
 
 model SalesTarget {
-  id           String   @id @default(cuid())
-  staffId      String
-  branchId     String
-  periodStart  DateTime
-  periodEnd    DateTime
-  targetAmount Float
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  staffId        String
+  branchId       String
+  periodStart    DateTime
+  periodEnd      DateTime
+  targetAmount   Float
+  createdAt      DateTime @default(now())
 
-  staff  Staff  @relation(fields: [staffId], references: [id])
-  branch Branch @relation(fields: [branchId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staff        Staff        @relation(fields: [staffId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
 
   @@index([staffId])
   @@index([branchId])
+  @@index([organizationId])
 }
 
 enum MemoStatus {
@@ -583,28 +700,32 @@ enum MemoEditRequestStatus {
 }
 
 model Broker {
-  id          String   @id @default(cuid())
-  name        String
-  company     String?
-  email       String?
-  phone       String?
-  address     String?
-  notes       String?
-  active      Boolean  @default(true)
-  branchId    String
-  createdById String
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  address        String?
+  notes          String?
+  active         Boolean  @default(true)
+  branchId       String
+  createdById    String
+  createdAt      DateTime @default(now())
 
-  branch    Branch       @relation(fields: [branchId], references: [id])
-  createdBy Staff        @relation(fields: [createdById], references: [id])
-  memos     BrokerMemo[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  createdBy    Staff        @relation(fields: [createdById], references: [id])
+  memos        BrokerMemo[]
 
   @@index([branchId])
+  @@index([organizationId])
 }
 
 model BrokerMemo {
   id               String     @id @default(cuid())
-  memoNumber       String     @unique
+  organizationId   String
+  memoNumber       String
   brokerId         String
   branchId         String
   status           MemoStatus @default(OPEN)
@@ -615,28 +736,34 @@ model BrokerMemo {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   broker       Broker                  @relation(fields: [brokerId], references: [id])
   branch       Branch                  @relation(fields: [branchId], references: [id])
   createdBy    Staff                   @relation("MemoCreatedBy", fields: [createdById], references: [id])
   items        BrokerMemoItem[]
   editRequests BrokerMemoEditRequest[]
 
+  @@unique([organizationId, memoNumber])
   @@index([brokerId])
   @@index([branchId])
+  @@index([organizationId])
 }
 
 model BrokerMemoItem {
   id               String @id @default(cuid())
+  organizationId   String
   memoId           String
   inventoryItemId  String
   quantity         Int    @default(1)
   returnedQuantity Int    @default(0)
   valueEach        Float
 
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   memo          BrokerMemo    @relation(fields: [memoId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
 
   @@index([memoId])
+  @@index([organizationId])
 }
 
 // Maker-checker control: a change to an already-created memo (recording a
@@ -645,20 +772,23 @@ model BrokerMemoItem {
 // their own request. itemReturns is a JSON array of
 // { memoItemId, returnQuantity }.
 model BrokerMemoEditRequest {
-  id            String                 @id @default(cuid())
-  memoId        String
-  status        MemoEditRequestStatus  @default(PENDING)
-  itemReturns   Json
-  notesChange   String?
-  reason        String?
-  requestedById String
-  reviewedById  String?
-  reviewedAt    DateTime?
-  createdAt     DateTime               @default(now())
+  id             String                @id @default(cuid())
+  organizationId String
+  memoId         String
+  status         MemoEditRequestStatus @default(PENDING)
+  itemReturns    Json
+  notesChange    String?
+  reason         String?
+  requestedById  String
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime              @default(now())
 
-  memo        BrokerMemo @relation(fields: [memoId], references: [id], onDelete: Cascade)
-  requestedBy Staff      @relation("MemoEditRequester", fields: [requestedById], references: [id])
-  reviewedBy  Staff?     @relation("MemoEditReviewer", fields: [reviewedById], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memo         BrokerMemo   @relation(fields: [memoId], references: [id], onDelete: Cascade)
+  requestedBy  Staff        @relation("MemoEditRequester", fields: [requestedById], references: [id])
+  reviewedBy   Staff?       @relation("MemoEditReviewer", fields: [reviewedById], references: [id])
 
   @@index([memoId])
+  @@index([organizationId])
 }

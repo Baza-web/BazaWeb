@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canRecordSale } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { Plus } from "@phosphor-icons/react/ssr";
@@ -12,7 +11,7 @@ const PAYMENT_COLORS: Record<string, string> = {
 };
 
 export default async function SalesPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const sales = await db.sale.findMany({
     where: branchScope(session),

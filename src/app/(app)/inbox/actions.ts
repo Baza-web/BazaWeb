@@ -2,18 +2,17 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { notifyStaff } from "@/lib/notifications";
 
 const schema = z.object({ body: z.string().min(1) });
 
 export async function sendMessage(recipientId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const parsed = schema.parse({ body: formData.get("body") });
 
   await db.message.create({
-    data: { senderId: session.staffId, recipientId, body: parsed.body },
+    data: { senderId: session.staffId, recipientId, body: parsed.body, organizationId: session.organizationId },
   });
 
   await notifyStaff(
@@ -29,7 +28,7 @@ export async function sendMessage(recipientId: string, formData: FormData) {
 }
 
 export async function markConversationRead(otherStaffId: string) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   await db.message.updateMany({
     where: { senderId: otherStaffId, recipientId: session.staffId, readAt: null },
     data: { readAt: new Date() },
@@ -43,7 +42,7 @@ function callRoomUrl(staffIdA: string, staffIdB: string) {
 }
 
 export async function startCall(otherStaffId: string): Promise<{ url: string }> {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const url = callRoomUrl(session.staffId, otherStaffId);
 
   await notifyStaff(

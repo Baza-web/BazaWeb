@@ -1,5 +1,4 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import {
   canManageStaffScoped,
   isCompanyWide,
@@ -11,7 +10,7 @@ import { createStaff } from "../actions";
 const ALL_ROLES = Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[];
 
 export default async function NewStaffPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageStaffScoped(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

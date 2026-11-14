@@ -3,8 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import crypto from "node:crypto";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageAccounting, canManagePurchasing, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { round2 } from "@/lib/utils";
@@ -25,7 +24,7 @@ const supplierSchema = z.object({
 });
 
 export async function createSupplier(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManagePurchasing(session.role)) throw new Error("Forbidden");
 
   const parsed = supplierSchema.parse({
@@ -37,7 +36,7 @@ export async function createSupplier(formData: FormData) {
     notes: emptyToUndefined(formData.get("notes")),
   });
 
-  await db.supplier.create({ data: parsed });
+  await db.supplier.create({ data: { ...parsed, organizationId: session.organizationId } });
   revalidatePath("/purchasing");
 }
 
@@ -61,7 +60,7 @@ function orderNumber() {
 }
 
 export async function createPurchaseOrder(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManagePurchasing(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -89,7 +88,8 @@ export async function createPurchaseOrder(formData: FormData) {
       notes: parsed.notes,
       totalAmount,
       createdById: session.staffId,
-      items: { create: parsed.items },
+      organizationId: session.organizationId,
+      items: { create: parsed.items.map((item) => ({ ...item, organizationId: session.organizationId })) },
     },
   });
 
@@ -99,7 +99,7 @@ export async function createPurchaseOrder(formData: FormData) {
 const statusSchema = z.enum(["DRAFT", "ORDERED", "RECEIVED", "CANCELLED"]);
 
 export async function updatePurchaseOrderStatus(orderId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManagePurchasing(session.role)) throw new Error("Forbidden");
 
   const order = await db.purchaseOrder.findUniqueOrThrow({
@@ -136,7 +136,7 @@ const paymentSchema = z.object({
 });
 
 export async function recordPurchaseOrderPayment(orderId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageAccounting(session.role)) throw new Error("Forbidden");
 
   const order = await db.purchaseOrder.findUniqueOrThrow({
@@ -157,6 +157,7 @@ export async function recordPurchaseOrderPayment(orderId: string, formData: Form
         amount: roundedAmount,
         createdById: session.staffId,
         purchaseOrderId: order.id,
+        organizationId: session.organizationId,
       },
     });
 
@@ -168,6 +169,7 @@ export async function recordPurchaseOrderPayment(orderId: string, formData: Form
         description: `${order.orderNumber}: payment to ${order.supplier.name}`,
         date: expense.date,
         expenseId: expense.id,
+        organizationId: session.organizationId,
       },
     });
 

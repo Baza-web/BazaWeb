@@ -50,6 +50,7 @@ export async function GET(request: Request) {
   const ownerPassword = process.env.SEED_OWNER_PASSWORD;
   const ownerName = process.env.SEED_OWNER_NAME ?? "Business Owner";
   const branchName = process.env.SEED_BRANCH_NAME ?? "Main Branch";
+  const orgName = process.env.SEED_ORG_NAME ?? branchName;
 
   try {
     assertStrongOwnerPassword(ownerPassword);
@@ -57,7 +58,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 
-  const branch = await db.branch.create({ data: { name: branchName } });
+  const organization =
+    (await db.organization.findFirst()) ??
+    (await db.organization.create({ data: { name: orgName, slug: "default", status: "ACTIVE", plan: "self-hosted" } }));
+
+  const branch = await db.branch.create({
+    data: { name: branchName, isMain: true, organizationId: organization.id },
+  });
   const passwordHash = await hashPassword(ownerPassword);
   await db.staff.create({
     data: {
@@ -66,6 +73,7 @@ export async function GET(request: Request) {
       passwordHash,
       role: "OWNER",
       branchId: branch.id,
+      organizationId: organization.id,
     },
   });
 

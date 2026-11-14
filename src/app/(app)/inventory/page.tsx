@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canViewCost } from "@/lib/rbac";
 import { formatMoney } from "@/lib/utils";
 import { Plus } from "@phosphor-icons/react/ssr";
@@ -18,7 +17,7 @@ export default async function InventoryPage({
 }: {
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const showCost = canViewCost(session.role);
   const { q, status } = await searchParams;
 

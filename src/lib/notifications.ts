@@ -10,8 +10,10 @@ export async function notifyStaff(
   body: string,
   link?: string,
 ) {
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId }, select: { organizationId: true } });
+
   await db.notification.create({
-    data: { staffId, type, title, body, link },
+    data: { staffId, type, title, body, link, organizationId: staff.organizationId },
   });
 
   const subscriptions = await db.pushSubscription.findMany({ where: { staffId } });

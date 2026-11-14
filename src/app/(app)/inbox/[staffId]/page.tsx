@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { formatDateTime } from "@/lib/utils";
 import { sendMessage, markConversationRead } from "../actions";
 import { CallButton } from "@/components/CallButton";
 
 export default async function ConversationPage({ params }: { params: Promise<{ staffId: string }> }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const { staffId } = await params;
 
   const other = await db.staff.findUnique({ where: { id: staffId } });

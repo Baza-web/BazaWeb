@@ -1,5 +1,4 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canManageSalesTargets, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { createSalesTarget, deleteSalesTarget } from "./actions";
@@ -11,7 +10,7 @@ function daysRemaining(periodEnd: Date) {
 }
 
 export default async function TargetsPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const manager = canManageSalesTargets(session.role);
   const scope = branchScope(session);
 

@@ -1,5 +1,4 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canViewAttendance, canEditAttendance, isCompanyWide } from "@/lib/rbac";
 import { formatDateTime, distanceMeters, mapsLink } from "@/lib/utils";
 import { ClockCountdown, MapPin } from "@/components/icons";
@@ -49,7 +48,7 @@ function LocationCell({
 }
 
 export default async function AttendancePage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const canViewTeam = canViewAttendance(session.role);
   const canEdit = canEditAttendance(session.role);
 

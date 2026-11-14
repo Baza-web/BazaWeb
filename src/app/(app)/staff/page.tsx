@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageStaffScoped, branchScope, ROLE_LABELS } from "@/lib/rbac";
 import { toggleStaffActive } from "./actions";
 import { Plus } from "@phosphor-icons/react/ssr";
 
 export default async function StaffPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageStaffScoped(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

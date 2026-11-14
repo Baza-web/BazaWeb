@@ -3,8 +3,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canRecordSale, isCompanyWide, COMPANY_WIDE_ROLES } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { round2 } from "@/lib/utils";
@@ -41,7 +40,7 @@ const normalizePhone = (s: string) => s.replace(/\D/g, "");
  * staff review and submit the actual sale form themselves.
  */
 export async function scanOrder(branchId: string, formData: FormData): Promise<ScanOrderResult> {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canRecordSale(session.role)) throw new Error("Forbidden");
 
   const empty: ScanOrderResult = {
@@ -159,7 +158,7 @@ function invoiceNumber() {
 }
 
 export async function createSale(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canRecordSale(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -228,11 +227,13 @@ export async function createSale(formData: FormData) {
         paymentStatus,
         paymentMethod: parsed.paymentMethod,
         notes: parsed.notes,
+        organizationId: session.organizationId,
         items: {
           create: parsed.items.map((line) => ({
             inventoryItemId: line.inventoryItemId,
             quantity: line.quantity,
             priceEach: line.priceEach,
+            organizationId: session.organizationId,
           })),
         },
       },
@@ -270,6 +271,7 @@ export async function createSale(formData: FormData) {
         amount: total,
         description: `Sale ${created.invoiceNumber}`,
         saleId: created.id,
+        organizationId: session.organizationId,
       },
     });
 

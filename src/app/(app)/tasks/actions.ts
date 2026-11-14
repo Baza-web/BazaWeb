@@ -3,8 +3,8 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
+import { type SessionPayload } from "@/lib/auth";
+import { requireScopedSessionOrRedirect, type ScopedDb } from "@/lib/tenant-db";
 import { canAssignTasks, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 
@@ -19,7 +19,7 @@ const createSchema = z.object({
 });
 
 export async function createTask(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canAssignTasks(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -69,6 +69,7 @@ export async function createTask(formData: FormData) {
       assignedToId,
       assignedById: session.staffId,
       groupId,
+      organizationId: session.organizationId,
     },
   });
 
@@ -90,6 +91,7 @@ export async function createTask(formData: FormData) {
 }
 
 async function canActOnTask(
+  db: ScopedDb,
   task: { assignedToId: string; groupId: string | null; branchId: string },
   session: SessionPayload,
 ) {
@@ -107,11 +109,11 @@ async function canActOnTask(
 const statusSchema = z.enum(["PENDING", "IN_PROGRESS", "DONE"]);
 
 export async function updateTaskStatus(taskId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const status = statusSchema.parse(formData.get("status"));
 
   const task = await db.task.findUniqueOrThrow({ where: { id: taskId } });
-  const allowed = await canActOnTask(task, session);
+  const allowed = await canActOnTask(db, task, session);
   if (!allowed) throw new Error("Forbidden");
 
   await db.task.update({
@@ -136,18 +138,18 @@ export async function updateTaskStatus(taskId: string, formData: FormData) {
 const commentSchema = z.object({ body: z.string().min(1) });
 
 export async function addTaskComment(taskId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const parsed = commentSchema.parse({ body: formData.get("body") });
 
   const task = await db.task.findUniqueOrThrow({
     where: { id: taskId },
     include: { group: { include: { members: true } } },
   });
-  const allowed = await canActOnTask(task, session);
+  const allowed = await canActOnTask(db, task, session);
   if (!allowed) throw new Error("Forbidden");
 
   await db.taskComment.create({
-    data: { taskId, staffId: session.staffId, body: parsed.body },
+    data: { taskId, staffId: session.staffId, body: parsed.body, organizationId: session.organizationId },
   });
 
   const notifyIds = new Set<string>([task.assignedById, task.assignedToId]);

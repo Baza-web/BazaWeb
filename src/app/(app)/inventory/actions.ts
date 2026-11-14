@@ -3,12 +3,12 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
+import { requireScopedSessionOrRedirect, type ScopedDb } from "@/lib/tenant-db";
+import { type SessionPayload } from "@/lib/auth";
 import { branchScope, canManageInventory, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedImages } from "@/lib/uploads";
 
-async function requireItemInScope(itemId: string, session: SessionPayload) {
+async function requireItemInScope(db: ScopedDb, itemId: string, session: SessionPayload) {
   const item = await db.inventoryItem.findFirst({ where: { id: itemId, ...branchScope(session) } });
   if (!item) throw new Error("Forbidden");
   return item;
@@ -57,7 +57,7 @@ function emptyToUndefined(value: FormDataEntryValue | null) {
 }
 
 export async function createInventoryItem(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageInventory(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -92,15 +92,17 @@ export async function createInventoryItem(formData: FormData) {
   const docFiles = formData.getAll("documents").filter((f) => f instanceof File) as File[];
   const documents = await saveUploadedImages(docFiles, "inventory-documents", true);
 
-  const item = await db.inventoryItem.create({ data: { ...parsed, images, documents } });
+  const item = await db.inventoryItem.create({
+    data: { ...parsed, images, documents, organizationId: session.organizationId },
+  });
   redirect(`/inventory/${item.id}`);
 }
 
 export async function addInventoryDocuments(itemId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageInventory(session.role)) throw new Error("Forbidden");
 
-  const item = await requireItemInScope(itemId, session);
+  const item = await requireItemInScope(db, itemId, session);
 
   const files = formData.getAll("documents").filter((f) => f instanceof File) as File[];
   if (files.length === 0) return;
@@ -116,9 +118,9 @@ export async function addInventoryDocuments(itemId: string, formData: FormData) 
 }
 
 export async function updateInventoryDriveLink(itemId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageInventory(session.role)) throw new Error("Forbidden");
-  await requireItemInScope(itemId, session);
+  await requireItemInScope(db, itemId, session);
 
   const raw = emptyToUndefined(formData.get("driveLink"));
   const driveLink = raw ? z.string().url().parse(raw) : null;
@@ -130,9 +132,9 @@ export async function updateInventoryDriveLink(itemId: string, formData: FormDat
 const statusSchema = z.enum(["IN_STOCK", "RESERVED", "SOLD", "IN_REPAIR", "CONSIGNMENT"]);
 
 export async function updateInventoryStatus(itemId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageInventory(session.role)) throw new Error("Forbidden");
-  await requireItemInScope(itemId, session);
+  await requireItemInScope(db, itemId, session);
 
   const status = statusSchema.parse(formData.get("status"));
   await db.inventoryItem.update({ where: { id: itemId }, data: { status } });

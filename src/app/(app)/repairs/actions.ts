@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageRepairs, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { saveUploadedImages } from "@/lib/uploads";
@@ -32,7 +31,7 @@ const intakeSchema = z.object({
 });
 
 export async function createRepairOrder(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageRepairs(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -68,7 +67,7 @@ export async function createRepairOrder(formData: FormData) {
   const photos = await saveUploadedImages(files, "repairs");
 
   const order = await db.repairOrder.create({
-    data: { ...parsed, photos, createdById: session.staffId },
+    data: { ...parsed, photos, createdById: session.staffId, organizationId: session.organizationId },
     include: { customer: true },
   });
 
@@ -88,7 +87,7 @@ export async function createRepairOrder(formData: FormData) {
 const statusSchema = z.enum(["RECEIVED", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"]);
 
 export async function updateRepairStatus(orderId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const order = await db.repairOrder.findUniqueOrThrow({
     where: { id: orderId },
@@ -135,7 +134,7 @@ export async function updateRepairStatus(orderId: string, formData: FormData) {
 }
 
 export async function assignRepairOrder(orderId: string, formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageRepairs(session.role)) throw new Error("Forbidden");
 
   const existing = await db.repairOrder.findUniqueOrThrow({ where: { id: orderId } });

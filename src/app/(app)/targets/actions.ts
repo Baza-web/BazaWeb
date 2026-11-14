@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageSalesTargets, isCompanyWide } from "@/lib/rbac";
 
 const schema = z
@@ -20,7 +19,7 @@ const schema = z
   });
 
 export async function createSalesTarget(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageSalesTargets(session.role)) throw new Error("Forbidden");
 
   const branchId = isCompanyWide(session.role)
@@ -40,12 +39,12 @@ export async function createSalesTarget(formData: FormData) {
     throw new Error("Forbidden");
   }
 
-  await db.salesTarget.create({ data: parsed });
+  await db.salesTarget.create({ data: { ...parsed, organizationId: session.organizationId } });
   revalidatePath("/targets");
 }
 
 export async function deleteSalesTarget(targetId: string, _formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageSalesTargets(session.role)) throw new Error("Forbidden");
 
   const target = await db.salesTarget.findUniqueOrThrow({ where: { id: targetId } });

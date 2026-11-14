@@ -21,6 +21,31 @@ import crypto from "node:crypto";
 
 const db = new PrismaClient();
 
+// A minimal standalone version of src/lib/tenant-db.ts's scopedDb(): this
+// script runs via plain `tsx`, outside Next.js, so it can't import that
+// file (it pulls in next/headers transitively). Auto-fills organizationId
+// on every top-level create — nested writes (`items: { create: [...] }`)
+// still need it added by hand, same caveat as the real extension.
+function scopedDbStandalone(organizationId: string) {
+  return db.$extends({
+    name: `demo-data-scope:${organizationId}`,
+    query: {
+      $allModels: {
+        async $allOperations({ operation, args, query }) {
+          const typedArgs = args as Record<string, unknown>;
+          if (operation === "create") {
+            typedArgs.data = { ...(typedArgs.data as object | undefined), organizationId };
+          } else if (operation === "createMany") {
+            const data = typedArgs.data;
+            typedArgs.data = Array.isArray(data) ? data.map((row) => ({ ...row, organizationId })) : data;
+          }
+          return query(typedArgs as typeof args);
+        },
+      },
+    },
+  });
+}
+
 const DEMO_PASSWORD = "Demo@12345";
 
 function round2(n: number) {
@@ -45,12 +70,6 @@ function daysFromNow(n: number) {
 }
 
 async function main() {
-  const existing = await db.staff.findUnique({ where: { email: "admin.demo@example.com" } });
-  if (existing) {
-    console.log("Demo data already exists (found admin.demo@example.com) — skipping. Nothing changed.");
-    return;
-  }
-
   const owner = await db.staff.findFirst({ where: { role: "OWNER" } });
   const branch = await db.branch.findFirst({ orderBy: { createdAt: "asc" } });
   if (!owner || !branch) {
@@ -59,32 +78,42 @@ async function main() {
     );
   }
 
+  const existing = await db.staff.findFirst({
+    where: { organizationId: owner.organizationId, email: "admin.demo@example.com" },
+  });
+  if (existing) {
+    console.log("Demo data already exists (found admin.demo@example.com) — skipping. Nothing changed.");
+    return;
+  }
+
+  const organizationId = owner.organizationId;
+  const sdb = scopedDbStandalone(organizationId);
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
 
   console.log(`Adding demo data to "${branch.name}"...`);
 
   // --- Staff ------------------------------------------------------------
-  const admin = await db.staff.create({
-    data: { name: "Nadeesha Perera", email: "admin.demo@example.com", passwordHash, role: "ADMIN", branchId: branch.id },
+  const admin = await sdb.staff.create({
+    data: { organizationId, name: "Nadeesha Perera", email: "admin.demo@example.com", passwordHash, role: "ADMIN", branchId: branch.id },
   });
-  const manager = await db.staff.create({
-    data: { name: "Kasun Fernando", email: "manager.demo@example.com", passwordHash, role: "MANAGER", branchId: branch.id },
+  const manager = await sdb.staff.create({
+    data: { organizationId, name: "Kasun Fernando", email: "manager.demo@example.com", passwordHash, role: "MANAGER", branchId: branch.id },
   });
-  const sales = await db.staff.create({
-    data: { name: "Dilani Silva", email: "sales.demo@example.com", passwordHash, role: "SALES", branchId: branch.id },
+  const sales = await sdb.staff.create({
+    data: { organizationId, name: "Dilani Silva", email: "sales.demo@example.com", passwordHash, role: "SALES", branchId: branch.id },
   });
-  const accountant = await db.staff.create({
-    data: { name: "Ruwan Jayawardena", email: "accountant.demo@example.com", passwordHash, role: "ACCOUNTANT", branchId: branch.id },
+  const accountant = await sdb.staff.create({
+    data: { organizationId, name: "Ruwan Jayawardena", email: "accountant.demo@example.com", passwordHash, role: "ACCOUNTANT", branchId: branch.id },
   });
-  const craftsman = await db.staff.create({
-    data: { name: "Sunil Rathnayake", email: "craftsman.demo@example.com", passwordHash, role: "CRAFTSMAN", branchId: branch.id },
+  const craftsman = await sdb.staff.create({
+    data: { organizationId, name: "Sunil Rathnayake", email: "craftsman.demo@example.com", passwordHash, role: "CRAFTSMAN", branchId: branch.id },
   });
   console.log(`  5 demo staff created (password for all: ${DEMO_PASSWORD})`);
 
   // --- Customers ----------------------------------------------------------
   const [cust1, cust2, cust3, cust4, cust5] = await Promise.all([
-    db.customer.create({
-      data: {
+    sdb.customer.create({
+      data: { organizationId,
         name: "Anusha Wickramasinghe",
         phone: "077 123 4567",
         email: "anusha.demo@example.com",
@@ -93,8 +122,8 @@ async function main() {
         branchId: branch.id,
       },
     }),
-    db.customer.create({
-      data: {
+    sdb.customer.create({
+      data: { organizationId,
         name: "Priyantha Gunasekara",
         phone: "071 234 5678",
         address: "88 Galle Road, Mount Lavinia",
@@ -102,18 +131,18 @@ async function main() {
         branchId: branch.id,
       },
     }),
-    db.customer.create({
-      data: { name: "Chamari Rajapaksha", phone: "076 345 6789", branchId: branch.id },
+    sdb.customer.create({
+      data: { organizationId, name: "Chamari Rajapaksha", phone: "076 345 6789", branchId: branch.id },
     }),
-    db.customer.create({
-      data: { name: "Harsha Bandara", phone: "070 456 7890", address: "22 Kandy Road, Kadawatha", branchId: branch.id },
+    sdb.customer.create({
+      data: { organizationId, name: "Harsha Bandara", phone: "070 456 7890", address: "22 Kandy Road, Kadawatha", branchId: branch.id },
     }),
-    db.customer.create({
-      data: { name: "Nilushi De Silva", phone: "075 567 8901", email: "nilushi.demo@example.com", branchId: branch.id },
+    sdb.customer.create({
+      data: { organizationId, name: "Nilushi De Silva", phone: "075 567 8901", email: "nilushi.demo@example.com", branchId: branch.id },
     }),
   ]);
-  await db.customerNote.create({
-    data: {
+  await sdb.customerNote.create({
+    data: { organizationId,
       customerId: cust1.id,
       staffId: sales.id,
       body: "Interested in a matching ring for her anniversary set — follow up with new arrivals.",
@@ -123,53 +152,53 @@ async function main() {
   console.log("  5 demo customers + 1 note created");
 
   // --- Inventory ------------------------------------------------------
-  const ring = await db.inventoryItem.create({
-    data: {
+  const ring = await sdb.inventoryItem.create({
+    data: { organizationId,
       sku: "DEMO-RG001", name: "Kandyan Lotus Ring", category: "RING",
       metalType: "Gold", metalPurity: "22K", grossWeightG: 5.2, netWeightG: 4.9,
       costPrice: 45000, sellingPrice: 68000, quantity: 3, lowStockAt: 1, branchId: branch.id,
     },
   });
-  const necklace = await db.inventoryItem.create({
-    data: {
+  const necklace = await sdb.inventoryItem.create({
+    data: { organizationId,
       sku: "DEMO-NK001", name: "Nagapadam Temple Necklace", category: "NECKLACE",
       metalType: "Gold", metalPurity: "22K", grossWeightG: 42, netWeightG: 40,
       costPrice: 120000, sellingPrice: 175000, quantity: 1, lowStockAt: 1, branchId: branch.id,
       notes: "One-of-a-kind piece — handcrafted traditional temple jewellery design.",
     },
   });
-  const earrings = await db.inventoryItem.create({
-    data: {
+  const earrings = await sdb.inventoryItem.create({
+    data: { organizationId,
       sku: "DEMO-ER001", name: "Solitaire Diamond Drop Earrings", category: "EARRING",
       metalType: "White Gold", metalPurity: "18K", gemstoneType: "Diamond", caratWeight: 0.5,
       clarity: "VS1", cut: "Round Brilliant", certification: "GIA",
       costPrice: 85000, sellingPrice: 125000, quantity: 2, lowStockAt: 1, branchId: branch.id,
     },
   });
-  const bangle = await db.inventoryItem.create({
-    data: {
+  const bangle = await sdb.inventoryItem.create({
+    data: { organizationId,
       sku: "DEMO-BG001", name: "Classic Gold Bangle Set", category: "BANGLE",
       metalType: "Gold", metalPurity: "22K", grossWeightG: 28,
       costPrice: 30000, sellingPrice: 42000, quantity: 1, lowStockAt: 2, branchId: branch.id,
     },
   });
-  const bracelet = await db.inventoryItem.create({
-    data: {
+  const bracelet = await sdb.inventoryItem.create({
+    data: { organizationId,
       sku: "DEMO-BR001", name: "Tennis Bracelet", category: "BRACELET",
       metalType: "White Gold", metalPurity: "18K", gemstoneType: "Cubic Zirconia",
       costPrice: 65000, sellingPrice: 95000, quantity: 2, lowStockAt: 1, branchId: branch.id,
     },
   });
-  const pendant = await db.inventoryItem.create({
-    data: {
+  const pendant = await sdb.inventoryItem.create({
+    data: { organizationId,
       sku: "DEMO-PD001", name: "Ceylon Blue Sapphire Pendant", category: "PENDANT",
       metalType: "Gold", metalPurity: "18K", gemstoneType: "Blue Sapphire", caratWeight: 2.1,
       clarity: "Eye Clean", certification: "GIA",
       costPrice: 95000, sellingPrice: 140000, quantity: 1, lowStockAt: 1, branchId: branch.id,
     },
   });
-  const looseStone = await db.inventoryItem.create({
-    data: {
+  const looseStone = await sdb.inventoryItem.create({
+    data: { organizationId,
       sku: "DEMO-LS001", name: "Loose Ceylon Blue Sapphire 3.4ct", category: "LOOSE_STONE",
       gemstoneType: "Ceylon Blue Sapphire", caratWeight: 3.4, clarity: "VVS", cut: "Oval",
       certification: "GIA Certified", costPrice: 60000, sellingPrice: 90000, quantity: 1, lowStockAt: 1,
@@ -191,13 +220,13 @@ async function main() {
     const paymentStatus = amountPaid >= total ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
     const invoiceNumber = docNumber("INV");
 
-    await db.$transaction(async (tx) => {
+    await sdb.$transaction(async (tx) => {
       const createdSale = await tx.sale.create({
-        data: {
+        data: { organizationId,
           invoiceNumber, customerId: opts.customerId, branchId: branch!.id, staffId: opts.staffId,
           subtotal, discount, tax: 0, total, amountPaid, paymentStatus,
           paymentMethod: opts.paymentMethod, createdAt: opts.createdAt,
-          items: { create: [{ inventoryItemId: opts.item.id, quantity: opts.qty, priceEach: opts.priceEach }] },
+          items: { create: [{ inventoryItemId: opts.item.id, quantity: opts.qty, priceEach: opts.priceEach, organizationId }] },
         },
       });
       const updated = await tx.inventoryItem.update({
@@ -205,7 +234,7 @@ async function main() {
       });
       if (updated.quantity <= 0) await tx.inventoryItem.update({ where: { id: opts.item.id }, data: { status: "SOLD" } });
       await tx.ledgerEntry.create({
-        data: { branchId: branch!.id, type: "INCOME", amount: total, description: `Sale ${invoiceNumber}`, saleId: createdSale.id, date: opts.createdAt },
+        data: { organizationId, branchId: branch!.id, type: "INCOME", amount: total, description: `Sale ${invoiceNumber}`, saleId: createdSale.id, date: opts.createdAt },
       });
     });
   }
@@ -218,12 +247,12 @@ async function main() {
 
   // --- Expenses (mirrors createExpense: Expense + ledger EXPENSE) -------
   async function recordExpense(category: string, description: string, amount: number, date: Date) {
-    await db.$transaction(async (tx) => {
+    await sdb.$transaction(async (tx) => {
       const expense = await tx.expense.create({
-        data: { branchId: branch!.id, category, description, amount, date, createdById: accountant.id, createdAt: date },
+        data: { organizationId, branchId: branch!.id, category, description, amount, date, createdById: accountant.id, createdAt: date },
       });
       await tx.ledgerEntry.create({
-        data: { branchId: branch!.id, type: "EXPENSE", amount, description: `${category}: ${description}`, date, expenseId: expense.id },
+        data: { organizationId, branchId: branch!.id, type: "EXPENSE", amount, description: `${category}: ${description}`, date, expenseId: expense.id },
       });
     });
   }
@@ -233,113 +262,113 @@ async function main() {
   console.log("  3 demo expenses recorded");
 
   // --- Suppliers & Purchase Orders ---------------------------------------
-  const supplier1 = await db.supplier.create({
-    data: { name: "Ceylon Gold Traders", contactName: "Mr. Wijesinghe", phone: "011 234 5678", address: "Sea Street, Colombo 11" },
+  const supplier1 = await sdb.supplier.create({
+    data: { organizationId, name: "Ceylon Gold Traders", contactName: "Mr. Wijesinghe", phone: "011 234 5678", address: "Sea Street, Colombo 11" },
   });
-  const supplier2 = await db.supplier.create({
-    data: { name: "Lanka Gem Importers", contactName: "Mrs. Abeysekara", phone: "011 876 5432" },
+  const supplier2 = await sdb.supplier.create({
+    data: { organizationId, name: "Lanka Gem Importers", contactName: "Mrs. Abeysekara", phone: "011 876 5432" },
   });
 
-  const po1 = await db.purchaseOrder.create({
-    data: {
+  const po1 = await sdb.purchaseOrder.create({
+    data: { organizationId,
       orderNumber: docNumber("PO"), supplierId: supplier1.id, branchId: branch.id, status: "RECEIVED",
       totalAmount: 480000, createdById: accountant.id, orderDate: daysAgo(12),
-      items: { create: [{ description: "22K Gold Casting Wire (10g bars)", quantity: 10, unitCost: 48000 }] },
+      items: { create: [{ description: "22K Gold Casting Wire (10g bars)", quantity: 10, unitCost: 48000, organizationId }] },
     },
   });
-  await db.$transaction(async (tx) => {
+  await sdb.$transaction(async (tx) => {
     const expense = await tx.expense.create({
-      data: { branchId: branch!.id, category: "Purchase order", description: `Payment for ${po1.orderNumber} — ${supplier1.name}`, amount: 300000, createdById: accountant.id, purchaseOrderId: po1.id, date: daysAgo(11), createdAt: daysAgo(11) },
+      data: { organizationId, branchId: branch!.id, category: "Purchase order", description: `Payment for ${po1.orderNumber} — ${supplier1.name}`, amount: 300000, createdById: accountant.id, purchaseOrderId: po1.id, date: daysAgo(11), createdAt: daysAgo(11) },
     });
     await tx.ledgerEntry.create({
-      data: { branchId: branch!.id, type: "EXPENSE", amount: 300000, description: `${po1.orderNumber}: payment to ${supplier1.name}`, date: daysAgo(11), expenseId: expense.id },
+      data: { organizationId, branchId: branch!.id, type: "EXPENSE", amount: 300000, description: `${po1.orderNumber}: payment to ${supplier1.name}`, date: daysAgo(11), expenseId: expense.id },
     });
     await tx.purchaseOrder.update({ where: { id: po1.id }, data: { amountPaid: 300000 } });
   });
 
-  await db.purchaseOrder.create({
-    data: {
+  await sdb.purchaseOrder.create({
+    data: { organizationId,
       orderNumber: docNumber("PO"), supplierId: supplier2.id, branchId: branch.id, status: "ORDERED",
       expectedDate: daysFromNow(7), totalAmount: 175000, createdById: accountant.id, orderDate: daysAgo(2),
-      items: { create: [{ description: "Natural Blue Sapphire parcel (5 stones)", quantity: 5, unitCost: 35000 }] },
+      items: { create: [{ description: "Natural Blue Sapphire parcel (5 stones)", quantity: 5, unitCost: 35000, organizationId }] },
     },
   });
   console.log("  2 suppliers + 2 purchase orders created (one RECEIVED with a payment, one still ORDERED to try the workflow on)");
 
   // --- Staff Group --------------------------------------------------------
-  const group = await db.staffGroup.create({
-    data: { name: "Showroom Team", branchId: branch.id, members: { connect: [{ id: sales.id }, { id: manager.id }] } },
+  const group = await sdb.staffGroup.create({
+    data: { organizationId, name: "Showroom Team", branchId: branch.id, members: { connect: [{ id: sales.id }, { id: manager.id }] } },
   });
   console.log("  1 staff group created (Showroom Team)");
 
   // --- Tasks ----------------------------------------------------------
-  const t1 = await db.task.create({
-    data: { title: "Polish display counter", type: "DAILY", status: "PENDING", branchId: branch.id, assignedToId: sales.id, assignedById: manager.id },
+  const t1 = await sdb.task.create({
+    data: { organizationId, title: "Polish display counter", type: "DAILY", status: "PENDING", branchId: branch.id, assignedToId: sales.id, assignedById: manager.id },
   });
-  await db.task.create({
-    data: { title: "Restock gift boxes & pouches", type: "DAILY", status: "DONE", branchId: branch.id, assignedToId: sales.id, assignedById: manager.id, completedAt: daysAgo(1) },
+  await sdb.task.create({
+    data: { organizationId, title: "Restock gift boxes & pouches", type: "DAILY", status: "DONE", branchId: branch.id, assignedToId: sales.id, assignedById: manager.id, completedAt: daysAgo(1) },
   });
-  await db.task.create({
-    data: { title: "Repair intake follow-up call", type: "SPECIAL", status: "IN_PROGRESS", priority: "HIGH", dueDate: daysFromNow(2), branchId: branch.id, assignedToId: manager.id, assignedById: admin.id },
+  await sdb.task.create({
+    data: { organizationId, title: "Repair intake follow-up call", type: "SPECIAL", status: "IN_PROGRESS", priority: "HIGH", dueDate: daysFromNow(2), branchId: branch.id, assignedToId: manager.id, assignedById: admin.id },
   });
-  await db.task.create({
-    data: { title: "Prepare month-end accounts", type: "SPECIAL", status: "PENDING", priority: "URGENT", dueDate: daysFromNow(3), branchId: branch.id, assignedToId: accountant.id, assignedById: admin.id },
+  await sdb.task.create({
+    data: { organizationId, title: "Prepare month-end accounts", type: "SPECIAL", status: "PENDING", priority: "URGENT", dueDate: daysFromNow(3), branchId: branch.id, assignedToId: accountant.id, assignedById: admin.id },
   });
-  await db.task.create({
-    data: { title: "Clean & oil workshop tools", type: "DAILY", status: "PENDING", branchId: branch.id, assignedToId: craftsman.id, assignedById: manager.id },
+  await sdb.task.create({
+    data: { organizationId, title: "Clean & oil workshop tools", type: "DAILY", status: "PENDING", branchId: branch.id, assignedToId: craftsman.id, assignedById: manager.id },
   });
-  await db.task.create({
-    data: { title: "Train new hire on the POS system", type: "SPECIAL", status: "PENDING", priority: "NORMAL", dueDate: daysFromNow(5), branchId: branch.id, assignedToId: manager.id, assignedById: admin.id, groupId: group.id },
+  await sdb.task.create({
+    data: { organizationId, title: "Train new hire on the POS system", type: "SPECIAL", status: "PENDING", priority: "NORMAL", dueDate: daysFromNow(5), branchId: branch.id, assignedToId: manager.id, assignedById: admin.id, groupId: group.id },
   });
-  await db.taskComment.create({
-    data: { taskId: t1.id, staffId: manager.id, body: "Please do this before the weekend rush — thanks!" },
+  await sdb.taskComment.create({
+    data: { organizationId, taskId: t1.id, staffId: manager.id, body: "Please do this before the weekend rush — thanks!" },
   });
   console.log("  6 demo tasks created (all statuses/priorities) + 1 comment");
 
   // --- Messages & Notifications -------------------------------------------
-  await db.message.create({ data: { senderId: manager.id, recipientId: sales.id, body: "Please restock the gift boxes before Friday." } });
-  await db.message.create({ data: { senderId: sales.id, recipientId: manager.id, body: "Done! Restocked this morning." } });
-  await db.notification.createMany({
+  await sdb.message.create({ data: { organizationId, senderId: manager.id, recipientId: sales.id, body: "Please restock the gift boxes before Friday." } });
+  await sdb.message.create({ data: { organizationId, senderId: sales.id, recipientId: manager.id, body: "Done! Restocked this morning." } });
+  await sdb.notification.createMany({
     data: [
-      { staffId: owner.id, type: "LOW_STOCK", title: "Low stock alert", body: `${bangle.name} (${bangle.sku}) is down to 1 unit.`, link: `/inventory/${bangle.id}` },
-      { staffId: owner.id, type: "SALE_CREATED", title: "New sale recorded", body: `${sales.name} recorded a sale for Kandyan Lotus Ring.`, link: "/sales" },
-      { staffId: owner.id, type: "SYSTEM", title: "New broker memo issued", body: "A demo broker memo was issued — see Brokers & Memos.", link: "/brokers" },
+      { organizationId, staffId: owner.id, type: "LOW_STOCK", title: "Low stock alert", body: `${bangle.name} (${bangle.sku}) is down to 1 unit.`, link: `/inventory/${bangle.id}` },
+      { organizationId, staffId: owner.id, type: "SALE_CREATED", title: "New sale recorded", body: `${sales.name} recorded a sale for Kandyan Lotus Ring.`, link: "/sales" },
+      { organizationId, staffId: owner.id, type: "SYSTEM", title: "New broker memo issued", body: "A demo broker memo was issued — see Brokers & Memos.", link: "/brokers" },
     ],
   });
   console.log("  2 demo messages + 3 notifications created for the Owner inbox");
 
   // --- Leave requests -------------------------------------------------
-  await db.leaveRequest.create({
-    data: { staffId: sales.id, type: "VACATION", startDate: daysFromNow(10), endDate: daysFromNow(13), reason: "Family trip to Kandy.", status: "PENDING" },
+  await sdb.leaveRequest.create({
+    data: { organizationId, staffId: sales.id, type: "VACATION", startDate: daysFromNow(10), endDate: daysFromNow(13), reason: "Family trip to Kandy.", status: "PENDING" },
   });
-  await db.leaveRequest.create({
-    data: { staffId: craftsman.id, type: "SICK", startDate: daysAgo(5), endDate: daysAgo(4), reason: "Flu.", status: "APPROVED", reviewedById: manager.id, reviewedAt: daysAgo(5) },
+  await sdb.leaveRequest.create({
+    data: { organizationId, staffId: craftsman.id, type: "SICK", startDate: daysAgo(5), endDate: daysAgo(4), reason: "Flu.", status: "APPROVED", reviewedById: manager.id, reviewedAt: daysAgo(5) },
   });
   console.log("  2 demo leave requests created (1 pending, 1 approved)");
 
   // --- Attendance -------------------------------------------------------
-  await db.attendanceLog.create({
-    data: { staffId: sales.id, branchId: branch.id, clockInAt: (() => { const d = daysAgo(1); d.setHours(9, 2); return d; })(), clockOutAt: (() => { const d = daysAgo(1); d.setHours(18, 5); return d; })() },
+  await sdb.attendanceLog.create({
+    data: { organizationId, staffId: sales.id, branchId: branch.id, clockInAt: (() => { const d = daysAgo(1); d.setHours(9, 2); return d; })(), clockOutAt: (() => { const d = daysAgo(1); d.setHours(18, 5); return d; })() },
   });
-  await db.attendanceLog.create({
-    data: { staffId: craftsman.id, branchId: branch.id, clockInAt: (() => { const d = new Date(); d.setHours(8, 55); return d; })() },
+  await sdb.attendanceLog.create({
+    data: { organizationId, staffId: craftsman.id, branchId: branch.id, clockInAt: (() => { const d = new Date(); d.setHours(8, 55); return d; })() },
   });
   console.log("  2 demo attendance logs created (1 completed shift, 1 currently clocked in)");
 
   // --- Repairs & Custom Orders -------------------------------------------
-  await db.repairOrder.create({
-    data: { customerId: cust4.id, branchId: branch.id, type: "REPAIR", description: "Resize ring from size 8 down to size 6.", status: "RECEIVED", estimatedCost: 3500, createdById: sales.id, intakeDate: daysAgo(3) },
+  await sdb.repairOrder.create({
+    data: { organizationId, customerId: cust4.id, branchId: branch.id, type: "REPAIR", description: "Resize ring from size 8 down to size 6.", status: "RECEIVED", estimatedCost: 3500, createdById: sales.id, intakeDate: daysAgo(3) },
   });
-  await db.repairOrder.create({
-    data: {
+  await sdb.repairOrder.create({
+    data: { organizationId,
       customerId: cust2.id, branchId: branch.id, type: "CUSTOM",
       description: "Design a custom engagement ring using the client's own loose sapphire.",
       status: "IN_PROGRESS", estimatedCost: 45000, assignedToId: craftsman.id, createdById: manager.id,
       relatedInventoryItemId: looseStone.id, intakeDate: daysAgo(8), promisedDate: daysFromNow(6),
     },
   });
-  await db.repairOrder.create({
-    data: {
+  await sdb.repairOrder.create({
+    data: { organizationId,
       customerId: cust5.id, branchId: branch.id, type: "REPAIR", description: "Clean and re-polish bangle set.",
       status: "COMPLETED", finalCost: 1500, assignedToId: craftsman.id, createdById: sales.id,
       intakeDate: daysAgo(9), completedAt: daysAgo(2),
@@ -350,23 +379,23 @@ async function main() {
   // --- Sales Targets -------------------------------------------------
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
-  await db.salesTarget.create({ data: { staffId: sales.id, branchId: branch.id, periodStart: monthStart, periodEnd: monthEnd, targetAmount: 500000 } });
-  await db.salesTarget.create({ data: { staffId: manager.id, branchId: branch.id, periodStart: monthStart, periodEnd: monthEnd, targetAmount: 300000 } });
+  await sdb.salesTarget.create({ data: { organizationId, staffId: sales.id, branchId: branch.id, periodStart: monthStart, periodEnd: monthEnd, targetAmount: 500000 } });
+  await sdb.salesTarget.create({ data: { organizationId, staffId: manager.id, branchId: branch.id, periodStart: monthStart, periodEnd: monthEnd, targetAmount: 300000 } });
   console.log("  2 demo sales targets created for this month");
 
   // --- Broker & Memo (mirrors createMemo: decrement stock, CONSIGNMENT at zero) ---
-  const broker = await db.broker.create({
-    data: { name: "Asanka Ratnayake", company: "Ratnayake Gem Trading", phone: "077 888 9999", branchId: branch.id, createdById: admin.id },
+  const broker = await sdb.broker.create({
+    data: { organizationId, name: "Asanka Ratnayake", company: "Ratnayake Gem Trading", phone: "077 888 9999", branchId: branch.id, createdById: admin.id },
   });
-  await db.$transaction(async (tx) => {
+  await sdb.$transaction(async (tx) => {
     const memo = await tx.brokerMemo.create({
-      data: {
+      data: { organizationId,
         memoNumber: docNumber("MEMO"), brokerId: broker.id, branchId: branch!.id, createdById: admin.id,
         expectedReturnAt: daysFromNow(21), notes: "Taken on consignment for a client viewing in Kandy.",
         items: {
           create: [
-            { inventoryItemId: earrings.id, quantity: 1, valueEach: 125000 },
-            { inventoryItemId: pendant.id, quantity: 1, valueEach: 140000 },
+            { inventoryItemId: earrings.id, quantity: 1, valueEach: 125000, organizationId },
+            { inventoryItemId: pendant.id, quantity: 1, valueEach: 140000, organizationId },
           ],
         },
       },

@@ -1,11 +1,10 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { canManageInventory, isCompanyWide } from "@/lib/rbac";
 import { JewelryIntakeForm } from "@/components/JewelryIntakeForm";
 import { Crown } from "@/components/icons";
 
 export default async function NewGoldJewelryPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageInventory(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

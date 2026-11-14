@@ -1,11 +1,10 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { formatDateTime } from "@/lib/utils";
 import { PushSubscribeButton } from "@/components/PushSubscribeButton";
 import { markAllNotificationsRead } from "./actions";
 
 export default async function NotificationsPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const notifications = await db.notification.findMany({
     where: { staffId: session.staffId },

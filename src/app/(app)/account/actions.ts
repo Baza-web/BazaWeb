@@ -2,8 +2,8 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect, hashPassword, verifyPassword } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 
 const schema = z
   .object({
@@ -17,7 +17,7 @@ const schema = z
   });
 
 export async function changePassword(formData: FormData) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
 
   const parsed = schema.safeParse({
     currentPassword: formData.get("currentPassword"),

@@ -1,5 +1,4 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canManageAccounting, canManagePurchasing, isCompanyWide } from "@/lib/rbac";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { PurchaseOrderForm } from "@/components/PurchaseOrderForm";
@@ -14,7 +13,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function PurchasingPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const canManage = canManagePurchasing(session.role);
   const canPay = canManageAccounting(session.role);
 

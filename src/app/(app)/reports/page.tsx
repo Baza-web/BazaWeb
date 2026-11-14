@@ -1,5 +1,4 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canViewReports, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { Trophy, ChartPieSlice, ClockCountdown, Percent } from "@phosphor-icons/react/ssr";
@@ -14,7 +13,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string; branchId?: string }>;
 }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canViewReports(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

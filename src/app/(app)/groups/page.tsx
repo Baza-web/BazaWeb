@@ -1,12 +1,11 @@
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, canManageGroups, isCompanyWide } from "@/lib/rbac";
 import { initials } from "@/lib/utils";
 import { createGroup, addGroupMember, removeGroupMember } from "./actions";
 import { UsersFour, X } from "@/components/icons";
 
 export default async function GroupsPage() {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   if (!canManageGroups(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }

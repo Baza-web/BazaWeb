@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireScopedSessionOrRedirect } from "@/lib/tenant-db";
 import { branchScope, isCompanyWide } from "@/lib/rbac";
 import { createCustomer } from "./actions";
 
@@ -9,7 +8,7 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const session = await requireSessionOrRedirect();
+  const { session, db } = await requireScopedSessionOrRedirect();
   const { q } = await searchParams;
 
   const [customers, branches] = await Promise.all([
