@@ -1,6 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { formatMoney } from "./utils";
+import { formatMoney, formatDate } from "./utils";
 
 type StatementRow = {
   memoNumber: string;
@@ -28,7 +28,7 @@ export async function generateBrokerStatementXlsx(brokerName: string, rows: Stat
 
   sheet.getCell("A1").value = `Memo statement — ${brokerName}`;
   sheet.getCell("A1").font = { ...font, size: 14, bold: true };
-  sheet.getCell("A2").value = `Generated ${new Date().toLocaleDateString()}`;
+  sheet.getCell("A2").value = `Generated ${formatDate(new Date())}`;
   sheet.getCell("A2").font = { ...font, size: 10, color: { argb: "FF666666" } };
 
   const headerRow = sheet.getRow(4);
@@ -60,7 +60,7 @@ export async function generateBrokerStatementXlsx(brokerName: string, rows: Stat
     const r = sheet.getRow(5 + i);
     r.values = [
       row.memoNumber,
-      row.issuedAt.toLocaleDateString(),
+      formatDate(row.issuedAt),
       row.sku,
       row.itemName,
       row.category,
