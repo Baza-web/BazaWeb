@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageStaff } from "@/lib/rbac";
+import { canManageStaff, canAddOrDeleteBranches } from "@/lib/rbac";
 import { GeofenceForm } from "@/components/GeofenceForm";
+import { DeleteBranchButton } from "@/components/DeleteBranchButton";
 import { createBranch, setMainBranch } from "./actions";
 
 export default async function BranchesPage() {
@@ -9,6 +10,7 @@ export default async function BranchesPage() {
   if (!canManageStaff(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
+  const canAddOrDelete = canAddOrDeleteBranches(session.role);
 
   const branches = await db.branch.findMany({
     include: { _count: { select: { staff: true, inventoryItems: true } } },
@@ -29,6 +31,7 @@ export default async function BranchesPage() {
               <th>Staff</th>
               <th>Inventory items</th>
               <th>Main location</th>
+              {canAddOrDelete && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -50,11 +53,16 @@ export default async function BranchesPage() {
                     </form>
                   )}
                 </td>
+                {canAddOrDelete && (
+                  <td>
+                    <DeleteBranchButton branchId={b.id} branchName={b.name} />
+                  </td>
+                )}
               </tr>
             ))}
             {branches.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-stone-400">
+                <td colSpan={canAddOrDelete ? 7 : 6} className="py-6 text-center text-stone-400">
                   No branches yet.
                 </td>
               </tr>
@@ -86,26 +94,28 @@ export default async function BranchesPage() {
         ))}
       </div>
 
-      <div className="card max-w-md">
-        <h2 className="mb-3 font-medium">Add a branch</h2>
-        <form action={createBranch} className="space-y-3">
-          <div>
-            <label className="label">Name</label>
-            <input className="input" name="name" required />
-          </div>
-          <div>
-            <label className="label">Address</label>
-            <input className="input" name="address" />
-          </div>
-          <div>
-            <label className="label">Phone</label>
-            <input className="input" name="phone" />
-          </div>
-          <button type="submit" className="btn-primary">
-            Create branch
-          </button>
-        </form>
-      </div>
+      {canAddOrDelete && (
+        <div className="card max-w-md">
+          <h2 className="mb-3 font-medium">Add a branch</h2>
+          <form action={createBranch} className="space-y-3">
+            <div>
+              <label className="label">Name</label>
+              <input className="input" name="name" required />
+            </div>
+            <div>
+              <label className="label">Address</label>
+              <input className="input" name="address" />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input className="input" name="phone" />
+            </div>
+            <button type="submit" className="btn-primary">
+              Create branch
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
