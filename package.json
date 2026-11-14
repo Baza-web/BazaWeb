@@ -1,0 +1,9 @@
+{
+  "name": "bazaweb",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/binance.js",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
