@@ -312,20 +312,30 @@ Note: "statement" here is a real `.xlsx` spreadsheet generated on each
 send, not a Google Sheet — no Google Drive/Sheets account or setup is
 needed for this feature.
 
-## AI receipt scanning (Accounting)
+## AI scanning (Accounting + Sales)
 
 On the **Accounting** page, "Record an expense" has a **Scan a receipt**
 box: upload a photo of a receipt/invoice, or paste the text of an order
 email, and it fills in the amount, category, description, and date for
-you to check before saving — it never saves anything on its own.
+you to check before saving.
 
-To enable it, add `ANTHROPIC_API_KEY` to your `.env` (get one at
+On the **New Sale** page, a matching **Scan an order** box reads a
+screenshot (or pasted text) of a WhatsApp order — the way the business
+actually takes orders — and tries to match the customer and each item
+against your real Customers and Inventory, filling in the customer,
+item lines, discount, amount paid, payment method, and notes. If an
+item or customer can't be matched (new customer, item worded
+differently than in Inventory), it says so and leaves that one for you
+to add by hand — it never guesses an item into the sale. Either way,
+**nothing is saved until you review it and click Record sale/Add
+expense yourself.**
+
+To enable both, add `ANTHROPIC_API_KEY` to your `.env` (get one at
 [console.anthropic.com](https://console.anthropic.com)), then redeploy:
-`docker compose up -d --build app`. Leave it blank and the Scan button
-still appears but explains it isn't set up yet — typing expenses in by
-hand always works either way. Each scan costs a small amount against your
-Anthropic account (a few cents at most per receipt); there's no other
-setup needed.
+`docker compose up -d --build app`. Leave it blank and the Scan buttons
+still appear but explain it isn't set up yet — typing things in by hand
+always works either way. Each scan costs a small amount against your
+Anthropic account (a few cents at most); there's no other setup needed.
 
 ## Demo data (optional, for testing navigation)
 

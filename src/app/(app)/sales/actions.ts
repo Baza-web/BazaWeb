@@ -8,6 +8,128 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canRecordSale, isCompanyWide, COMPANY_WIDE_ROLES } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { round2 } from "@/lib/utils";
+import { detectFileKind } from "@/lib/uploads";
+import { extractOrderFromImage, extractOrderFromText, aiConfigured } from "@/lib/ai";
+
+const EXT_TO_MEDIA_TYPE: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+type ScannedLine = { inventoryItemId: string | null; itemNameGuess: string; quantity: number; priceEach: number | null };
+type ScanOrderResult = {
+  customerId: string | null;
+  customerNameGuess: string | null;
+  lines: ScannedLine[];
+  unmatchedItems: string[];
+  discount: number | null;
+  amountPaid: number | null;
+  paymentMethod: "CASH" | "CARD" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER" | null;
+  notes: string | null;
+  error?: string;
+};
+
+const normalize = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, " ").trim();
+const normalizePhone = (s: string) => s.replace(/\D/g, "");
+
+/**
+ * Reads a screenshot (or pasted text) of a WhatsApp order and asks AI to pull
+ * out the customer, items, and payment details, then tries to match each
+ * item/customer against this branch's real records. Never saves anything —
+ * staff review and submit the actual sale form themselves.
+ */
+export async function scanOrder(branchId: string, formData: FormData): Promise<ScanOrderResult> {
+  const session = await requireSessionOrRedirect();
+  if (!canRecordSale(session.role)) throw new Error("Forbidden");
+
+  const empty: ScanOrderResult = {
+    customerId: null,
+    customerNameGuess: null,
+    lines: [],
+    unmatchedItems: [],
+    discount: null,
+    amountPaid: null,
+    paymentMethod: null,
+    notes: null,
+  };
+
+  if (!aiConfigured()) {
+    return { ...empty, error: "Order scanning isn't set up yet — ask an Admin to add ANTHROPIC_API_KEY. You can still add items manually below." };
+  }
+
+  const file = formData.get("image");
+  const text = formData.get("text");
+
+  let extracted: Awaited<ReturnType<typeof extractOrderFromText>>;
+  if (file instanceof File && file.size > 0) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const detected = detectFileKind(buffer);
+    if (!detected || detected.kind !== "image") {
+      return { ...empty, error: "That doesn't look like a photo — try a JPG, PNG, GIF, or WEBP screenshot." };
+    }
+    extracted = await extractOrderFromImage(buffer, EXT_TO_MEDIA_TYPE[detected.ext]);
+  } else if (typeof text === "string" && text.trim().length > 0) {
+    extracted = await extractOrderFromText(text.trim());
+  } else {
+    return { ...empty, error: "Add a screenshot or paste some chat text first." };
+  }
+
+  if (extracted.items.length === 0 && !extracted.customerName) {
+    return { ...empty, error: "Couldn't find an order in that — enter the details manually below." };
+  }
+
+  const [inventory, customers] = await Promise.all([
+    db.inventoryItem.findMany({ where: { branchId, status: "IN_STOCK", quantity: { gt: 0 } } }),
+    db.customer.findMany({ where: { branchId } }),
+  ]);
+
+  let customerId: string | null = null;
+  if (extracted.customerPhone) {
+    const phoneDigits = normalizePhone(extracted.customerPhone);
+    const match = customers.find((c) => c.phone && normalizePhone(c.phone).endsWith(phoneDigits.slice(-9)));
+    if (match) customerId = match.id;
+  }
+  if (!customerId && extracted.customerName) {
+    const needle = normalize(extracted.customerName);
+    const match = customers.find((c) => normalize(c.name).includes(needle) || needle.includes(normalize(c.name)));
+    if (match) customerId = match.id;
+  }
+
+  const lines: ScannedLine[] = [];
+  const unmatchedItems: string[] = [];
+  for (const item of extracted.items) {
+    const needle = normalize(item.description);
+    const match = inventory.find(
+      (i) =>
+        normalize(i.name).includes(needle) ||
+        needle.includes(normalize(i.name)) ||
+        i.sku.toLowerCase() === item.description.toLowerCase().trim(),
+    );
+    if (match) {
+      lines.push({
+        inventoryItemId: match.id,
+        itemNameGuess: match.name,
+        quantity: Math.min(item.quantity, match.quantity),
+        priceEach: item.priceEach ?? match.sellingPrice,
+      });
+    } else {
+      unmatchedItems.push(item.description);
+    }
+  }
+
+  return {
+    customerId,
+    customerNameGuess: extracted.customerName,
+    lines,
+    unmatchedItems,
+    discount: extracted.discount,
+    amountPaid: extracted.amountPaid,
+    paymentMethod: extracted.paymentMethod,
+    notes: extracted.notes,
+  };
+}
 
 const lineSchema = z.object({
   inventoryItemId: z.string().min(1),

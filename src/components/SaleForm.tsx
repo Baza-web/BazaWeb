@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { createSale } from "@/app/(app)/sales/actions";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { createSale, scanOrder } from "@/app/(app)/sales/actions";
 
 type InventoryOption = {
   id: string;
@@ -35,9 +35,66 @@ export function SaleForm({
   const [customerId, setCustomerId] = useState("");
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
+  const [amountPaid, setAmountPaid] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER">("CASH");
+  const [notes, setNotes] = useState("");
+
+  const scanFileRef = useRef<HTMLInputElement>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [scanning, startScan] = useTransition();
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanNotice, setScanNotice] = useState<string | null>(null);
 
   const branchInventory = useMemo(() => inventory.filter((i) => i.branchId === branchId), [inventory, branchId]);
   const branchCustomers = useMemo(() => customers.filter((c) => c.branchId === branchId), [customers, branchId]);
+
+  function runScan() {
+    setScanError(null);
+    setScanNotice(null);
+    const fd = new FormData();
+    const file = scanFileRef.current?.files?.[0];
+    if (file) {
+      fd.set("image", file);
+    } else if (pasteText.trim()) {
+      fd.set("text", pasteText.trim());
+    } else {
+      setScanError("Add a screenshot or paste some chat text first.");
+      return;
+    }
+
+    startScan(async () => {
+      const result = await scanOrder(branchId, fd);
+      if (result.error) {
+        setScanError(result.error);
+        return;
+      }
+      if (result.customerId) setCustomerId(result.customerId);
+      if (result.lines.length > 0) {
+        setLines(
+          result.lines
+            .filter((l) => l.inventoryItemId)
+            .map((l) => ({ inventoryItemId: l.inventoryItemId!, quantity: l.quantity, priceEach: l.priceEach ?? 0 })),
+        );
+      }
+      if (result.discount != null) setDiscount(result.discount);
+      if (result.amountPaid != null) setAmountPaid(result.amountPaid);
+      if (result.paymentMethod) setPaymentMethod(result.paymentMethod);
+      if (result.notes) setNotes(result.notes);
+
+      const notices: string[] = [];
+      if (result.customerNameGuess && !result.customerId) {
+        notices.push(`Found customer "${result.customerNameGuess}" but no match in your customer list — add them or pick manually.`);
+      }
+      if (result.unmatchedItems.length > 0) {
+        notices.push(`Couldn't match: ${result.unmatchedItems.join(", ")} — add these manually below.`);
+      }
+      if (notices.length === 0 && result.lines.length > 0) {
+        notices.push("Filled in below — check it over before recording the sale.");
+      }
+      if (notices.length > 0) setScanNotice(notices.join(" "));
+    });
+  }
 
   const subtotal = useMemo(
     () => lines.reduce((sum, l) => sum + l.priceEach * l.quantity, 0),
@@ -75,6 +132,37 @@ export function SaleForm({
   return (
     <form action={createSale} className="card space-y-5">
       <input type="hidden" name="itemsJson" value={JSON.stringify(lines)} />
+
+      <div className="rounded-lg border border-dashed border-brand-300 bg-brand-50/40 p-3">
+        <p className="mb-2 text-sm font-medium text-ink-900">Scan an order (optional)</p>
+        <p className="mb-2 text-xs text-stone-500">
+          Upload a screenshot of a WhatsApp order, or paste the chat text — AI will try to match the
+          customer and items against your records and fill in the form below for you to check.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <input ref={scanFileRef} className="input text-xs" type="file" accept="image/*" />
+          <button type="button" onClick={() => setPasteOpen((v) => !v)} className="btn-secondary text-xs">
+            {pasteOpen ? "Hide paste box" : "Paste text instead"}
+          </button>
+          <button type="button" onClick={runScan} disabled={scanning} className="btn-primary text-xs">
+            {scanning ? "Reading…" : "Scan"}
+          </button>
+        </div>
+
+        {pasteOpen && (
+          <textarea
+            className="input mt-2 text-xs"
+            rows={3}
+            placeholder="Paste the WhatsApp chat text here…"
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+          />
+        )}
+
+        {scanError && <p className="mt-2 text-xs text-red-600">{scanError}</p>}
+        {scanNotice && !scanError && <p className="mt-2 text-xs text-amber-700">{scanNotice}</p>}
+      </div>
 
       {showBranchSelect ? (
         <div>
@@ -192,11 +280,23 @@ export function SaleForm({
         </div>
         <div>
           <label className="label">Amount paid now</label>
-          <input className="input" name="amountPaid" type="number" step="0.01" defaultValue={total} />
+          <input
+            className="input"
+            name="amountPaid"
+            type="number"
+            step="0.01"
+            value={amountPaid}
+            onChange={(e) => setAmountPaid(Number(e.target.value))}
+          />
         </div>
         <div>
           <label className="label">Payment method</label>
-          <select className="input" name="paymentMethod" defaultValue="CASH">
+          <select
+            className="input"
+            name="paymentMethod"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+          >
             <option value="CASH">Cash</option>
             <option value="CARD">Card</option>
             <option value="BANK_TRANSFER">Bank transfer</option>
@@ -208,7 +308,7 @@ export function SaleForm({
 
       <div>
         <label className="label">Notes</label>
-        <textarea className="input" name="notes" rows={2} />
+        <textarea className="input" name="notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
 
       <div className="flex items-center justify-between border-t border-stone-100 pt-4">
