@@ -304,6 +304,27 @@ hand always works either way. Each scan costs a small amount against your
 Anthropic account (a few cents at most per receipt); there's no other
 setup needed.
 
+## Demo data (optional, for testing navigation)
+
+To click through the whole app with realistic sample data instead of
+empty pages — customers, inventory, sales, expenses, tasks, repairs,
+purchase orders, staff groups, sales targets, and a broker memo — run:
+
+```
+docker compose exec app node_modules/.bin/tsx prisma/demo-data.ts
+```
+
+It creates 5 demo staff accounts (one of each role, password `Demo@12345`
+for all) so you can log in and see what each role actually sees, plus
+sample records across every module. It never touches your real Owner
+account, is safe to run on a live system, and running it twice is a
+no-op (it checks for `admin.demo@example.com` first). Everything it
+creates is tagged "Demo" — staff emails end in `@example.com`, inventory
+SKUs start with `DEMO-` — so it's easy to tell apart from real data.
+There's no one-click removal once it's there (the records reference each
+other), so only run it if you're fine leaving it in for a while, or ask
+for a cleanup script when you want it gone.
+
 ## Where things live
 
 | What | Where |
