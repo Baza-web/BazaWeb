@@ -40,6 +40,7 @@ import {
   MapPin,
   Target,
   UsersFour,
+  Crown,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -104,4 +105,5 @@ export {
   MapPin,
   Target,
   UsersFour,
+  Crown,
 };
