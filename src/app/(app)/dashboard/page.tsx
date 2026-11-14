@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { requireSessionOrRedirect } from "@/lib/auth";
+import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
 import {
   branchScope,
   isCompanyWide,
@@ -76,8 +76,156 @@ function rankedBreakdown<T>(
   return [...top, other];
 }
 
+/**
+ * Sales staff get a stripped-down dashboard: their own sales figures and
+ * tasks, plus the whole branch's combined target progress (a "team target"
+ * that never reveals any individual colleague's numbers). No financial
+ * (expenses/profit/outstanding), inventory, or other staff's sales data.
+ */
+async function SalesStaffDashboard({ session }: { session: SessionPayload }) {
+  const today = startOfDay();
+  const monthStart = startOfMonth();
+  const thirtyDaysAgo = startOfDay(new Date(today.getTime() - 29 * 86_400_000));
+  const mine = { staffId: session.staffId };
+
+  const [todaySales, monthSales, recentSales, trendSales, myOpenTasks, branchTargets] = await Promise.all([
+    db.sale.aggregate({ where: { ...mine, createdAt: { gte: today } }, _sum: { total: true }, _count: true }),
+    db.sale.aggregate({ where: { ...mine, createdAt: { gte: monthStart } }, _sum: { total: true }, _count: true }),
+    db.sale.findMany({ where: mine, include: { customer: true }, orderBy: { createdAt: "desc" }, take: 8 }),
+    db.sale.findMany({ where: { ...mine, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, total: true } }),
+    db.task.count({ where: { assignedToId: session.staffId, status: { not: "DONE" } } }),
+    db.salesTarget.findMany({ where: { periodEnd: { gte: today }, branchId: session.branchId ?? "__none__" } }),
+  ]);
+
+  const avgSaleThisMonth = monthSales._count > 0 ? round2((monthSales._sum.total ?? 0) / monthSales._count) : 0;
+
+  const targetsWithProgress = await Promise.all(
+    branchTargets.map(async (t) => {
+      const achieved = await db.sale.aggregate({
+        where: { staffId: t.staffId, createdAt: { gte: t.periodStart, lte: t.periodEnd } },
+        _sum: { total: true },
+      });
+      return { target: t.targetAmount, achieved: achieved._sum.total ?? 0 };
+    }),
+  );
+  const targetSum = targetsWithProgress.reduce((s, t) => s + t.target, 0);
+  const targetAchievedSum = targetsWithProgress.reduce((s, t) => s + t.achieved, 0);
+  const teamTargetPercent = targetSum > 0 ? Math.round((targetAchievedSum / targetSum) * 100) : null;
+
+  const trendMap = new Map<string, number>();
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(thirtyDaysAgo.getTime() + i * 86_400_000);
+    trendMap.set(dayKey(d), 0);
+  }
+  for (const sale of trendSales) {
+    const key = dayKey(sale.createdAt);
+    trendMap.set(key, (trendMap.get(key) ?? 0) + sale.total);
+  }
+  const trendData = Array.from(trendMap.entries()).map(([date, total]) => ({ date, total: round2(total) }));
+
+  return (
+    <div className="space-y-6">
+      <h1 className="page-title">Dashboard</h1>
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Today&apos;s sales</p>
+            <Receipt size={18} className="text-brand-500" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{formatMoney(todaySales._sum.total ?? 0)}</p>
+          <p className="text-xs text-stone-400">{todaySales._count} transaction(s)</p>
+        </div>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">This month</p>
+            <ChartLineUp size={18} className="text-green-600" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-green-700">{formatMoney(monthSales._sum.total ?? 0)}</p>
+          <p className="text-xs text-stone-400">{monthSales._count} sale(s)</p>
+        </div>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Avg. sale (month)</p>
+            <Wallet size={18} className="text-brand-500" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{formatMoney(avgSaleThisMonth)}</p>
+        </div>
+        {teamTargetPercent !== null && (
+          <Link href="/targets" className="stat-tile transition-shadow hover:shadow-card-hover">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Team target</p>
+              <Target size={18} className="text-brand-500" aria-hidden="true" />
+            </div>
+            <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{teamTargetPercent}%</p>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+              <div
+                className={`h-full rounded-full ${teamTargetPercent >= 100 ? "bg-green-600" : "bg-brand-500"}`}
+                style={{ width: `${Math.min(teamTargetPercent, 100)}%` }}
+              />
+            </div>
+          </Link>
+        )}
+        <Link href="/tasks?view=mine" className="stat-tile flex items-center gap-4 transition-shadow hover:shadow-card-hover">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50">
+            <ListChecks size={22} className="text-brand-600" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs text-stone-500">Your open tasks</p>
+            <p className="text-xl font-semibold text-ink-900">{myOpenTasks}</p>
+          </div>
+        </Link>
+      </div>
+
+      <div className="card">
+        <h2 className="section-title mb-1">Your sales trend</h2>
+        <p className="mb-2 text-xs text-stone-500">Last 30 days</p>
+        <SalesTrendChart data={trendData} />
+      </div>
+
+      <div className="card overflow-x-auto">
+        <h2 className="section-title mb-3">Your recent sales</h2>
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentSales.map((s) => (
+              <tr key={s.id}>
+                <td>
+                  <Link href={`/sales/${s.id}`} className="text-brand-700 hover:underline">
+                    {s.invoiceNumber}
+                  </Link>
+                </td>
+                <td>{formatDate(s.createdAt)}</td>
+                <td>{s.customer?.name ?? "Walk-in"}</td>
+                <td>{formatMoney(s.total)}</td>
+              </tr>
+            ))}
+            {recentSales.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-6 text-center text-stone-400">
+                  No sales yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   const session = await requireSessionOrRedirect();
+  if (session.role === "SALES") {
+    return <SalesStaffDashboard session={session} />;
+  }
   const scope = branchScope(session);
   const today = startOfDay();
   const monthStart = startOfMonth();

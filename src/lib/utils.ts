@@ -1,4 +1,5 @@
 const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "LKR";
+const TIME_ZONE = process.env.NEXT_PUBLIC_TIMEZONE || "Asia/Colombo";
 
 export function formatMoney(amount: number) {
   return new Intl.NumberFormat(undefined, {
@@ -9,7 +10,7 @@ export function formatMoney(amount: number) {
 }
 
 export function formatDate(date: Date | string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(date));
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: TIME_ZONE }).format(new Date(date));
 }
 
 export function initials(name: string) {
@@ -20,7 +21,7 @@ export function initials(name: string) {
 }
 
 export function formatDateTime(date: Date | string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: TIME_ZONE }).format(
     new Date(date),
   );
 }
