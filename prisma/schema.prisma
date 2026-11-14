@@ -1,0 +1,558 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  SALES
+  ACCOUNTANT
+  CRAFTSMAN
+}
+
+enum ItemCategory {
+  RING
+  NECKLACE
+  EARRING
+  BRACELET
+  BANGLE
+  PENDANT
+  LOOSE_STONE
+  OTHER
+}
+
+enum ItemStatus {
+  IN_STOCK
+  RESERVED
+  SOLD
+  IN_REPAIR
+  CONSIGNMENT
+}
+
+enum TaskType {
+  DAILY
+  SPECIAL
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  UNPAID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  MOBILE_MONEY
+  OTHER
+}
+
+enum LedgerType {
+  INCOME
+  EXPENSE
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMMENT
+  TASK_DUE
+  NEW_MESSAGE
+  LOW_STOCK
+  SALE_CREATED
+  SYSTEM
+  LEAVE_REQUESTED
+  LEAVE_DECIDED
+  ATTENDANCE
+  CALL_INVITE
+  CUSTOMER_OCCASION
+  REPAIR_UPDATE
+  PURCHASE_ORDER_UPDATE
+}
+
+enum LeaveType {
+  SICK
+  VACATION
+  PERSONAL
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RepairType {
+  REPAIR
+  CUSTOM
+}
+
+enum RepairStatus {
+  RECEIVED
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+model Branch {
+  id              String   @id @default(cuid())
+  name            String
+  address         String?
+  phone           String?
+  latitude        Float?
+  longitude       Float?
+  geofenceRadiusM Int?
+  createdAt       DateTime @default(now())
+
+  staff          Staff[]
+  inventoryItems InventoryItem[]
+  customers      Customer[]
+  sales          Sale[]
+  expenses       Expense[]
+  ledgerEntries  LedgerEntry[]
+  tasks          Task[]
+  attendanceLogs AttendanceLog[]
+  repairOrders   RepairOrder[]
+  purchaseOrders PurchaseOrder[]
+  staffGroups    StaffGroup[]
+  salesTargets   SalesTarget[]
+}
+
+model Staff {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         Role
+  branchId     String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  assignedTasks     Task[]            @relation("AssignedTo")
+  createdTasks      Task[]            @relation("AssignedBy")
+  taskComments      TaskComment[]
+  sales             Sale[]
+  expensesCreated   Expense[]
+  sentMessages      Message[]         @relation("Sender")
+  receivedMessages  Message[]         @relation("Recipient")
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  customerNotes     CustomerNote[]
+  leaveRequests     LeaveRequest[]   @relation("LeaveRequester")
+  leaveReviews      LeaveRequest[]   @relation("LeaveReviewer")
+  attendanceLogs    AttendanceLog[]
+  repairOrdersAssigned RepairOrder[] @relation("RepairAssignedTo")
+  repairOrdersCreated  RepairOrder[] @relation("RepairCreatedBy")
+  purchaseOrdersCreated PurchaseOrder[]
+  groups            StaffGroup[]    @relation("GroupMembers")
+  salesTargets      SalesTarget[]
+
+  @@index([branchId])
+}
+
+model InventoryItem {
+  id             String       @id @default(cuid())
+  sku            String       @unique
+  name           String
+  category       ItemCategory
+  metalType      String?
+  metalPurity    String?
+  grossWeightG   Float?
+  netWeightG     Float?
+  gemstoneType   String?
+  caratWeight    Float?
+  clarity        String?
+  cut            String?
+  certification  String?
+  costPrice      Float
+  sellingPrice   Float
+  images         String[]     @default([])
+  documents      String[]     @default([])
+  driveLink      String?
+  status         ItemStatus   @default(IN_STOCK)
+  quantity       Int          @default(1)
+  lowStockAt     Int          @default(1)
+  notes          String?
+  branchId       String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  saleItems    SaleItem[]
+  repairOrders RepairOrder[]
+
+  @@index([branchId])
+  @@index([status])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  birthday  DateTime?
+  anniversary DateTime?
+  branchId  String
+  createdAt DateTime @default(now())
+
+  branch       Branch         @relation(fields: [branchId], references: [id])
+  sales        Sale[]
+  notes        CustomerNote[]
+  repairOrders RepairOrder[]
+
+  @@index([branchId])
+}
+
+model CustomerNote {
+  id         String   @id @default(cuid())
+  customerId String
+  staffId    String
+  body       String
+  followUpAt DateTime?
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  staff    Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([customerId])
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  customerId    String?
+  branchId      String
+  staffId       String
+  subtotal      Float
+  discount      Float         @default(0)
+  tax           Float         @default(0)
+  total         Float
+  amountPaid    Float         @default(0)
+  paymentStatus PaymentStatus @default(UNPAID)
+  paymentMethod PaymentMethod @default(CASH)
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  branch   Branch     @relation(fields: [branchId], references: [id])
+  staff    Staff      @relation(fields: [staffId], references: [id])
+  customer Customer?  @relation(fields: [customerId], references: [id])
+  items    SaleItem[]
+  ledgerEntry LedgerEntry?
+
+  @@index([branchId])
+  @@index([customerId])
+}
+
+model SaleItem {
+  id              String  @id @default(cuid())
+  saleId          String
+  inventoryItemId String
+  quantity        Int     @default(1)
+  priceEach       Float
+
+  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@index([saleId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  branchId    String
+  category    String
+  description String
+  amount      Float
+  date        DateTime @default(now())
+  createdById String
+  createdAt   DateTime @default(now())
+
+  purchaseOrderId String?
+
+  branch        Branch         @relation(fields: [branchId], references: [id])
+  createdBy     Staff          @relation(fields: [createdById], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  ledgerEntry   LedgerEntry?
+
+  @@index([branchId])
+  @@index([purchaseOrderId])
+}
+
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  branchId    String
+  type        LedgerType
+  amount      Float
+  description String
+  date        DateTime   @default(now())
+  saleId      String?    @unique
+  expenseId   String?    @unique
+  createdAt   DateTime   @default(now())
+
+  branch  Branch   @relation(fields: [branchId], references: [id])
+  sale    Sale?    @relation(fields: [saleId], references: [id])
+  expense Expense? @relation(fields: [expenseId], references: [id])
+
+  @@index([branchId, date])
+}
+
+model Task {
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  type         TaskType     @default(DAILY)
+  priority     TaskPriority @default(NORMAL)
+  status       TaskStatus   @default(PENDING)
+  dueDate      DateTime?
+  branchId     String
+  assignedToId String
+  assignedById String
+  groupId      String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  completedAt  DateTime?
+
+  branch     Branch        @relation(fields: [branchId], references: [id])
+  assignedTo Staff         @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedBy Staff         @relation("AssignedBy", fields: [assignedById], references: [id])
+  group      StaffGroup?   @relation(fields: [groupId], references: [id])
+  comments   TaskComment[]
+
+  @@index([branchId])
+  @@index([assignedToId])
+  @@index([groupId])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  staffId   String
+  body      String
+  createdAt DateTime @default(now())
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([taskId])
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  senderId    String
+  recipientId String
+  body        String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  sender    Staff @relation("Sender", fields: [senderId], references: [id])
+  recipient Staff @relation("Recipient", fields: [recipientId], references: [id])
+
+  @@index([recipientId, readAt])
+  @@index([senderId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  staffId   String
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, readAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  staffId   String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  staffId      String
+  type         LeaveType
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  staff      Staff  @relation("LeaveRequester", fields: [staffId], references: [id])
+  reviewedBy Staff? @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+
+  @@index([staffId])
+}
+
+model AttendanceLog {
+  id          String    @id @default(cuid())
+  staffId     String
+  branchId    String
+  clockInAt   DateTime  @default(now())
+  clockOutAt  DateTime?
+  clockInLat  Float?
+  clockInLng  Float?
+  clockOutLat Float?
+  clockOutLng Float?
+
+  staff  Staff  @relation(fields: [staffId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([staffId])
+  @@index([branchId, clockInAt])
+}
+
+model RepairOrder {
+  id                  String       @id @default(cuid())
+  customerId          String
+  branchId            String
+  type                RepairType   @default(REPAIR)
+  description         String
+  intakeDate          DateTime     @default(now())
+  promisedDate        DateTime?
+  status              RepairStatus @default(RECEIVED)
+  estimatedCost       Float?
+  finalCost           Float?
+  relatedInventoryItemId String?
+  assignedToId        String?
+  createdById         String
+  photos              String[]     @default([])
+  notes               String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  completedAt         DateTime?
+
+  customer            Customer       @relation(fields: [customerId], references: [id])
+  branch               Branch        @relation(fields: [branchId], references: [id])
+  relatedInventoryItem InventoryItem? @relation(fields: [relatedInventoryItemId], references: [id])
+  assignedTo           Staff?         @relation("RepairAssignedTo", fields: [assignedToId], references: [id])
+  createdBy            Staff          @relation("RepairCreatedBy", fields: [createdById], references: [id])
+
+  @@index([branchId])
+  @@index([customerId])
+  @@index([assignedToId])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  contactName String?
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id            String              @id @default(cuid())
+  orderNumber   String              @unique
+  supplierId    String
+  branchId      String
+  status        PurchaseOrderStatus @default(DRAFT)
+  orderDate     DateTime            @default(now())
+  expectedDate  DateTime?
+  totalAmount   Float               @default(0)
+  amountPaid    Float               @default(0)
+  notes         String?
+  createdById   String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  branch    Branch              @relation(fields: [branchId], references: [id])
+  createdBy Staff               @relation(fields: [createdById], references: [id])
+  items     PurchaseOrderItem[]
+  expenses  Expense[]
+
+  @@index([branchId])
+  @@index([supplierId])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  description     String
+  quantity        Int           @default(1)
+  unitCost        Float
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+}
+
+model StaffGroup {
+  id        String   @id @default(cuid())
+  name      String
+  branchId  String
+  createdAt DateTime @default(now())
+
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  members Staff[] @relation("GroupMembers")
+  tasks   Task[]
+
+  @@index([branchId])
+}
+
+model SalesTarget {
+  id           String   @id @default(cuid())
+  staffId      String
+  branchId     String
+  periodStart  DateTime
+  periodEnd    DateTime
+  targetAmount Float
+  createdAt    DateTime @default(now())
+
+  staff  Staff  @relation(fields: [staffId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([staffId])
+  @@index([branchId])
+}
