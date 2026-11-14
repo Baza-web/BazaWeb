@@ -81,6 +81,23 @@ enum NotificationType {
   LOW_STOCK
   SALE_CREATED
   SYSTEM
+  LEAVE_REQUESTED
+  LEAVE_DECIDED
+  ATTENDANCE
+  CALL_INVITE
+}
+
+enum LeaveType {
+  SICK
+  VACATION
+  PERSONAL
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Branch {
@@ -97,6 +114,7 @@ model Branch {
   expenses       Expense[]
   ledgerEntries  LedgerEntry[]
   tasks          Task[]
+  attendanceLogs AttendanceLog[]
 }
 
 model Staff {
@@ -122,6 +140,9 @@ model Staff {
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   customerNotes     CustomerNote[]
+  leaveRequests     LeaveRequest[]   @relation("LeaveRequester")
+  leaveReviews      LeaveRequest[]   @relation("LeaveReviewer")
+  attendanceLogs    AttendanceLog[]
 
   @@index([branchId])
 }
@@ -342,4 +363,36 @@ model PushSubscription {
   staff Staff @relation(fields: [staffId], references: [id])
 
   @@index([staffId])
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  staffId      String
+  type         LeaveType
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  staff      Staff  @relation("LeaveRequester", fields: [staffId], references: [id])
+  reviewedBy Staff? @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+
+  @@index([staffId])
+}
+
+model AttendanceLog {
+  id          String    @id @default(cuid())
+  staffId     String
+  branchId    String
+  clockInAt   DateTime  @default(now())
+  clockOutAt  DateTime?
+
+  staff  Staff  @relation(fields: [staffId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([staffId])
+  @@index([branchId, clockInAt])
 }

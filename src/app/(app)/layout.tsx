@@ -22,6 +22,8 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
     roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"],
   },
   { href: "/tasks", label: "Tasks", iconKey: "tasks" },
+  { href: "/leave", label: "Leave", iconKey: "leave" },
+  { href: "/attendance", label: "Attendance", iconKey: "attendance" },
   { href: "/inbox", label: "Inbox", iconKey: "inbox" },
   { href: "/staff", label: "Staff", iconKey: "staff", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/branches", label: "Branches", iconKey: "branches", roles: ["OWNER", "ADMIN"] },
@@ -30,9 +32,10 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSessionOrRedirect();
 
-  const [unreadNotifications, unreadMessages] = await Promise.all([
+  const [unreadNotifications, unreadMessages, openAttendanceLog] = await Promise.all([
     db.notification.count({ where: { staffId: session.staffId, readAt: null } }),
     db.message.count({ where: { recipientId: session.staffId, readAt: null } }),
+    db.attendanceLog.findFirst({ where: { staffId: session.staffId, clockOutAt: null } }),
   ]);
 
   const visibleNav = NAV.filter((item) => !item.roles || item.roles.includes(session.role));
@@ -44,6 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       staffName={session.name}
       unreadMessages={unreadMessages}
       unreadNotifications={unreadNotifications}
+      isClockedIn={Boolean(openAttendanceLog)}
       logoutAction={logout}
     >
       {children}

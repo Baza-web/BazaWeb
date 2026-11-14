@@ -35,3 +35,24 @@ export async function markConversationRead(otherStaffId: string) {
     data: { readAt: new Date() },
   });
 }
+
+/** Builds a shared video/voice call room (via the free Jitsi Meet service) for two staff. */
+function callRoomUrl(staffIdA: string, staffIdB: string) {
+  const roomId = [staffIdA, staffIdB].sort().join("-");
+  return `https://meet.jit.si/BazaERP-${roomId}`;
+}
+
+export async function startCall(otherStaffId: string): Promise<{ url: string }> {
+  const session = await requireSessionOrRedirect();
+  const url = callRoomUrl(session.staffId, otherStaffId);
+
+  await notifyStaff(
+    otherStaffId,
+    "CALL_INVITE",
+    `${session.name} is calling you`,
+    "Tap to join the call.",
+    url,
+  );
+
+  return { url };
+}

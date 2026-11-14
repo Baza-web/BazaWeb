@@ -47,6 +47,16 @@ export function canAssignTasks(role: Role) {
   return TASK_ASSIGNER_ROLES.includes(role);
 }
 
+/** Owner/Admin review leave requests company-wide; Manager reviews their own branch's requests. */
+export function canReviewLeave(role: Role) {
+  return TASK_ASSIGNER_ROLES.includes(role);
+}
+
+/** Owner/Admin see attendance company-wide; Manager sees their own branch. */
+export function canViewAttendance(role: Role) {
+  return TASK_ASSIGNER_ROLES.includes(role);
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`

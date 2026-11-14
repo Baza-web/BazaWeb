@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { formatDateTime } from "@/lib/utils";
 import { sendMessage, markConversationRead } from "../actions";
+import { CallButton } from "@/components/CallButton";
 
 export default async function ConversationPage({ params }: { params: Promise<{ staffId: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -25,7 +26,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
 
   return (
     <div className="flex max-w-2xl flex-col space-y-4">
-      <h1 className="page-title">{other.name}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="page-title">{other.name}</h1>
+        <CallButton otherStaffId={staffId} otherName={other.name} />
+      </div>
 
       <div className="card max-h-[60vh] space-y-3 overflow-y-auto">
         {messages.map((m) => {
