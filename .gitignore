@@ -1,1 +1,14 @@
+node_modules
+.next
+.env
+.env.local
+*.log
+dist
+*.tsbuildinfo
+/public/uploads
+__pycache__/
+*.pyc
+
+baza-backups/
+backups/
 crypto/

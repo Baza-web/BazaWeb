@@ -9,5 +9,8 @@
   },
   "enabledPlugins": {
     "crypto-trader-skill@crypto-trader-skill": true
+  },
+  "permissions": {
+    "allow": ["Bash(npx ui-ux-pro-max-cli:*)"]
   }
 }
