@@ -11,3 +11,7 @@ __pycache__/
 
 baza-backups/
 backups/
+
+# Research/planning working files — business research for the Owner, not application code
+research_notes/
+reports/
