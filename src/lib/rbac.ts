@@ -99,6 +99,11 @@ export function canAddOrDeleteBranches(role: Role) {
   return role === "OWNER";
 }
 
+/** Owner/Admin only — what an item cost the business is commercially sensitive; everyone else sees only the selling price. */
+export function canViewCost(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`
