@@ -40,7 +40,13 @@ export function ExpenseForm({
     }
 
     startScan(async () => {
-      const result = await scanReceipt(fd);
+      let result;
+      try {
+        result = await scanReceipt(fd);
+      } catch {
+        setScanError("That photo was too large or something went wrong — try a smaller image, or paste the text instead.");
+        return;
+      }
       if (result.error) setScanError(result.error);
       if (result.amount !== null) setAmount(String(result.amount));
       if (result.description !== null) setDescription(result.description);

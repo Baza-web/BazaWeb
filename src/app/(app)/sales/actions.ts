@@ -59,76 +59,81 @@ export async function scanOrder(branchId: string, formData: FormData): Promise<S
     return { ...empty, error: "Order scanning isn't set up yet — ask an Admin to add ANTHROPIC_API_KEY. You can still add items manually below." };
   }
 
-  const file = formData.get("image");
-  const text = formData.get("text");
+  try {
+    const file = formData.get("image");
+    const text = formData.get("text");
 
-  let extracted: Awaited<ReturnType<typeof extractOrderFromText>>;
-  if (file instanceof File && file.size > 0) {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const detected = detectFileKind(buffer);
-    if (!detected || detected.kind !== "image") {
-      return { ...empty, error: "That doesn't look like a photo — try a JPG, PNG, GIF, or WEBP screenshot." };
-    }
-    extracted = await extractOrderFromImage(buffer, EXT_TO_MEDIA_TYPE[detected.ext]);
-  } else if (typeof text === "string" && text.trim().length > 0) {
-    extracted = await extractOrderFromText(text.trim());
-  } else {
-    return { ...empty, error: "Add a screenshot or paste some chat text first." };
-  }
-
-  if (extracted.items.length === 0 && !extracted.customerName) {
-    return { ...empty, error: "Couldn't find an order in that — enter the details manually below." };
-  }
-
-  const [inventory, customers] = await Promise.all([
-    db.inventoryItem.findMany({ where: { branchId, status: "IN_STOCK", quantity: { gt: 0 } } }),
-    db.customer.findMany({ where: { branchId } }),
-  ]);
-
-  let customerId: string | null = null;
-  if (extracted.customerPhone) {
-    const phoneDigits = normalizePhone(extracted.customerPhone);
-    const match = customers.find((c) => c.phone && normalizePhone(c.phone).endsWith(phoneDigits.slice(-9)));
-    if (match) customerId = match.id;
-  }
-  if (!customerId && extracted.customerName) {
-    const needle = normalize(extracted.customerName);
-    const match = customers.find((c) => normalize(c.name).includes(needle) || needle.includes(normalize(c.name)));
-    if (match) customerId = match.id;
-  }
-
-  const lines: ScannedLine[] = [];
-  const unmatchedItems: string[] = [];
-  for (const item of extracted.items) {
-    const needle = normalize(item.description);
-    const match = inventory.find(
-      (i) =>
-        normalize(i.name).includes(needle) ||
-        needle.includes(normalize(i.name)) ||
-        i.sku.toLowerCase() === item.description.toLowerCase().trim(),
-    );
-    if (match) {
-      lines.push({
-        inventoryItemId: match.id,
-        itemNameGuess: match.name,
-        quantity: Math.min(item.quantity, match.quantity),
-        priceEach: item.priceEach ?? match.sellingPrice,
-      });
+    let extracted: Awaited<ReturnType<typeof extractOrderFromText>>;
+    if (file instanceof File && file.size > 0) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const detected = detectFileKind(buffer);
+      if (!detected || detected.kind !== "image") {
+        return { ...empty, error: "That doesn't look like a photo — try a JPG, PNG, GIF, or WEBP screenshot." };
+      }
+      extracted = await extractOrderFromImage(buffer, EXT_TO_MEDIA_TYPE[detected.ext]);
+    } else if (typeof text === "string" && text.trim().length > 0) {
+      extracted = await extractOrderFromText(text.trim());
     } else {
-      unmatchedItems.push(item.description);
+      return { ...empty, error: "Add a screenshot or paste some chat text first." };
     }
-  }
 
-  return {
-    customerId,
-    customerNameGuess: extracted.customerName,
-    lines,
-    unmatchedItems,
-    discount: extracted.discount,
-    amountPaid: extracted.amountPaid,
-    paymentMethod: extracted.paymentMethod,
-    notes: extracted.notes,
-  };
+    if (extracted.items.length === 0 && !extracted.customerName) {
+      return { ...empty, error: "Couldn't find an order in that — enter the details manually below." };
+    }
+
+    const [inventory, customers] = await Promise.all([
+      db.inventoryItem.findMany({ where: { branchId, status: "IN_STOCK", quantity: { gt: 0 } } }),
+      db.customer.findMany({ where: { branchId } }),
+    ]);
+
+    let customerId: string | null = null;
+    if (extracted.customerPhone) {
+      const phoneDigits = normalizePhone(extracted.customerPhone);
+      const match = customers.find((c) => c.phone && normalizePhone(c.phone).endsWith(phoneDigits.slice(-9)));
+      if (match) customerId = match.id;
+    }
+    if (!customerId && extracted.customerName) {
+      const needle = normalize(extracted.customerName);
+      const match = customers.find((c) => normalize(c.name).includes(needle) || needle.includes(normalize(c.name)));
+      if (match) customerId = match.id;
+    }
+
+    const lines: ScannedLine[] = [];
+    const unmatchedItems: string[] = [];
+    for (const item of extracted.items) {
+      const needle = normalize(item.description);
+      const match = inventory.find(
+        (i) =>
+          normalize(i.name).includes(needle) ||
+          needle.includes(normalize(i.name)) ||
+          i.sku.toLowerCase() === item.description.toLowerCase().trim(),
+      );
+      if (match) {
+        lines.push({
+          inventoryItemId: match.id,
+          itemNameGuess: match.name,
+          quantity: Math.min(item.quantity, match.quantity),
+          priceEach: item.priceEach ?? match.sellingPrice,
+        });
+      } else {
+        unmatchedItems.push(item.description);
+      }
+    }
+
+    return {
+      customerId,
+      customerNameGuess: extracted.customerName,
+      lines,
+      unmatchedItems,
+      discount: extracted.discount,
+      amountPaid: extracted.amountPaid,
+      paymentMethod: extracted.paymentMethod,
+      notes: extracted.notes,
+    };
+  } catch (err) {
+    console.error("scanOrder failed:", err);
+    return { ...empty, error: "Something went wrong reading that — add the items manually below." };
+  }
 }
 
 const lineSchema = z.object({
