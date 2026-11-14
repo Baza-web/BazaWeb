@@ -55,6 +55,11 @@ services:
     volumes:
       - certbot_www:/var/www/certbot
       - certbot_conf:/etc/letsencrypt
+    # This entrypoint is only for the long-running renewal loop started by
+    # `docker compose up -d certbot`. It overrides the image's own
+    # entrypoint, so a one-off `docker compose run certbot <command>` must
+    # pass `--entrypoint certbot` or it silently runs this loop instead of
+    # the command you asked for. See DEPLOY.md's certonly step.
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h; done;'"
 
 volumes:

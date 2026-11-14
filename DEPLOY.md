@@ -74,11 +74,15 @@ HTTPS yet).
 Now request the certificate:
 
 ```bash
-docker compose run --rm certbot certonly --webroot \
+docker compose run --rm --entrypoint certbot certbot certonly --webroot \
   -w /var/www/certbot \
   -d erp.yourbusiness.com \
   --email you@yourbusiness.com --agree-tos --no-eff-email
 ```
+
+(The `--entrypoint certbot` is required — the `certbot` service's default
+entrypoint is a renewal loop, which would otherwise silently swallow this
+one-off command.)
 
 If that succeeds, switch Nginx to the HTTPS config:
 
