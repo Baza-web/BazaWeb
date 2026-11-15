@@ -55,6 +55,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/brands", label: "Brands", iconKey: "brands", roles: ["OWNER", "ADMIN"] },
   { href: "/brokers", label: "Brokers & Memos", iconKey: "brokers", roles: ["OWNER", "ADMIN"] },
   { href: "/deletion-requests", label: "Deletion requests", iconKey: "deletions", roles: ["OWNER"] },
+  { href: "/edit-requests", label: "Edit requests", iconKey: "edits", roles: ["OWNER"] },
   { href: "/creative", label: "Creative Hub", iconKey: "creative", roles: ["OWNER", "ADMIN", "CREATIVE"] },
 ];
 

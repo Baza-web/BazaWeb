@@ -7,7 +7,9 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect, hashPassword } from "@/lib/auth";
 import { canManageStaffScoped, canManageStaff, canViewSalary, isCompanyWide, MANAGER_GRANTABLE_ROLES } from "@/lib/rbac";
 import { initiateDeletion } from "@/lib/deletion";
+import { initiateEdit } from "@/lib/editRequests";
 import { saveUploadedImages } from "@/lib/uploads";
+import { formatMoney } from "@/lib/utils";
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
   if (value === null) return undefined;
@@ -127,7 +129,11 @@ const hrSchema = z.object({
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT"]).optional(),
 });
 
-/** Owner/Admin/Manager can update a staff member's general HR details (never salary/bank — see updateStaffPay). */
+/**
+ * Owner/Admin/Manager can update a staff member's general HR details (never
+ * salary/bank — see updateStaffPay). Owner's edit applies immediately;
+ * anyone else's is a pending request a different Owner must approve first.
+ */
 export async function updateStaffProfile(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
@@ -146,20 +152,18 @@ export async function updateStaffProfile(staffId: string, formData: FormData) {
     employmentType: emptyToUndefined(formData.get("employmentType")),
   });
 
-  await db.staff.update({
-    where: { id: staffId },
-    data: {
-      phone: parsed.phone ?? null,
-      nic: parsed.nic ?? null,
-      dateOfBirth: parsed.dateOfBirth ?? null,
-      address: parsed.address ?? null,
-      emergencyContactName: parsed.emergencyContactName ?? null,
-      emergencyContactPhone: parsed.emergencyContactPhone ?? null,
-      dateOfJoining: parsed.dateOfJoining ?? null,
-      employmentType: parsed.employmentType ?? null,
-    },
+  await initiateEdit(session, "STAFF", staffId, staff.name, "Updated HR profile details", {
+    phone: parsed.phone ?? null,
+    nic: parsed.nic ?? null,
+    dateOfBirth: parsed.dateOfBirth ? parsed.dateOfBirth.toISOString() : null,
+    address: parsed.address ?? null,
+    emergencyContactName: parsed.emergencyContactName ?? null,
+    emergencyContactPhone: parsed.emergencyContactPhone ?? null,
+    dateOfJoining: parsed.dateOfJoining ? parsed.dateOfJoining.toISOString() : null,
+    employmentType: parsed.employmentType ?? null,
   });
   revalidatePath(`/staff/${staffId}`);
+  revalidatePath("/edit-requests");
 }
 
 const paySchema = z.object({
@@ -174,6 +178,7 @@ export async function updateStaffPay(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   if (!canViewSalary(session.role)) throw new Error("Forbidden");
 
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
   const parsed = paySchema.parse({
     baseSalary: formData.get("baseSalary"),
     bankName: emptyToUndefined(formData.get("bankName")),
@@ -181,16 +186,19 @@ export async function updateStaffPay(staffId: string, formData: FormData) {
     bankBranch: emptyToUndefined(formData.get("bankBranch")),
   });
 
-  await db.staff.update({
-    where: { id: staffId },
-    data: {
-      baseSalary: parsed.baseSalary ?? null,
-      bankName: parsed.bankName ?? null,
-      bankAccountNumber: parsed.bankAccountNumber ?? null,
-      bankBranch: parsed.bankBranch ?? null,
-    },
+  const fieldSummary =
+    parsed.baseSalary !== staff.baseSalary
+      ? `Base salary: ${staff.baseSalary != null ? formatMoney(staff.baseSalary) : "—"} → ${parsed.baseSalary != null ? formatMoney(parsed.baseSalary) : "—"}`
+      : "Updated salary/bank details";
+
+  await initiateEdit(session, "STAFF", staffId, staff.name, fieldSummary, {
+    baseSalary: parsed.baseSalary ?? null,
+    bankName: parsed.bankName ?? null,
+    bankAccountNumber: parsed.bankAccountNumber ?? null,
+    bankBranch: parsed.bankBranch ?? null,
   });
   revalidatePath(`/staff/${staffId}`);
+  revalidatePath("/edit-requests");
 }
 
 export async function addStaffDocuments(staffId: string, formData: FormData) {

@@ -175,6 +175,7 @@ model Brand {
   socialPosts SocialPost[]
   expenses    Expense[]
   sales       Sale[]
+  inventoryItems InventoryItem[]
 }
 
 model Staff {
@@ -233,6 +234,8 @@ model Staff {
   payrollRunsCreated PayrollRun[]            @relation("PayrollCreatedBy")
   deletionRequestsMade     DeletionRequest[] @relation("DeletionRequester")
   deletionRequestsReviewed DeletionRequest[] @relation("DeletionReviewer")
+  editRequestsMade     EditRequest[] @relation("EditRequester")
+  editRequestsReviewed EditRequest[] @relation("EditReviewer")
   groupMessagesSent  GroupMessage[]
   socialPostsAssigned SocialPost[] @relation("SocialPostAssignee")
   socialPostsCreated  SocialPost[] @relation("SocialPostCreator")
@@ -268,16 +271,19 @@ model InventoryItem {
   lowStockAt     Int          @default(1)
   notes          String?
   branchId       String
+  brandId        String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   branch       Branch        @relation(fields: [branchId], references: [id])
+  brand        Brand?        @relation(fields: [brandId], references: [id])
   saleItems    SaleItem[]
   repairOrders RepairOrder[]
   brokerMemoItems BrokerMemoItem[]
 
   @@index([branchId])
   @@index([status])
+  @@index([brandId])
 }
 
 model Customer {
@@ -898,6 +904,37 @@ model DeletionRequest {
 
   requestedBy Staff  @relation("DeletionRequester", fields: [requestedById], references: [id])
   reviewedBy  Staff? @relation("DeletionReviewer", fields: [reviewedById], references: [id])
+
+  @@index([entityType, entityId])
+}
+
+enum EditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Maker-checker control for editing a record: anyone but the Owner can only
+// request a change, a different Owner must approve before it actually takes
+// effect. proposedData is the exact field->value payload to apply on
+// approval; fieldSummary is a short human-readable description of the
+// change, so the Owner can review it without needing to know the schema.
+model EditRequest {
+  id            String            @id @default(cuid())
+  entityType    String
+  entityId      String
+  entityLabel   String
+  fieldSummary  String
+  proposedData  Json
+  reason        String?
+  status        EditRequestStatus @default(PENDING)
+  requestedById String
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime          @default(now())
+
+  requestedBy Staff  @relation("EditRequester", fields: [requestedById], references: [id])
+  reviewedBy  Staff? @relation("EditReviewer", fields: [reviewedById], references: [id])
 
   @@index([entityType, entityId])
 }

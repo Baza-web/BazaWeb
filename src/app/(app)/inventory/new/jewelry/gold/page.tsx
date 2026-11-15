@@ -10,7 +10,10 @@ export default async function NewGoldJewelryPage() {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const branches = isCompanyWide(session.role) ? await db.branch.findMany({ orderBy: { name: "asc" } }) : [];
+  const [branches, brands] = await Promise.all([
+    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -22,7 +25,7 @@ export default async function NewGoldJewelryPage() {
         <h1 className="page-title">Add a gold jewelry item</h1>
       </div>
 
-      <JewelryIntakeForm metal="Gold" showBranchSelect={isCompanyWide(session.role)} branches={branches} />
+      <JewelryIntakeForm metal="Gold" showBranchSelect={isCompanyWide(session.role)} branches={branches} brands={brands} />
     </div>
   );
 }

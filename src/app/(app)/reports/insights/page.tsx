@@ -244,7 +244,7 @@ export default async function ReportsInsightsPage({
                     <Link href={`/customers/${c.id}`} className="text-brand-700 hover:underline">
                       {c.name}
                     </Link>
-                    {c.phone && <span className="ml-1 text-xs text-stone-400">{c.phone}</span>}
+                    {c.phone && <div className="text-xs text-stone-400">{c.phone}</div>}
                   </td>
                   <td>{c.recencyDays}d ago</td>
                   <td>{formatMoney(c.monetary)}</td>

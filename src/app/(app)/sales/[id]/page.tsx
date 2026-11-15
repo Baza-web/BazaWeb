@@ -5,7 +5,9 @@ import { branchScope, canDeleteOrRequest } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { PrintButton } from "@/components/PrintButton";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
-import { deleteSalePermanently } from "../actions";
+import { deleteSalePermanently, updateSale } from "../actions";
+
+const PAYMENT_METHODS = ["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"] as const;
 
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -22,8 +24,26 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   });
   if (!sale) notFound();
 
+  const [pendingEdit, customers, brands] = await Promise.all([
+    db.editRequest.findFirst({ where: { entityType: "SALE", entityId: sale.id, status: "PENDING" } }),
+    canDeleteOrRequest(session.role)
+      ? db.customer.findMany({ where: { branchId: sale.branchId }, orderBy: { name: "asc" } })
+      : Promise.resolve([]),
+    canDeleteOrRequest(session.role) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+  ]);
+
   return (
     <div className="max-w-2xl space-y-6 print:max-w-full">
+      {pendingEdit && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
+          <p className="font-medium">An edit is awaiting Owner approval</p>
+          <p className="mt-1 text-amber-700">
+            {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
+            further edits can be made to this sale until that request is approved or rejected.
+          </p>
+        </div>
+      )}
+
       <div className="card">
         <div className="mb-6 flex items-start justify-between">
           <div>
@@ -98,6 +118,71 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           <p className="mt-4 border-t border-stone-100 pt-3 text-sm text-stone-500">{sale.notes}</p>
         )}
       </div>
+
+      {canDeleteOrRequest(session.role) && (
+        <div className="card print:hidden">
+          <h2 className="mb-3 font-medium">Edit sale</h2>
+          <form action={updateSale.bind(null, sale.id)} className="space-y-3">
+            <fieldset disabled={!!pendingEdit} className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="label">Customer</label>
+                  <select className="input" name="customerId" defaultValue={sale.customerId ?? ""}>
+                    <option value="">Walk-in customer</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Brand</label>
+                  <select className="input" name="brandId" defaultValue={sale.brandId ?? ""}>
+                    <option value="">No specific brand</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Discount</label>
+                  <input className="input" type="number" step="0.01" min="0" name="discount" defaultValue={sale.discount} />
+                </div>
+                <div>
+                  <label className="label">Amount paid</label>
+                  <input className="input" type="number" step="0.01" min="0" name="amountPaid" defaultValue={sale.amountPaid} />
+                </div>
+                <div>
+                  <label className="label">Payment method</label>
+                  <select className="input" name="paymentMethod" defaultValue={sale.paymentMethod}>
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>
+                        {m.replace("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes</label>
+                <textarea className="input" name="notes" defaultValue={sale.notes ?? ""} rows={2} />
+              </div>
+              <button type="submit" className="btn-primary">
+                Save changes
+              </button>
+              {session.role !== "OWNER" && (
+                <p className="text-xs text-stone-400">
+                  Items and subtotal can&apos;t be edited here — saving will send this for an Owner to approve
+                  before it takes effect.
+                </p>
+              )}
+            </fieldset>
+          </form>
+        </div>
+      )}
 
       <div className="flex items-center gap-4 print:hidden">
         <PrintButton />

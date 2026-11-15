@@ -16,10 +16,12 @@ export function JewelryIntakeForm({
   metal,
   showBranchSelect,
   branches,
+  brands,
 }: {
   metal: "Gold" | "Silver";
   showBranchSelect: boolean;
   branches: { id: string; name: string }[];
+  brands: { id: string; name: string }[];
 }) {
   return (
     <form action={createInventoryItem} encType="multipart/form-data" className="card space-y-5">
@@ -37,6 +39,20 @@ export function JewelryIntakeForm({
           </select>
         </div>
       ) : null}
+
+      {brands.length > 0 && (
+        <div>
+          <label className="label">Brand (optional)</label>
+          <select className="input" name="brandId" defaultValue="">
+            <option value="">No specific brand</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
