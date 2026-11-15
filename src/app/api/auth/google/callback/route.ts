@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   if (!staff || !staff.active) {
     return redirectToLogin(
       request,
-      "No active Baza ERP account found for that Google account. Ask your admin to add you under Staff.",
+      "No active Baza Boutique account found for that Google account. Ask your admin to add you under Staff.",
     );
   }
 

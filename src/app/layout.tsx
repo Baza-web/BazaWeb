@@ -17,7 +17,7 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "Baza ERP",
+  title: "Baza Boutique",
   description: "Jewelry & gem business management",
   manifest: "/manifest.json",
   icons: {
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Baza ERP",
+    title: "Baza Boutique",
     statusBarStyle: "default",
   },
 };

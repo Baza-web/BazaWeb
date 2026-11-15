@@ -57,7 +57,7 @@ async function sendBrokerStatement(brokerId: string) {
 
   await sendEmail({
     to: broker.email,
-    subject: `Your Baza ERP memo statement — ${broker.name}`,
+    subject: `Your Baza Boutique memo statement — ${broker.name}`,
     html: brokerStatementEmailHtml(broker.name, totalOutstandingValue),
     attachment: { filename: `${broker.name.replace(/\s+/g, "-")}-statement.xlsx`, content: xlsx },
   });

@@ -32,7 +32,7 @@ export async function sendEmail(params: {
     return { sent: false as const };
   }
 
-  const from = process.env.EMAIL_FROM || "Baza ERP <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM || "Baza Boutique <onboarding@resend.dev>";
 
   const { error } = await resend.emails.send({
     from,
