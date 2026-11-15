@@ -7,6 +7,9 @@ import { decideEditRequest } from "./actions";
 const TYPE_LABELS: Record<string, string> = {
   STAFF: "Staff account",
   INVENTORY: "Inventory item",
+  CUSTOMER: "Customer",
+  SALE: "Sale",
+  BRAND: "Brand",
 };
 
 export default async function EditRequestsPage() {

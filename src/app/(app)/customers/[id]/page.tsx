@@ -4,7 +4,11 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
-import { addCustomerNote } from "../actions";
+import { addCustomerNote, updateCustomer } from "../actions";
+
+function toDateInput(d: Date | null) {
+  return d ? d.toISOString().slice(0, 10) : "";
+}
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -19,6 +23,10 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   });
   if (!customer) notFound();
 
+  const pendingEdit = await db.editRequest.findFirst({
+    where: { entityType: "CUSTOMER", entityId: customer.id, status: "PENDING" },
+  });
+
   const lifetimeValue = customer.sales.reduce((sum, s) => sum + s.total, 0);
 
   return (
@@ -29,6 +37,16 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"}
         </p>
       </div>
+
+      {pendingEdit && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-medium">An edit is awaiting Owner approval</p>
+          <p className="mt-1 text-amber-700">
+            {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
+            further edits can be made until that request is approved or rejected.
+          </p>
+        </div>
+      )}
 
       <div className="card grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
@@ -43,6 +61,46 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           <p className="text-xs text-stone-500">Birthday</p>
           <p className="text-lg font-semibold">{customer.birthday ? formatDate(customer.birthday) : "—"}</p>
         </div>
+      </div>
+
+      <div className="card">
+        <h2 className="mb-3 font-medium">Edit details</h2>
+        <form action={updateCustomer.bind(null, customer.id)} className="space-y-3">
+          <fieldset disabled={!!pendingEdit} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label">Name</label>
+                <input className="input" name="name" defaultValue={customer.name} required />
+              </div>
+              <div>
+                <label className="label">Phone</label>
+                <input className="input" name="phone" defaultValue={customer.phone ?? ""} />
+              </div>
+              <div>
+                <label className="label">Email</label>
+                <input className="input" type="email" name="email" defaultValue={customer.email ?? ""} />
+              </div>
+              <div>
+                <label className="label">Address</label>
+                <input className="input" name="address" defaultValue={customer.address ?? ""} />
+              </div>
+              <div>
+                <label className="label">Birthday</label>
+                <input className="input" type="date" name="birthday" defaultValue={toDateInput(customer.birthday)} />
+              </div>
+              <div>
+                <label className="label">Anniversary</label>
+                <input className="input" type="date" name="anniversary" defaultValue={toDateInput(customer.anniversary)} />
+              </div>
+            </div>
+            <button type="submit" className="btn-primary">
+              Save changes
+            </button>
+            {session.role !== "OWNER" && (
+              <p className="text-xs text-stone-400">Saving will send this for an Owner to approve — nothing changes until then.</p>
+            )}
+          </fieldset>
+        </form>
       </div>
 
       <div className="card">

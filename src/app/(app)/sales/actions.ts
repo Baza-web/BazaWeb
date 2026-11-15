@@ -8,10 +8,11 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { canRecordSale, isCompanyWide, COMPANY_WIDE_ROLES, branchScope, canDeleteOrRequest } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
-import { round2 } from "@/lib/utils";
+import { round2, formatMoney } from "@/lib/utils";
 import { detectFileKind } from "@/lib/uploads";
 import { extractOrderFromImage, extractOrderFromText, aiConfigured } from "@/lib/ai";
 import { initiateDeletion } from "@/lib/deletion";
+import { initiateEdit } from "@/lib/editRequests";
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -341,4 +342,54 @@ export async function deleteSalePermanently(saleId: string, formData: FormData) 
   revalidatePath("/sales");
   revalidatePath(`/sales/${saleId}`);
   return result;
+}
+
+const saleEditSchema = z.object({
+  customerId: z.string().optional(),
+  brandId: z.string().optional(),
+  discount: z.coerce.number().min(0),
+  amountPaid: z.coerce.number().min(0),
+  paymentMethod: z.enum(["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"]),
+  notes: z.string().optional(),
+});
+
+/**
+ * Edits a sale's customer/brand/discount/payment details — never its items
+ * or subtotal, which stay tied to the inventory that was actually sold.
+ * Owner's edit applies immediately and recomputes total/payment status
+ * (and the linked ledger entry) to match; anyone else's is a pending
+ * request an Owner must approve first.
+ */
+export async function updateSale(saleId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+  const sale = await db.sale.findFirst({ where: { id: saleId, ...branchScope(session) } });
+  if (!sale) throw new Error("Forbidden");
+
+  const parsed = saleEditSchema.parse({
+    customerId: formData.get("customerId") || undefined,
+    brandId: formData.get("brandId") || undefined,
+    discount: formData.get("discount") || 0,
+    amountPaid: formData.get("amountPaid") || 0,
+    paymentMethod: formData.get("paymentMethod"),
+    notes: formData.get("notes") || undefined,
+  });
+
+  const changeNotes: string[] = [];
+  if (parsed.discount !== sale.discount) changeNotes.push(`Discount: ${formatMoney(sale.discount)} → ${formatMoney(parsed.discount)}`);
+  if (parsed.amountPaid !== sale.amountPaid) changeNotes.push(`Amount paid: ${formatMoney(sale.amountPaid)} → ${formatMoney(parsed.amountPaid)}`);
+  if (parsed.paymentMethod !== sale.paymentMethod) changeNotes.push(`Payment method: ${sale.paymentMethod} → ${parsed.paymentMethod}`);
+  const fieldSummary = changeNotes.length > 0 ? changeNotes.join("; ") : "Updated sale details";
+
+  await initiateEdit(session, "SALE", saleId, sale.invoiceNumber, fieldSummary, {
+    customerId: parsed.customerId ?? null,
+    brandId: parsed.brandId ?? null,
+    discount: parsed.discount,
+    amountPaid: parsed.amountPaid,
+    paymentMethod: parsed.paymentMethod,
+    notes: parsed.notes ?? null,
+  });
+  revalidatePath(`/sales/${saleId}`);
+  revalidatePath("/sales");
+  revalidatePath("/edit-requests");
 }

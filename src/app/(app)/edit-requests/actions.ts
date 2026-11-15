@@ -16,4 +16,7 @@ export async function decideEditRequest(requestId: string, formData: FormData) {
   revalidatePath("/edit-requests");
   revalidatePath("/staff");
   revalidatePath("/inventory");
+  revalidatePath("/customers");
+  revalidatePath("/sales");
+  revalidatePath("/brands");
 }
