@@ -221,3 +221,22 @@ export async function toggleOnboardingTask(taskId: string) {
   });
   revalidatePath(`/staff/${task.staffId}`);
 }
+
+/** Which brand(s) this staff member works for — most are one, some work two. Surfaced to Accounting and Admins. */
+export async function setStaffBrands(staffId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+
+  const brandIds = formData.getAll("brandIds").map(String);
+
+  await db.staff.update({
+    where: { id: staffId },
+    data: { brands: { set: brandIds.map((id) => ({ id })) } },
+  });
+
+  revalidatePath(`/staff/${staffId}`);
+  revalidatePath("/staff");
+}

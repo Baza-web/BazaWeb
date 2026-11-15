@@ -7,7 +7,7 @@ import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
 import { setLeaveEntitlement } from "../../leave/actions";
-import { toggleOnboardingTask } from "../actions";
+import { toggleOnboardingTask, setStaffBrands } from "../actions";
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
   FULL_TIME: "Full-time",
@@ -30,7 +30,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
   const { id } = await params;
   const staff = await db.staff.findFirst({
     where: { id, deletedAt: null, ...(isCompanyWide(session.role) ? {} : { branchId: session.branchId }) },
-    include: { branch: true },
+    include: { branch: true, brands: true },
   });
   if (!staff) notFound();
 
@@ -39,13 +39,15 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
   const yearStart = new Date(currentYear, 0, 1);
   const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-  const [entitlements, approvedLeaveThisYear, onboardingTasks] = await Promise.all([
+  const [entitlements, approvedLeaveThisYear, onboardingTasks, allBrands] = await Promise.all([
     db.leaveEntitlement.findMany({ where: { staffId: staff.id, year: currentYear } }),
     db.leaveRequest.findMany({
       where: { staffId: staff.id, status: "APPROVED", startDate: { gte: yearStart, lte: yearEnd } },
     }),
     db.onboardingTask.findMany({ where: { staffId: staff.id }, orderBy: { createdAt: "asc" } }),
+    db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
+  const staffBrandIds = new Set(staff.brands.map((b) => b.id));
 
   const usedByType = new Map<string, number>();
   for (const req of approvedLeaveThisYear) {
@@ -129,6 +131,35 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
             <p className="text-xs text-stone-500">Branch</p>
             <p className="font-medium">{staff.bankBranch ?? "—"}</p>
           </div>
+        </div>
+      )}
+
+      {allBrands.length > 0 && (
+        <div className="card">
+          <h2 className="mb-1 font-medium">Brands</h2>
+          <p className="mb-3 text-xs text-stone-400">
+            Which brand(s) this person works for — some staff work for two. Shown to Accounting and Admins
+            alongside salary.
+          </p>
+          <form action={setStaffBrands.bind(null, staff.id)} className="space-y-3">
+            <div className="flex flex-wrap gap-3">
+              {allBrands.map((b) => (
+                <label key={b.id} className="flex items-center gap-2 text-sm text-stone-600">
+                  <input
+                    type="checkbox"
+                    name="brandIds"
+                    value={b.id}
+                    defaultChecked={staffBrandIds.has(b.id)}
+                    className="h-4 w-4 rounded border-stone-300"
+                  />
+                  {b.name}
+                </label>
+              ))}
+            </div>
+            <button type="submit" className="btn-secondary text-sm">
+              Save brands
+            </button>
+          </form>
         </div>
       )}
 
