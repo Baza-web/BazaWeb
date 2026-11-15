@@ -1,24 +1,34 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Hosts that are never a tenant subdomain: the bare app domain, "www", and
-// local dev. A self-hosted single-business deployment on its own custom
-// domain (the existing Docker/VPS path) also has no subdomain — that's
-// expected, see resolveOrganizationForRequest() in src/lib/tenant-resolve.ts.
+// Labels that are never a tenant slug even when they sit directly in front
+// of the configured app root (e.g. "www.saas.example.com").
 const RESERVED_SUBDOMAINS = new Set(["www", "app", "api"]);
+
+/**
+ * The hosted SaaS root, e.g. "saas.thailankagem.com" or "app.loupe.com" —
+ * set NEXT_PUBLIC_APP_DOMAIN to whatever host serves this Next.js app
+ * itself. A tenant then lives at "<slug>.<that root>", however many labels
+ * the root itself has — deriving the slug from the root (rather than just
+ * counting hostname segments) is what lets the root live on a subdomain of
+ * someone's existing domain instead of needing its own bare domain.
+ *
+ * Self-hosted single-business deployments (the existing Docker/VPS path, or
+ * local dev) leave this unset — no subdomain is ever extracted, matching
+ * resolveOrganizationForRequest()'s "exactly one Organization" fallback in
+ * src/lib/tenant-resolve.ts.
+ */
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN;
 
 function resolveOrgSlug(host: string): string | null {
   const hostname = host.split(":")[0];
-  if (hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return null;
+  if (!APP_DOMAIN || hostname === APP_DOMAIN) return null;
+  if (!hostname.endsWith(`.${APP_DOMAIN}`)) return null; // unrelated host — e.g. a self-hosted custom domain
 
-  const parts = hostname.split(".");
-  // Need at least "<slug>.<domain>.<tld>" — a bare domain or a domain with
-  // no subdomain at all has nothing to extract.
-  if (parts.length < 3) return null;
-
-  const subdomain = parts[0];
-  if (RESERVED_SUBDOMAINS.has(subdomain)) return null;
-  return subdomain;
+  const prefix = hostname.slice(0, -(APP_DOMAIN.length + 1));
+  const slug = prefix.split(".")[0];
+  if (RESERVED_SUBDOMAINS.has(slug)) return null;
+  return slug;
 }
 
 export function middleware(request: NextRequest) {

@@ -85,9 +85,13 @@ export async function signUp(formData: FormData) {
     branchId: staff.branchId,
   });
 
-  // TODO once real subdomains are wired to a wildcard DNS entry + the
-  // session cookie's Domain is widened to the shared root domain: redirect
-  // to `https://${slug}.${APP_DOMAIN}/dashboard` instead, so future visits
-  // land straight on this tenant's own subdomain.
+  // Deliberately NOT redirecting to `${slug}.${APP_DOMAIN}` here: the
+  // session cookie is host-only by design (so one tenant's cookie is never
+  // sent to another tenant's subdomain), and every page scopes by the
+  // cookie's organizationId, not by hostname — so staying on whichever host
+  // signup was submitted from already works correctly. A redirect to the
+  // tenant's own subdomain is a nice-to-have (nicer URL, not a requirement)
+  // and needs a short-lived claim-token handoff to carry the session across
+  // hosts — worth adding later, not blocking today.
   redirect("/dashboard");
 }
