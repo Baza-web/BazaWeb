@@ -8,6 +8,7 @@ import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
 import { canAccessCreativeHub, STAFF_MANAGER_ROLES } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { saveUploadedImages } from "@/lib/uploads";
+import { instagramConfigured } from "@/lib/instagram";
 
 type GroupWithMembers = { id: string; name: string; members: { id: string }[] };
 
@@ -50,12 +51,20 @@ const statusSchema = z.enum(["IDEA", "DRAFTING", "READY", "SCHEDULED", "POSTED"]
 
 const postSchema = z.object({
   title: z.string().min(2),
+  brandId: z.string().min(1),
   platform: platformSchema,
   caption: z.string().optional(),
   notes: z.string().optional(),
   scheduledAt: z.coerce.date().optional(),
   assignedToId: z.string().optional(),
+  autoPublish: z.coerce.boolean().optional(),
 });
+
+async function requireActiveBrand(brandId: string) {
+  const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
+  if (!brand.active) throw new Error("That brand is no longer active.");
+  return brand;
+}
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
   if (value === null) return undefined;
@@ -77,13 +86,16 @@ export async function createSocialPost(groupId: string, formData: FormData) {
   const group = await requireGroupAccess(groupId, session);
   const parsed = postSchema.parse({
     title: formData.get("title"),
+    brandId: formData.get("brandId"),
     platform: formData.get("platform"),
     caption: emptyToUndefined(formData.get("caption")),
     notes: emptyToUndefined(formData.get("notes")),
     scheduledAt: emptyToUndefined(formData.get("scheduledAt")),
     assignedToId: emptyToUndefined(formData.get("assignedToId")),
+    autoPublish: formData.get("autoPublish") === "on",
   });
   await assertAssigneeInGroup(parsed.assignedToId, group);
+  await requireActiveBrand(parsed.brandId);
 
   const files = formData.getAll("images").filter((f) => f instanceof File) as File[];
   const images = await saveUploadedImages(files, "social-posts");
@@ -91,6 +103,7 @@ export async function createSocialPost(groupId: string, formData: FormData) {
   await db.socialPost.create({
     data: {
       groupId,
+      brandId: parsed.brandId,
       title: parsed.title,
       platform: parsed.platform,
       caption: parsed.caption,
@@ -98,6 +111,7 @@ export async function createSocialPost(groupId: string, formData: FormData) {
       scheduledAt: parsed.scheduledAt,
       status: parsed.scheduledAt ? "SCHEDULED" : "IDEA",
       assignedToId: parsed.assignedToId,
+      autoPublish: parsed.autoPublish ?? false,
       images,
       createdById: session.staffId,
     },
@@ -129,28 +143,60 @@ export async function updateSocialPost(postId: string, formData: FormData) {
   const post = await requirePostAccess(postId, session);
   const parsed = postSchema.parse({
     title: formData.get("title"),
+    brandId: formData.get("brandId"),
     platform: formData.get("platform"),
     caption: emptyToUndefined(formData.get("caption")),
     notes: emptyToUndefined(formData.get("notes")),
     scheduledAt: emptyToUndefined(formData.get("scheduledAt")),
     assignedToId: emptyToUndefined(formData.get("assignedToId")),
+    autoPublish: formData.get("autoPublish") === "on",
   });
   await assertAssigneeInGroup(parsed.assignedToId, post.group);
+  await requireActiveBrand(parsed.brandId);
 
   const files = formData.getAll("images").filter((f) => f instanceof File) as File[];
   const newImages = await saveUploadedImages(files, "social-posts");
+
+  // Any edit to an already-approved post needs a fresh look before it can
+  // auto-publish again — approval isn't a one-time rubber stamp.
+  const wasApproved = Boolean(post.approvedById) && !post.publishedToInstagramAt;
 
   await db.socialPost.update({
     where: { id: postId },
     data: {
       title: parsed.title,
+      brandId: parsed.brandId,
       platform: parsed.platform,
       caption: parsed.caption,
       notes: parsed.notes,
       scheduledAt: parsed.scheduledAt,
       assignedToId: parsed.assignedToId,
+      autoPublish: parsed.autoPublish ?? false,
       images: newImages.length > 0 ? [...post.images, ...newImages] : undefined,
+      ...(wasApproved ? { approvedById: null, approvedAt: null } : {}),
     },
+  });
+
+  revalidatePath("/creative");
+  revalidatePath(`/creative/posts/${postId}`);
+}
+
+/** Owner/Admin only — required before an auto-publish post is eligible to actually post to Instagram. */
+export async function approveSocialPost(postId: string) {
+  const session = await requireSessionOrRedirect();
+  if (!STAFF_MANAGER_ROLES.includes(session.role)) throw new Error("Forbidden");
+
+  const post = await requirePostAccess(postId, session);
+  if (!post.autoPublish) throw new Error("Turn on auto-publish for this post before approving it.");
+  if (!post.scheduledAt) throw new Error("This post needs a scheduled date before it can be approved.");
+  if (post.platform !== "INSTAGRAM") throw new Error("Auto-publish only supports Instagram right now.");
+  if (!instagramConfigured()) {
+    throw new Error("Instagram isn't connected yet — ask an Admin to add the Instagram API credentials first.");
+  }
+
+  await db.socialPost.update({
+    where: { id: postId },
+    data: { approvedById: session.staffId, approvedAt: new Date() },
   });
 
   revalidatePath("/creative");

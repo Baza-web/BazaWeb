@@ -36,6 +36,7 @@ function pad(n: number) {
 
 export function ContentCalendar({
   groupId,
+  brandId,
   year,
   month,
   posts,
@@ -45,6 +46,7 @@ export function ContentCalendar({
   monthLabel,
 }: {
   groupId: string;
+  brandId: string;
   year: number;
   month: number;
   posts: CalendarPost[];
@@ -159,6 +161,7 @@ export function ContentCalendar({
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         groupId={groupId}
+        brandId={brandId}
         memberOptions={memberOptions}
         defaultDate={modalDate}
       />

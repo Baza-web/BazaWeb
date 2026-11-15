@@ -223,6 +223,40 @@ then add one more cron line so it checks every day at 7 AM:
 That's it — Sales staff and the Branch Manager get notified 3 days
 before any of their branch's customers' birthdays or anniversaries.
 
+## Creative Hub: auto-publishing approved posts to Instagram
+
+The Creative Hub's content calendar can automatically post to Instagram once
+a Creative schedules it, turns on "Auto-publish," and an Owner/Admin
+approves it. Nothing publishes without that explicit approval. Without this
+setup, everything still works — planning, scheduling, and approval — the
+post just has to be posted manually from the Instagram app instead.
+
+To turn it on:
+
+1. In [Meta for Developers](https://developers.facebook.com/), create an
+   app, add the **Instagram** product, and connect it to your Instagram
+   **Business or Creator** account (it must be linked to a Facebook Page).
+2. Generate a long-lived access token for that Instagram account (Meta's
+   Graph API Explorer, or your app's token generation flow) with the
+   `instagram_content_publish` permission.
+3. Find your Instagram account's numeric user ID (the Graph API Explorer's
+   `/me?fields=id` call, called with that token, returns it).
+4. Add to your `.env`:
+   ```bash
+   NEXT_PUBLIC_APP_URL=https://operation.baza-boutique.com
+   INSTAGRAM_ACCESS_TOKEN=<the long-lived token>
+   INSTAGRAM_BUSINESS_ACCOUNT_ID=<the numeric ID>
+   ```
+5. Redeploy (`docker compose up -d --build app`), then add a cron line that
+   checks every 10 minutes for approved, due posts (reuses the same
+   `CRON_TOKEN` as the reminders job above):
+   ```bash
+   (crontab -l 2>/dev/null; echo "*/10 * * * * curl -s 'https://operation.baza-boutique.com/api/cron/publish-instagram?token=YOUR_CRON_TOKEN'") | crontab -
+   ```
+
+Meta's long-lived tokens expire after about 60 days and need refreshing —
+there's no automatic renewal here, so put a reminder on your own calendar.
+
 ## Staff attendance: clock in/out and on-site enforcement (geofencing)
 
 Everyone with a staff account clocks in and out from the header button —

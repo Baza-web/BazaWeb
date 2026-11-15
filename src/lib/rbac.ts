@@ -131,6 +131,11 @@ export function canAccessCreativeHub(role: Role) {
   return role === "CREATIVE" || STAFF_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin only — adding a house brand is a structural change, same tier as adding a branch. */
+export function canManageBrands(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`

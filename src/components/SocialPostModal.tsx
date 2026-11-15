@@ -16,12 +16,14 @@ export function SocialPostModal({
   open,
   onClose,
   groupId,
+  brandId,
   memberOptions,
   defaultDate,
 }: {
   open: boolean;
   onClose: () => void;
   groupId: string;
+  brandId: string;
   memberOptions: { id: string; name: string }[];
   defaultDate?: string;
 }) {
@@ -60,6 +62,7 @@ export function SocialPostModal({
         </div>
 
         <form action={createSocialPost.bind(null, groupId)} className="space-y-4" onSubmit={() => onClose()}>
+          <input type="hidden" name="brandId" value={brandId} />
           <div>
             <label className="label">Title</label>
             <input className="input" name="title" required autoFocus placeholder="Diwali collection teaser" />
@@ -104,6 +107,10 @@ export function SocialPostModal({
             <label className="label">Reference images</label>
             <input className="input" name="images" type="file" accept="image/*" multiple />
           </div>
+          <label className="flex items-center gap-2 text-sm text-stone-600">
+            <input type="checkbox" name="autoPublish" className="h-4 w-4 rounded border-stone-300" />
+            Auto-publish to Instagram once approved (Instagram posts only)
+          </label>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancel

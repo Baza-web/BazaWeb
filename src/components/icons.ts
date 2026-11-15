@@ -47,6 +47,7 @@ import {
   ArrowCounterClockwise,
   PaintBrush,
   Money,
+  Tag,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -70,6 +71,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   targets: Target,
   deletions: Trash,
   creative: PaintBrush,
+  brands: Tag,
 };
 
 export {
@@ -121,4 +123,5 @@ export {
   ArrowCounterClockwise,
   PaintBrush,
   Money,
+  Tag,
 };

@@ -15,7 +15,7 @@ const MONTH_NAMES = [
 export default async function CreativeHubPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; brand?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
   if (!canAccessCreativeHub(session.role)) {
@@ -24,7 +24,7 @@ export default async function CreativeHubPage({
 
   const isManager = STAFF_MANAGER_ROLES.includes(session.role);
 
-  const { month: monthParam } = await searchParams;
+  const { month: monthParam, brand: brandParam } = await searchParams;
   const now = new Date();
   let year = now.getFullYear();
   let month = now.getMonth();
@@ -38,46 +38,91 @@ export default async function CreativeHubPage({
   const prevMonth = new Date(year, month - 1, 1);
   const nextMonth = new Date(year, month + 1, 1);
   const pad2 = (n: number) => String(n).padStart(2, "0");
-  const prevHref = `/creative?month=${prevMonth.getFullYear()}-${pad2(prevMonth.getMonth() + 1)}`;
-  const nextHref = `/creative?month=${nextMonth.getFullYear()}-${pad2(nextMonth.getMonth() + 1)}`;
+
+  const brands = await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } });
+  const selectedBrand =
+    brands.find((b) => b.id === brandParam) ?? brands.find((b) => b.name === "Baza Boutique") ?? brands[0];
+  const brandQuery = selectedBrand ? `&brand=${selectedBrand.id}` : "";
+
+  const prevHref = `/creative?month=${prevMonth.getFullYear()}-${pad2(prevMonth.getMonth() + 1)}${brandQuery}`;
+  const nextHref = `/creative?month=${nextMonth.getFullYear()}-${pad2(nextMonth.getMonth() + 1)}${brandQuery}`;
   const monthLabel = `${MONTH_NAMES[month]} ${year}`;
 
-  const groups = await db.staffGroup.findMany({
-    where: {
-      isCreativeTeam: true,
-      ...(isManager
-        ? isCompanyWide(session.role)
-          ? {}
-          : { branchId: session.branchId ?? "__none__" }
-        : { members: { some: { id: session.staffId } } }),
-    },
-    include: {
-      members: true,
-      branch: true,
-      messages: { orderBy: { createdAt: "asc" }, take: 100, include: { sender: true } },
-      tasks: {
-        include: { assignedTo: true, assignedBy: true, group: { include: { members: true } } },
-        orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
-      },
-      socialPosts: {
-        where: { OR: [{ scheduledAt: { gte: monthStart, lte: monthEnd } }, { scheduledAt: null }] },
-        include: { assignedTo: true },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
+  const groups = selectedBrand
+    ? await db.staffGroup.findMany({
+        where: {
+          isCreativeTeam: true,
+          ...(isManager
+            ? isCompanyWide(session.role)
+              ? {}
+              : { branchId: session.branchId ?? "__none__" }
+            : { members: { some: { id: session.staffId } } }),
+        },
+        include: {
+          members: true,
+          branch: true,
+          messages: { orderBy: { createdAt: "asc" }, take: 100, include: { sender: true } },
+          tasks: {
+            include: { assignedTo: true, assignedBy: true, group: { include: { members: true } } },
+            orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
+          },
+          socialPosts: {
+            where: {
+              brandId: selectedBrand.id,
+              OR: [{ scheduledAt: { gte: monthStart, lte: monthEnd } }, { scheduledAt: null }],
+            },
+            include: { assignedTo: true },
+            orderBy: { createdAt: "desc" },
+          },
+        },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="page-title">Creative Hub</h1>
-        <p className="text-sm text-stone-500">
-          Your creative team&apos;s projects, tasks, and planning — all in one place.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="page-title">Creative Hub</h1>
+          <p className="text-sm text-stone-500">
+            Your creative team&apos;s projects, tasks, and planning — all in one place.
+          </p>
+        </div>
+        {brands.length > 0 && (
+          <form action="/creative" className="flex items-end gap-2">
+            <input type="hidden" name="month" value={`${year}-${pad2(month + 1)}`} />
+            <div>
+              <label className="label">Brand</label>
+              <select className="input" name="brand" defaultValue={selectedBrand?.id}>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="btn-secondary">
+              Switch
+            </button>
+          </form>
+        )}
       </div>
 
-      {groups.length === 0 && (
+      {brands.length === 0 && (
+        <div className="card text-sm text-stone-500">
+          No brands set up yet.{" "}
+          {isManager ? (
+            <Link href="/brands" className="text-brand-700 hover:underline">
+              Add one in Brands
+            </Link>
+          ) : (
+            "Ask an Admin to add one in Brands."
+          )}{" "}
+          first.
+        </div>
+      )}
+
+      {brands.length > 0 && groups.length === 0 && (
         <div className="card text-sm text-stone-500">
           {isManager ? (
             <>
@@ -149,6 +194,7 @@ export default async function CreativeHubPage({
               <h3 className="section-title mb-3">Content calendar — social media planning</h3>
               <ContentCalendar
                 groupId={group.id}
+                brandId={selectedBrand!.id}
                 year={year}
                 month={month}
                 monthLabel={monthLabel}
