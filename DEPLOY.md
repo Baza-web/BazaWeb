@@ -375,7 +375,8 @@ Anthropic account (a few cents at most); there's no other setup needed.
 
 To click through the whole app with realistic sample data instead of
 empty pages — customers, inventory, sales, expenses, tasks, repairs,
-purchase orders, staff groups, sales targets, and a broker memo — run:
+purchase orders, staff groups, sales targets, a broker memo, and a few
+inventory items/sales tagged to specific brands — run:
 
 ```
 docker compose exec app node_modules/.bin/tsx prisma/demo-data.ts
