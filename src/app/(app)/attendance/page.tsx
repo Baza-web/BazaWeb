@@ -4,6 +4,8 @@ import { canViewAttendance, canEditAttendance, isCompanyWide } from "@/lib/rbac"
 import { formatDateTime, distanceMeters, mapsLink } from "@/lib/utils";
 import { ClockCountdown, MapPin } from "@/components/icons";
 import { AttendanceRowActions } from "@/components/AttendanceRowActions";
+import { PrintButton } from "@/components/PrintButton";
+import { formatDate } from "@/lib/utils";
 
 function duration(inAt: Date, outAt: Date | null) {
   const end = outAt ?? new Date();
@@ -75,14 +77,24 @@ export default async function AttendancePage() {
       <h1 className="page-title">Attendance</h1>
 
       {canViewTeam && (
-        <div className="card overflow-x-auto">
-          <h2 className="section-title mb-3 flex items-center gap-2">
-            <ClockCountdown size={18} className="text-brand-500" aria-hidden="true" />
-            Team attendance
-          </h2>
+        <div id="attendance-table" className="card overflow-x-auto">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="section-title flex items-center gap-2 print:hidden">
+              <ClockCountdown size={18} className="text-brand-500" aria-hidden="true" />
+              Team attendance
+            </h2>
+            <PrintButton selector="#attendance-table" label="Print" />
+          </div>
+          <div className="print-report-header">
+            <h2 className="font-display text-xl font-semibold">Team attendance</h2>
+            <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {teamLogs.length} record(s)</p>
+          </div>
           <table className="table-base">
             <thead>
               <tr>
+                <th className="w-8 print:hidden">
+                  <span className="sr-only">Include in print</span>
+                </th>
                 <th>Staff</th>
                 <th>Branch</th>
                 <th>Clock in</th>
@@ -90,12 +102,15 @@ export default async function AttendancePage() {
                 <th>Clock out</th>
                 <th>Out @</th>
                 <th>Duration</th>
-                {canEdit && <th>Actions</th>}
+                {canEdit && <th className="print:hidden">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {teamLogs.map((log) => (
-                <tr key={log.id}>
+                <tr key={log.id} data-print-row>
+                  <td className="print:hidden">
+                    <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${log.staff.name}'s record in print`} />
+                  </td>
                   <td className="font-medium">{log.staff.name}</td>
                   <td>{log.branch.name}</td>
                   <td>{formatDateTime(log.clockInAt)}</td>
@@ -114,7 +129,7 @@ export default async function AttendancePage() {
                     )}
                   </td>
                   {canEdit && (
-                    <td>
+                    <td className="print:hidden">
                       <AttendanceRowActions logId={log.id} clockInAt={log.clockInAt} clockOutAt={log.clockOutAt} />
                     </td>
                   )}
@@ -122,7 +137,7 @@ export default async function AttendancePage() {
               ))}
               {teamLogs.length === 0 && (
                 <tr>
-                  <td colSpan={canEdit ? 8 : 7} className="py-6 text-center text-stone-400">
+                  <td colSpan={canEdit ? 9 : 8} className="py-6 text-center text-stone-400">
                     No attendance recorded yet.
                   </td>
                 </tr>
@@ -132,11 +147,21 @@ export default async function AttendancePage() {
         </div>
       )}
 
-      <div className="card overflow-x-auto">
-        <h2 className="section-title mb-3">Your history</h2>
+      <div id="my-attendance-table" className="card overflow-x-auto">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-title print:hidden">Your history</h2>
+          <PrintButton selector="#my-attendance-table" label="Print" />
+        </div>
+        <div className="print-report-header">
+          <h2 className="font-display text-xl font-semibold">Your attendance history</h2>
+          <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {myLogs.length} record(s)</p>
+        </div>
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Clock in</th>
               <th>In @</th>
               <th>Clock out</th>
@@ -146,7 +171,10 @@ export default async function AttendancePage() {
           </thead>
           <tbody>
             {myLogs.map((log) => (
-              <tr key={log.id}>
+              <tr key={log.id} data-print-row>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label="Include in print" />
+                </td>
                 <td>{formatDateTime(log.clockInAt)}</td>
                 <td>
                   <LocationCell lat={log.clockInLat} lng={log.clockInLng} branch={log.branch} />
@@ -166,7 +194,7 @@ export default async function AttendancePage() {
             ))}
             {myLogs.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-stone-400">
+                <td colSpan={6} className="py-6 text-center text-stone-400">
                   No attendance recorded yet — use the Clock in button at the top of the page.
                 </td>
               </tr>

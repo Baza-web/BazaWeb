@@ -2,11 +2,12 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canManageBrokers, isCompanyWide } from "@/lib/rbac";
-import { formatMoney, initials } from "@/lib/utils";
+import { formatMoney, initials, formatDate } from "@/lib/utils";
 import { emailConfigured } from "@/lib/email";
 import { MemoForm } from "@/components/MemoForm";
 import { createBroker } from "./actions";
 import { Handshake, WarningCircle } from "@/components/icons";
+import { PrintButton } from "@/components/PrintButton";
 
 export default async function BrokersPage() {
   const session = await requireSessionOrRedirect();
@@ -44,10 +45,10 @@ export default async function BrokersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Brokers &amp; Memos</h1>
+      <h1 className="page-title print:hidden">Brokers &amp; Memos</h1>
 
       {!emailConfigured() && (
-        <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
           <WarningCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
           <p>
             Email isn&apos;t configured yet, so brokers won&apos;t automatically receive their statement by
@@ -57,7 +58,7 @@ export default async function BrokersPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 print:hidden">
         <div className="card">
           <h2 className="section-title mb-3 flex items-center gap-2">
             <Handshake size={18} className="text-brand-500" aria-hidden="true" />
@@ -126,37 +127,72 @@ export default async function BrokersPage() {
         </div>
       </div>
 
-      <div className="card">
-        <h2 className="section-title mb-3">All brokers</h2>
+      <div id="brokers-table" className="card">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-title print:hidden">All brokers</h2>
+          <PrintButton selector="#brokers-table" label="Print" />
+        </div>
+        <div className="print-report-header">
+          <h2 className="font-display text-xl font-semibold">Brokers &amp; memos</h2>
+          <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {brokerStats.length} broker(s)</p>
+        </div>
         {brokerStats.length === 0 ? (
           <p className="text-sm text-stone-400">No brokers yet — add one above.</p>
         ) : (
-          <ul className="divide-y divide-stone-100">
-            {brokerStats.map(({ broker, outstandingCount, outstandingValue }) => (
-              <li key={broker.id}>
-                <Link
-                  href={`/brokers/${broker.id}`}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-stone-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="avatar h-10 w-10">{initials(broker.name)}</span>
-                    <div>
-                      <p className="font-medium text-ink-900">{broker.name}</p>
+          <>
+            <ul className="divide-y divide-stone-100 print:hidden">
+              {brokerStats.map(({ broker, outstandingCount, outstandingValue }) => (
+                <li key={broker.id}>
+                  <Link
+                    href={`/brokers/${broker.id}`}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-stone-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="avatar h-10 w-10">{initials(broker.name)}</span>
+                      <div>
+                        <p className="font-medium text-ink-900">{broker.name}</p>
+                        <p className="text-xs text-stone-500">
+                          {[broker.company, broker.phone].filter(Boolean).join(" · ") || "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-ink-900">{formatMoney(outstandingValue)}</p>
                       <p className="text-xs text-stone-500">
-                        {[broker.company, broker.phone].filter(Boolean).join(" · ") || "—"}
+                        {outstandingCount} stone{outstandingCount === 1 ? "" : "s"} outstanding
                       </p>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-ink-900">{formatMoney(outstandingValue)}</p>
-                    <p className="text-xs text-stone-500">
-                      {outstandingCount} stone{outstandingCount === 1 ? "" : "s"} outstanding
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <table className="table-base hidden print:table">
+              <thead>
+                <tr>
+                  <th className="w-8 print:hidden">
+                    <span className="sr-only">Include in print</span>
+                  </th>
+                  <th>Name</th>
+                  <th>Contact</th>
+                  <th>Outstanding value</th>
+                  <th>Outstanding stones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {brokerStats.map(({ broker, outstandingCount, outstandingValue }) => (
+                  <tr key={broker.id} data-print-row>
+                    <td className="print:hidden">
+                      <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${broker.name} in print`} />
+                    </td>
+                    <td className="font-medium">{broker.name}</td>
+                    <td>{[broker.company, broker.phone].filter(Boolean).join(" · ") || "—"}</td>
+                    <td>{formatMoney(outstandingValue)}</td>
+                    <td>{outstandingCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
     </div>
