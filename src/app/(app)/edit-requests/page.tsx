@@ -30,8 +30,8 @@ export default async function EditRequestsPage() {
     <div className="max-w-3xl space-y-6">
       <h1 className="page-title">Edit requests</h1>
       <p className="text-sm text-stone-500">
-        When anyone other than the Owner edits a staff profile or an inventory item, the change shows up here
-        for an Owner to approve or reject — nothing changes until you decide.
+        When anyone other than the Owner edits a staff profile, inventory item, customer, sale, or brand, the
+        change shows up here for an Owner to approve or reject — nothing changes until you decide.
       </p>
 
       <div className="card overflow-x-auto">
