@@ -44,11 +44,11 @@ export function AppShell({
       )}
 
       <aside
-        className={`bg-sidebar-sheen fixed inset-y-0 left-0 z-40 w-64 shrink-0 transform bg-ink-950 px-4 py-6 transition-transform duration-200 md:static md:z-auto md:w-60 md:translate-x-0 ${
+        className={`bg-sidebar-sheen fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 transform flex-col bg-ink-950 py-6 transition-transform duration-200 md:static md:z-auto md:w-60 md:translate-x-0 ${
           menuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="mb-8 flex items-center justify-between px-2">
+        <div className="mb-8 flex shrink-0 items-center justify-between px-6">
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-crest.png" alt="" className="h-9 w-9" />
@@ -63,7 +63,7 @@ export function AppShell({
             <X size={22} aria-hidden="true" />
           </button>
         </div>
-        <nav className="space-y-1">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4">
           {nav.map((item) => (
             <NavLink
               key={item.href}
