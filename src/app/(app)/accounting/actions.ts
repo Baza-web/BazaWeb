@@ -121,3 +121,43 @@ export async function createExpense(formData: FormData) {
 
   revalidatePath("/accounting");
 }
+
+const budgetSchema = z.object({
+  category: z.string().min(1),
+  monthlyLimit: z.coerce.number().positive(),
+  branchId: z.string().min(1),
+});
+
+export async function setBudget(formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+
+  const branchId = isCompanyWide(session.role)
+    ? String(formData.get("branchId"))
+    : session.branchId ?? String(formData.get("branchId"));
+
+  const parsed = budgetSchema.parse({
+    category: formData.get("category"),
+    monthlyLimit: formData.get("monthlyLimit"),
+    branchId,
+  });
+
+  await db.budget.upsert({
+    where: { branchId_category: { branchId: parsed.branchId, category: parsed.category } },
+    create: parsed,
+    update: { monthlyLimit: parsed.monthlyLimit },
+  });
+
+  revalidatePath("/accounting");
+}
+
+export async function deleteBudget(budgetId: string) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+
+  const budget = await db.budget.findUniqueOrThrow({ where: { id: budgetId } });
+  if (!isCompanyWide(session.role) && budget.branchId !== session.branchId) throw new Error("Forbidden");
+
+  await db.budget.delete({ where: { id: budgetId } });
+  revalidatePath("/accounting");
+}

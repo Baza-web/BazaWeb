@@ -4,15 +4,43 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canAccessCreativeHub, isCompanyWide, STAFF_MANAGER_ROLES } from "@/lib/rbac";
 import { formatDateTime, initials } from "@/lib/utils";
 import { TaskBoard } from "@/components/TaskBoard";
+import { ContentCalendar } from "@/components/ContentCalendar";
 import { sendGroupMessage } from "./actions";
 
-export default async function CreativeHubPage() {
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+export default async function CreativeHubPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const session = await requireSessionOrRedirect();
   if (!canAccessCreativeHub(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
   const isManager = STAFF_MANAGER_ROLES.includes(session.role);
+
+  const { month: monthParam } = await searchParams;
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth();
+  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    const [y, m] = monthParam.split("-").map(Number);
+    year = y;
+    month = m - 1;
+  }
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const prevMonth = new Date(year, month - 1, 1);
+  const nextMonth = new Date(year, month + 1, 1);
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const prevHref = `/creative?month=${prevMonth.getFullYear()}-${pad2(prevMonth.getMonth() + 1)}`;
+  const nextHref = `/creative?month=${nextMonth.getFullYear()}-${pad2(nextMonth.getMonth() + 1)}`;
+  const monthLabel = `${MONTH_NAMES[month]} ${year}`;
 
   const groups = await db.staffGroup.findMany({
     where: {
@@ -30,6 +58,11 @@ export default async function CreativeHubPage() {
       tasks: {
         include: { assignedTo: true, assignedBy: true, group: { include: { members: true } } },
         orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
+      },
+      socialPosts: {
+        where: { OR: [{ scheduledAt: { gte: monthStart, lte: monthEnd } }, { scheduledAt: null }] },
+        include: { assignedTo: true },
+        orderBy: { createdAt: "desc" },
       },
     },
     orderBy: { name: "asc" },
@@ -110,6 +143,53 @@ export default async function CreativeHubPage() {
                 defaultBranchId=""
                 canAssign={false}
               />
+            </div>
+
+            <div className="card">
+              <h3 className="section-title mb-3">Content calendar — social media planning</h3>
+              <ContentCalendar
+                groupId={group.id}
+                year={year}
+                month={month}
+                monthLabel={monthLabel}
+                prevHref={prevHref}
+                nextHref={nextHref}
+                memberOptions={group.members.map((m) => ({ id: m.id, name: m.name }))}
+                posts={group.socialPosts
+                  .filter((p) => p.scheduledAt)
+                  .map((p) => ({
+                    id: p.id,
+                    title: p.title,
+                    platform: p.platform,
+                    status: p.status,
+                    scheduledAt: p.scheduledAt!.toISOString(),
+                    assignedToName: p.assignedTo?.name ?? null,
+                  }))}
+              />
+
+              {group.socialPosts.some((p) => !p.scheduledAt) && (
+                <div className="mt-5 border-t border-stone-100 pt-4">
+                  <h4 className="mb-2 text-sm font-medium text-stone-600">Ideas & drafts (not yet scheduled)</h4>
+                  <ul className="space-y-1.5">
+                    {group.socialPosts
+                      .filter((p) => !p.scheduledAt)
+                      .map((p) => (
+                        <li key={p.id}>
+                          <Link
+                            href={`/creative/posts/${p.id}`}
+                            className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-sm hover:bg-stone-100"
+                          >
+                            <span>{p.title}</span>
+                            <span className="text-xs text-stone-400">
+                              {p.status}
+                              {p.assignedTo ? ` · ${p.assignedTo.name}` : ""}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="card space-y-3">

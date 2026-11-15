@@ -158,6 +158,7 @@ model Branch {
   brokers        Broker[]
   brokerMemos    BrokerMemo[]
   payrollRuns    PayrollRun[]
+  budgets        Budget[]
 }
 
 model Staff {
@@ -217,6 +218,8 @@ model Staff {
   deletionRequestsMade     DeletionRequest[] @relation("DeletionRequester")
   deletionRequestsReviewed DeletionRequest[] @relation("DeletionReviewer")
   groupMessagesSent  GroupMessage[]
+  socialPostsAssigned SocialPost[] @relation("SocialPostAssignee")
+  socialPostsCreated  SocialPost[] @relation("SocialPostCreator")
 
   @@index([branchId])
 }
@@ -349,6 +352,21 @@ model Expense {
 
   @@index([branchId])
   @@index([purchaseOrderId])
+}
+
+// A monthly spending cap per expense category, so Accounting can flag
+// overspend and point at exactly where to cut cost.
+model Budget {
+  id           String   @id @default(cuid())
+  branchId     String
+  category     String
+  monthlyLimit Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, category])
 }
 
 model LedgerEntry {
@@ -576,12 +594,55 @@ model StaffGroup {
   isCreativeTeam Boolean  @default(false)
   createdAt      DateTime @default(now())
 
-  branch  Branch  @relation(fields: [branchId], references: [id])
-  members Staff[] @relation("GroupMembers")
-  tasks   Task[]
-  messages GroupMessage[]
+  branch      Branch       @relation(fields: [branchId], references: [id])
+  members     Staff[]      @relation("GroupMembers")
+  tasks       Task[]
+  messages    GroupMessage[]
+  socialPosts SocialPost[]
 
   @@index([branchId])
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  WHATSAPP_STATUS
+  OTHER
+}
+
+enum ContentStatus {
+  IDEA
+  DRAFTING
+  READY
+  SCHEDULED
+  POSTED
+}
+
+// A planned social-media post for a creative team: what/when/for which
+// platform. Publishing itself stays manual (posted from the real
+// Instagram/TikTok app) — this is the planning board, not a bot.
+model SocialPost {
+  id           String         @id @default(cuid())
+  groupId      String
+  platform     SocialPlatform @default(INSTAGRAM)
+  title        String
+  caption      String?
+  notes        String?
+  images       String[]       @default([])
+  scheduledAt  DateTime?
+  status       ContentStatus  @default(IDEA)
+  assignedToId String?
+  createdById  String
+  postedAt     DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  group      StaffGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  assignedTo Staff?     @relation("SocialPostAssignee", fields: [assignedToId], references: [id])
+  createdBy  Staff      @relation("SocialPostCreator", fields: [createdById], references: [id])
+
+  @@index([groupId, scheduledAt])
 }
 
 // Simple in-app group chat scoped to a Staff Group (e.g. the Creatives team) —
