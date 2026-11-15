@@ -193,12 +193,17 @@ async function main() {
       if (ringSale) await tx.sale.update({ where: { id: ringSale.id }, data: { brandId: bazaBrand.id } });
       if (earringsSale) await tx.sale.update({ where: { id: earringsSale.id }, data: { brandId: bazaBrand.id } });
       await tx.expense.updateMany({ where: { category: { in: ["Rent", "Utilities"] }, branchId: branch.id, brandId: null }, data: { brandId: bazaBrand.id } });
+      await tx.inventoryItem.updateMany({ where: { sku: { in: ["DEMO-RG001", "DEMO-NK001", "DEMO-ER001"] }, brandId: null }, data: { brandId: bazaBrand.id } });
       if (silverBrand) {
         const braceletSale = await tx.sale.findFirst({ where: { items: { some: { inventoryItem: { sku: "DEMO-BR001" } } } } });
         if (braceletSale) await tx.sale.update({ where: { id: braceletSale.id }, data: { brandId: silverBrand.id } });
         await tx.expense.updateMany({ where: { category: "Marketing", branchId: branch.id, brandId: null }, data: { brandId: silverBrand.id } });
+        await tx.inventoryItem.updateMany({ where: { sku: { in: ["DEMO-BG001", "DEMO-BR001"] }, brandId: null }, data: { brandId: silverBrand.id } });
       }
-      console.log("  Tagged a few of the original demo sales/expenses with a brand");
+      if (gemBrand) {
+        await tx.inventoryItem.updateMany({ where: { sku: { in: ["DEMO-PD001", "DEMO-LS001"] }, brandId: null }, data: { brandId: gemBrand.id } });
+      }
+      console.log("  Tagged a few of the original demo sales/expenses/inventory items with a brand");
     }
   }, { timeout: 20000 });
 

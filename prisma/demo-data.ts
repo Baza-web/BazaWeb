@@ -159,6 +159,7 @@ async function main() {
       sku: "DEMO-RG001", name: "Kandyan Lotus Ring", category: "RING",
       metalType: "Gold", metalPurity: "22K", grossWeightG: 5.2, netWeightG: 4.9,
       costPrice: 45000, sellingPrice: 68000, quantity: 3, lowStockAt: 1, branchId: branch.id,
+      brandId: bazaBrand?.id,
     },
   });
   const necklace = await db.inventoryItem.create({
@@ -167,6 +168,7 @@ async function main() {
       metalType: "Gold", metalPurity: "22K", grossWeightG: 42, netWeightG: 40,
       costPrice: 120000, sellingPrice: 175000, quantity: 1, lowStockAt: 1, branchId: branch.id,
       notes: "One-of-a-kind piece — handcrafted traditional temple jewellery design.",
+      brandId: bazaBrand?.id,
     },
   });
   const earrings = await db.inventoryItem.create({
@@ -175,6 +177,7 @@ async function main() {
       metalType: "White Gold", metalPurity: "18K", gemstoneType: "Diamond", caratWeight: 0.5,
       clarity: "VS1", cut: "Round Brilliant", certification: "GIA",
       costPrice: 85000, sellingPrice: 125000, quantity: 2, lowStockAt: 1, branchId: branch.id,
+      brandId: bazaBrand?.id,
     },
   });
   const bangle = await db.inventoryItem.create({
@@ -182,6 +185,7 @@ async function main() {
       sku: "DEMO-BG001", name: "Classic Gold Bangle Set", category: "BANGLE",
       metalType: "Gold", metalPurity: "22K", grossWeightG: 28,
       costPrice: 30000, sellingPrice: 42000, quantity: 1, lowStockAt: 2, branchId: branch.id,
+      brandId: silverBrand?.id,
     },
   });
   const bracelet = await db.inventoryItem.create({
@@ -189,6 +193,7 @@ async function main() {
       sku: "DEMO-BR001", name: "Tennis Bracelet", category: "BRACELET",
       metalType: "White Gold", metalPurity: "18K", gemstoneType: "Cubic Zirconia",
       costPrice: 65000, sellingPrice: 95000, quantity: 2, lowStockAt: 1, branchId: branch.id,
+      brandId: silverBrand?.id,
     },
   });
   const pendant = await db.inventoryItem.create({
@@ -197,6 +202,7 @@ async function main() {
       metalType: "Gold", metalPurity: "18K", gemstoneType: "Blue Sapphire", caratWeight: 2.1,
       clarity: "Eye Clean", certification: "GIA",
       costPrice: 95000, sellingPrice: 140000, quantity: 1, lowStockAt: 1, branchId: branch.id,
+      brandId: gemBrand?.id,
     },
   });
   const looseStone = await db.inventoryItem.create({
@@ -204,7 +210,7 @@ async function main() {
       sku: "DEMO-LS001", name: "Loose Ceylon Blue Sapphire 3.4ct", category: "LOOSE_STONE",
       gemstoneType: "Ceylon Blue Sapphire", caratWeight: 3.4, clarity: "VVS", cut: "Oval",
       certification: "GIA Certified", costPrice: 60000, sellingPrice: 90000, quantity: 1, lowStockAt: 1,
-      branchId: branch.id,
+      branchId: branch.id, brandId: gemBrand?.id,
     },
   });
   console.log("  7 demo inventory items created (spanning categories, low-stock, single-piece)");

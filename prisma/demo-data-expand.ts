@@ -70,12 +70,14 @@ async function main() {
       data: {
         sku: "DEMO-RG002", name: "Peacock Gold Ring", category: "RING", metalType: "Gold", metalPurity: "22K",
         grossWeightG: 4.5, netWeightG: 4.2, costPrice: 38000, sellingPrice: 58000, quantity: 8, lowStockAt: 1, branchId: branch.id,
+        brandId: brandByName("Baza Boutique")?.id,
       },
     });
     const earrings2 = await tx.inventoryItem.create({
       data: {
         sku: "DEMO-ER002", name: "Pearl Drop Earrings", category: "EARRING", metalType: "Gold", metalPurity: "18K",
         gemstoneType: "Freshwater Pearl", costPrice: 22000, sellingPrice: 34000, quantity: 8, lowStockAt: 1, branchId: branch.id,
+        brandId: brandByName("Gem Boutique")?.id,
       },
     });
 
