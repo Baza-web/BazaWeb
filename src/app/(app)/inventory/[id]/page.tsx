@@ -4,8 +4,19 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canManageInventory, canViewCost } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
-import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink } from "../actions";
+import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink, updateInventoryItem } from "../actions";
 import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  RING: "Ring",
+  NECKLACE: "Necklace",
+  EARRING: "Earring",
+  BRACELET: "Bracelet",
+  BANGLE: "Bangle",
+  PENDANT: "Pendant",
+  LOOSE_STONE: "Loose stone",
+  OTHER: "Other",
+};
 
 export default async function InventoryItemPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -16,6 +27,10 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
     include: { branch: true, saleItems: { include: { sale: true } } },
   });
   if (!item) notFound();
+
+  const pendingEdit = canManageInventory(session.role)
+    ? await db.editRequest.findFirst({ where: { entityType: "INVENTORY", entityId: item.id, status: "PENDING" } })
+    : null;
 
   const detail: { label: string; value: string | null }[] = [
     { label: "Metal", value: [item.metalType, item.metalPurity].filter(Boolean).join(" · ") || null },
@@ -39,6 +54,17 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         <h1 className="page-title">{item.name}</h1>
         <p className="text-sm text-stone-500">{item.branch.name}</p>
       </div>
+
+      {pendingEdit && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-medium">An edit is awaiting Owner approval</p>
+          <p className="mt-1 text-amber-700">
+            {pendingEdit.fieldSummary} — requested{" "}
+            {new Date(pendingEdit.createdAt).toLocaleDateString()}. No further edits can be made to this item
+            until that request is approved or rejected.
+          </p>
+        </div>
+      )}
 
       {item.images.length > 0 && (
         <div className="flex gap-3 overflow-x-auto">
@@ -91,16 +117,111 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         <div className="card">
           <p className="mb-2 text-sm font-medium">Status: {item.status.replace("_", " ")}</p>
           <form action={updateInventoryStatus.bind(null, item.id)} className="flex gap-2">
-            <select className="input max-w-[200px]" name="status" defaultValue={item.status}>
+            <select className="input max-w-[200px]" name="status" defaultValue={item.status} disabled={!!pendingEdit}>
               <option value="IN_STOCK">In stock</option>
               <option value="RESERVED">Reserved</option>
               <option value="IN_REPAIR">In repair</option>
               <option value="CONSIGNMENT">Consignment</option>
               <option value="SOLD">Sold</option>
             </select>
-            <button type="submit" className="btn-secondary">
+            <button type="submit" className="btn-secondary" disabled={!!pendingEdit}>
               Update status
             </button>
+          </form>
+          {session.role !== "OWNER" && (
+            <p className="mt-2 text-xs text-stone-400">
+              Changing this won&apos;t take effect until an Owner approves it.
+            </p>
+          )}
+        </div>
+      )}
+
+      {canManageInventory(session.role) && (
+        <div className="card">
+          <p className="mb-3 text-sm font-medium">Edit item details</p>
+          <form action={updateInventoryItem.bind(null, item.id)} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label">SKU</label>
+              <input className="input" name="sku" defaultValue={item.sku} disabled={!!pendingEdit} required />
+            </div>
+            <div>
+              <label className="label">Name</label>
+              <input className="input" name="name" defaultValue={item.name} disabled={!!pendingEdit} required />
+            </div>
+            <div>
+              <label className="label">Category</label>
+              <select className="input" name="category" defaultValue={item.category} disabled={!!pendingEdit}>
+                {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Metal type</label>
+              <input className="input" name="metalType" defaultValue={item.metalType ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Metal purity</label>
+              <input className="input" name="metalPurity" defaultValue={item.metalPurity ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Gross weight (g)</label>
+              <input className="input" type="number" step="0.01" name="grossWeightG" defaultValue={item.grossWeightG ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Net weight (g)</label>
+              <input className="input" type="number" step="0.01" name="netWeightG" defaultValue={item.netWeightG ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Gemstone type</label>
+              <input className="input" name="gemstoneType" defaultValue={item.gemstoneType ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Carat weight</label>
+              <input className="input" type="number" step="0.01" name="caratWeight" defaultValue={item.caratWeight ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Clarity</label>
+              <input className="input" name="clarity" defaultValue={item.clarity ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Cut</label>
+              <input className="input" name="cut" defaultValue={item.cut ?? ""} disabled={!!pendingEdit} />
+            </div>
+            <div>
+              <label className="label">Certification</label>
+              <input className="input" name="certification" defaultValue={item.certification ?? ""} disabled={!!pendingEdit} />
+            </div>
+            {canViewCost(session.role) && (
+              <div>
+                <label className="label">Cost price</label>
+                <input className="input" type="number" step="0.01" name="costPrice" defaultValue={item.costPrice} disabled={!!pendingEdit} required />
+              </div>
+            )}
+            <div>
+              <label className="label">Selling price</label>
+              <input className="input" type="number" step="0.01" name="sellingPrice" defaultValue={item.sellingPrice} disabled={!!pendingEdit} required />
+            </div>
+            <div>
+              <label className="label">Low stock at</label>
+              <input className="input" type="number" name="lowStockAt" defaultValue={item.lowStockAt} disabled={!!pendingEdit} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Notes</label>
+              <textarea className="input" name="notes" defaultValue={item.notes ?? ""} disabled={!!pendingEdit} rows={2} />
+            </div>
+            <div className="sm:col-span-2">
+              <button type="submit" className="btn-primary" disabled={!!pendingEdit}>
+                Save changes
+              </button>
+              {session.role !== "OWNER" && (
+                <p className="mt-2 text-xs text-stone-400">
+                  Saving will send this for an Owner to approve — nothing changes until then.
+                </p>
+              )}
+            </div>
           </form>
         </div>
       )}

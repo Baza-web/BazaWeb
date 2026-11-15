@@ -39,13 +39,14 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
   const yearStart = new Date(currentYear, 0, 1);
   const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-  const [entitlements, approvedLeaveThisYear, onboardingTasks, allBrands] = await Promise.all([
+  const [entitlements, approvedLeaveThisYear, onboardingTasks, allBrands, pendingEdit] = await Promise.all([
     db.leaveEntitlement.findMany({ where: { staffId: staff.id, year: currentYear } }),
     db.leaveRequest.findMany({
       where: { staffId: staff.id, status: "APPROVED", startDate: { gte: yearStart, lte: yearEnd } },
     }),
     db.onboardingTask.findMany({ where: { staffId: staff.id }, orderBy: { createdAt: "asc" } }),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    db.editRequest.findFirst({ where: { entityType: "STAFF", entityId: staff.id, status: "PENDING" } }),
   ]);
   const staffBrandIds = new Set(staff.brands.map((b) => b.id));
 
@@ -69,6 +70,16 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         <h1 className="page-title">{staff.name}</h1>
         <p className="text-sm text-stone-500">{staff.email}</p>
       </div>
+
+      {pendingEdit && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-medium">An edit is awaiting Owner approval</p>
+          <p className="mt-1 text-amber-700">
+            {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
+            further edits can be made to this profile until that request is approved or rejected.
+          </p>
+        </div>
+      )}
 
       <div className="card grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
@@ -165,13 +176,13 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
 
       <div className="card">
         <h2 className="mb-3 font-medium">Edit HR details</h2>
-        <StaffProfileForm staff={staff} />
+        <StaffProfileForm staff={staff} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
       </div>
 
       {showSalary && (
         <div className="card">
           <h2 className="mb-3 font-medium">Salary & bank details</h2>
-          <StaffPayForm staff={staff} />
+          <StaffPayForm staff={staff} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
         </div>
       )}
 

@@ -70,6 +70,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   brokers: Handshake,
   targets: Target,
   deletions: Trash,
+  edits: PencilSimple,
   creative: PaintBrush,
   brands: Tag,
 };

@@ -18,9 +18,18 @@ function toDateInput(d: Date | null) {
   return d ? d.toISOString().slice(0, 10) : "";
 }
 
-export function StaffProfileForm({ staff }: { staff: StaffHr }) {
+export function StaffProfileForm({
+  staff,
+  disabled,
+  requiresApproval,
+}: {
+  staff: StaffHr;
+  disabled?: boolean;
+  requiresApproval?: boolean;
+}) {
   return (
     <form action={updateStaffProfile.bind(null, staff.id)} className="space-y-3">
+      <fieldset disabled={disabled} className="space-y-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="label">Phone</label>
@@ -65,6 +74,10 @@ export function StaffProfileForm({ staff }: { staff: StaffHr }) {
       <button type="submit" className="btn-primary">
         Save HR details
       </button>
+      {requiresApproval && (
+        <p className="text-xs text-stone-400">Saving will send this for an Owner to approve — nothing changes until then.</p>
+      )}
+      </fieldset>
     </form>
   );
 }

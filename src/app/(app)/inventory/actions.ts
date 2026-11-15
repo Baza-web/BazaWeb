@@ -8,6 +8,8 @@ import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
 import { branchScope, canManageInventory, canDeleteOrRequest, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedImages } from "@/lib/uploads";
 import { initiateDeletion } from "@/lib/deletion";
+import { initiateEdit } from "@/lib/editRequests";
+import { formatMoney } from "@/lib/utils";
 
 async function requireItemInScope(itemId: string, session: SessionPayload) {
   const item = await db.inventoryItem.findFirst({ where: { id: itemId, ...branchScope(session) } });
@@ -130,15 +132,110 @@ export async function updateInventoryDriveLink(itemId: string, formData: FormDat
 
 const statusSchema = z.enum(["IN_STOCK", "RESERVED", "SOLD", "IN_REPAIR", "CONSIGNMENT"]);
 
+const STATUS_LABELS: Record<string, string> = {
+  IN_STOCK: "In stock",
+  RESERVED: "Reserved",
+  SOLD: "Sold",
+  IN_REPAIR: "In repair",
+  CONSIGNMENT: "Consignment",
+};
+
+/** Owner's status change applies immediately; anyone else's is a pending request an Owner must approve first. */
 export async function updateInventoryStatus(itemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   if (!canManageInventory(session.role)) throw new Error("Forbidden");
-  await requireItemInScope(itemId, session);
+  const item = await requireItemInScope(itemId, session);
 
   const status = statusSchema.parse(formData.get("status"));
-  await db.inventoryItem.update({ where: { id: itemId }, data: { status } });
+  if (status === item.status) return;
+
+  await initiateEdit(
+    session,
+    "INVENTORY",
+    itemId,
+    `${item.sku} — ${item.name}`,
+    `Status: ${STATUS_LABELS[item.status]} → ${STATUS_LABELS[status]}`,
+    { status },
+  );
   revalidatePath(`/inventory/${itemId}`);
   revalidatePath("/inventory");
+  revalidatePath("/edit-requests");
+}
+
+const editableItemSchema = z.object({
+  sku: z.string().min(1),
+  name: z.string().min(2),
+  category: z.enum([
+    "RING",
+    "NECKLACE",
+    "EARRING",
+    "BRACELET",
+    "BANGLE",
+    "PENDANT",
+    "LOOSE_STONE",
+    "OTHER",
+  ]),
+  metalType: z.string().optional(),
+  metalPurity: z.string().optional(),
+  grossWeightG: numOrUndef,
+  netWeightG: numOrUndef,
+  gemstoneType: z.string().optional(),
+  caratWeight: numOrUndef,
+  clarity: z.string().optional(),
+  cut: z.string().optional(),
+  certification: z.string().optional(),
+  costPrice: z.coerce.number().min(0),
+  sellingPrice: z.coerce.number().min(0),
+  lowStockAt: z.coerce.number().int().min(0).default(1),
+  notes: z.string().optional(),
+});
+
+/**
+ * Edits the item's core details (not quantity or branch, which are managed by
+ * sales/transfers elsewhere). Owner's edit applies immediately; anyone else's
+ * is a pending request an Owner must approve before it takes effect.
+ */
+export async function updateInventoryItem(itemId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+  const item = await requireItemInScope(itemId, session);
+
+  const parsed = editableItemSchema.parse({
+    sku: formData.get("sku"),
+    name: formData.get("name"),
+    category: formData.get("category"),
+    metalType: emptyToUndefined(formData.get("metalType")),
+    metalPurity: emptyToUndefined(formData.get("metalPurity")),
+    grossWeightG: formData.get("grossWeightG"),
+    netWeightG: formData.get("netWeightG"),
+    gemstoneType: emptyToUndefined(formData.get("gemstoneType")),
+    caratWeight: formData.get("caratWeight"),
+    clarity: emptyToUndefined(formData.get("clarity")),
+    cut: emptyToUndefined(formData.get("cut")),
+    certification: emptyToUndefined(formData.get("certification")),
+    costPrice: formData.get("costPrice"),
+    sellingPrice: formData.get("sellingPrice"),
+    lowStockAt: formData.get("lowStockAt") || 1,
+    notes: emptyToUndefined(formData.get("notes")),
+  });
+
+  const changeNotes: string[] = [];
+  if (parsed.name !== item.name) changeNotes.push(`Name: ${item.name} → ${parsed.name}`);
+  if (parsed.costPrice !== item.costPrice) changeNotes.push(`Cost: ${formatMoney(item.costPrice)} → ${formatMoney(parsed.costPrice)}`);
+  if (parsed.sellingPrice !== item.sellingPrice) changeNotes.push(`Price: ${formatMoney(item.sellingPrice)} → ${formatMoney(parsed.sellingPrice)}`);
+  const fieldSummary = changeNotes.length > 0 ? changeNotes.join("; ") : "Updated item details";
+
+  await initiateEdit(
+    session,
+    "INVENTORY",
+    itemId,
+    `${item.sku} — ${item.name}`,
+    fieldSummary,
+    { ...parsed, metalType: parsed.metalType ?? null, metalPurity: parsed.metalPurity ?? null, grossWeightG: parsed.grossWeightG ?? null, netWeightG: parsed.netWeightG ?? null, gemstoneType: parsed.gemstoneType ?? null, caratWeight: parsed.caratWeight ?? null, clarity: parsed.clarity ?? null, cut: parsed.cut ?? null, certification: parsed.certification ?? null, notes: parsed.notes ?? null },
+  );
+  revalidatePath(`/inventory/${itemId}`);
+  revalidatePath("/inventory");
+  revalidatePath("/edit-requests");
 }
 
 /** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the item has any sale/memo/repair history. */

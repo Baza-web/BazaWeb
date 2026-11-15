@@ -10,9 +10,18 @@ type StaffPay = {
   bankBranch: string | null;
 };
 
-export function StaffPayForm({ staff }: { staff: StaffPay }) {
+export function StaffPayForm({
+  staff,
+  disabled,
+  requiresApproval,
+}: {
+  staff: StaffPay;
+  disabled?: boolean;
+  requiresApproval?: boolean;
+}) {
   return (
     <form action={updateStaffPay.bind(null, staff.id)} className="space-y-3">
+      <fieldset disabled={disabled} className="space-y-3">
       <div>
         <label className="label">Base salary (monthly)</label>
         <input className="input" type="number" step="0.01" min="0" name="baseSalary" defaultValue={staff.baseSalary ?? ""} />
@@ -34,6 +43,10 @@ export function StaffPayForm({ staff }: { staff: StaffPay }) {
       <button type="submit" className="btn-primary">
         Save salary & bank details
       </button>
+      {requiresApproval && (
+        <p className="text-xs text-stone-400">Saving will send this for an Owner to approve — nothing changes until then.</p>
+      )}
+      </fieldset>
     </form>
   );
 }
