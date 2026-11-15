@@ -126,6 +126,11 @@ export function canManagePayroll(role: Role) {
   return PAYROLL_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin see every creative team for planning; Creative staff see only their own team's hub. */
+export function canAccessCreativeHub(role: Role) {
+  return role === "CREATIVE" || STAFF_MANAGER_ROLES.includes(role);
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`

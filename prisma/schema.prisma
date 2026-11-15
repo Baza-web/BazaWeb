@@ -570,10 +570,11 @@ model PurchaseOrderItem {
 }
 
 model StaffGroup {
-  id        String   @id @default(cuid())
-  name      String
-  branchId  String
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  name           String
+  branchId       String
+  isCreativeTeam Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
   branch  Branch  @relation(fields: [branchId], references: [id])
   members Staff[] @relation("GroupMembers")

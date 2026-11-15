@@ -53,6 +53,10 @@ export default async function GroupsPage() {
               </select>
             </div>
           )}
+          <label className="flex items-center gap-2 text-sm text-stone-600">
+            <input type="checkbox" name="isCreativeTeam" className="h-4 w-4 rounded border-stone-300" />
+            This is a Creative team — show it on the Creative Hub
+          </label>
           <button type="submit" className="btn-primary">
             Create group
           </button>
@@ -70,7 +74,12 @@ export default async function GroupsPage() {
           return (
             <div key={group.id} className="card">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-medium text-ink-900">{group.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-ink-900">{group.name}</h3>
+                  {group.isCreativeTeam && (
+                    <span className="badge bg-purple-100 text-purple-700">Creative team</span>
+                  )}
+                </div>
                 {isCompanyWide(session.role) && (
                   <span className="text-xs text-stone-400">{group.branch.name}</span>
                 )}
