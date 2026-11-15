@@ -12,6 +12,8 @@ __pycache__/
 baza-backups/
 backups/
 
-# Research/planning working files — business research for the Owner, not application code
-research_notes/
-reports/
+# Research/planning working files — business research for the Owner, not application code.
+# Anchored to the repo root (leading slash) so these don't also match
+# src/app/(app)/reports/, the actual Reports page route.
+/research_notes/
+/reports/

@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canViewReports, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate, round2 } from "@/lib/utils";
-import { Trophy, ChartPieSlice, ClockCountdown, Percent, Truck, Wallet } from "@phosphor-icons/react/ssr";
+import { Trophy, ChartPieSlice, ClockCountdown, Percent, Truck, Wallet, MagnifyingGlass } from "@phosphor-icons/react/ssr";
 
 function startOfMonth() {
   const d = new Date();
@@ -178,6 +179,17 @@ export default async function ReportsPage({
             {saleDues.length} unpaid or partially paid sale{saleDues.length === 1 ? "" : "s"}
           </p>
         </div>
+      </div>
+
+      <div className="card flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-medium">Deep insights</h2>
+          <p className="text-sm text-stone-500">Customer segmentation, inventory turnover, and a revenue forecast.</p>
+        </div>
+        <Link href="/reports/insights" className="btn-primary">
+          <MagnifyingGlass size={16} aria-hidden="true" />
+          Open Insights
+        </Link>
       </div>
 
       <div className="card overflow-x-auto">
