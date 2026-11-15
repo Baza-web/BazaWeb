@@ -5,7 +5,7 @@ import Link from "next/link";
 import { NavLink } from "./NavLink";
 import { ClockButton } from "./ClockButton";
 import { LogoutButton } from "./LogoutButton";
-import { Diamond, List, X, ChatCircle, Bell } from "./icons";
+import { MagnifyingGlass, List, X, ChatCircle, Bell } from "./icons";
 import { initials } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/lib/branding";
 
@@ -52,7 +52,7 @@ export function AppShell({
         <div className="mb-8 flex items-center justify-between px-2">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600/20">
-              <Diamond size={18} weight="fill" className="text-brand-300" aria-hidden="true" />
+              <MagnifyingGlass size={18} weight="fill" className="text-brand-300" aria-hidden="true" />
             </span>
             <h1 className="font-display text-xl font-semibold text-white">{PRODUCT_NAME}</h1>
           </div>

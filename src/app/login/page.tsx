@@ -2,7 +2,7 @@ import Link from "next/link";
 import { login } from "./actions";
 import { googleSignInConfigured } from "@/lib/google-auth";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/branding";
-import { Diamond } from "@phosphor-icons/react/ssr";
+import { MagnifyingGlass } from "@phosphor-icons/react/ssr";
 
 export default async function LoginPage({
   searchParams,
@@ -17,7 +17,7 @@ export default async function LoginPage({
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600/20">
-            <Diamond size={26} weight="fill" className="text-brand-300" aria-hidden="true" />
+            <MagnifyingGlass size={26} weight="fill" className="text-brand-300" aria-hidden="true" />
           </span>
           <h1 className="font-display text-3xl font-semibold text-white">{PRODUCT_NAME}</h1>
           <p className="mt-1 text-sm text-ink-300">{PRODUCT_TAGLINE}</p>
