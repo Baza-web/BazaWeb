@@ -1,6 +1,6 @@
 {
-  "name": "Baza ERP",
-  "short_name": "Baza ERP",
+  "name": "Baza Boutique",
+  "short_name": "Baza Boutique",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#f7f5f1",

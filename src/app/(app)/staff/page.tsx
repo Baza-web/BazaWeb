@@ -15,7 +15,7 @@ export default async function StaffPage() {
 
   const staff = await db.staff.findMany({
     where: { ...branchScope(session), deletedAt: null },
-    include: { branch: true },
+    include: { branch: true, brands: true },
     // Active staff first, then by name, so a growing roster of leavers never buries who's actually working today.
     orderBy: [{ active: "desc" }, { name: "asc" }],
   });
@@ -38,6 +38,7 @@ export default async function StaffPage() {
               <th>Email</th>
               <th>Role</th>
               <th>Branch</th>
+              <th>Brands</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -53,6 +54,9 @@ export default async function StaffPage() {
                 <td>{s.email}</td>
                 <td>{ROLE_LABELS[s.role]}</td>
                 <td>{s.branch?.name ?? "—"}</td>
+                <td className="text-xs text-stone-500">
+                  {s.brands.length > 0 ? s.brands.map((b) => b.name).join(", ") : "—"}
+                </td>
                 <td>
                   <span
                     className={`badge ${

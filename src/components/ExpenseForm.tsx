@@ -4,15 +4,20 @@ import { useRef, useState, useTransition } from "react";
 import { createExpense, scanReceipt } from "@/app/(app)/accounting/actions";
 
 type BranchOption = { id: string; name: string };
+type BrandOption = { id: string; name: string };
 
 export function ExpenseForm({
   branches,
   showBranchSelect,
   defaultBranchId,
+  brands,
+  defaultBrandId,
 }: {
   branches: BranchOption[];
   showBranchSelect: boolean;
   defaultBranchId: string;
+  brands: BrandOption[];
+  defaultBrandId?: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -104,6 +109,20 @@ export function ExpenseForm({
         </div>
       ) : (
         <input type="hidden" name="branchId" value={defaultBranchId} />
+      )}
+
+      {brands.length > 0 && (
+        <div>
+          <label className="label">Brand</label>
+          <select className="input" name="brandId" defaultValue={defaultBrandId ?? ""}>
+            <option value="">No specific brand</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

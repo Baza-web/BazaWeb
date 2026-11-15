@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canReviewLeave, isCompanyWide } from "@/lib/rbac";
+import { canReviewLeave, canManageStaffScoped, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 
 const createSchema = z
@@ -54,6 +54,34 @@ export async function createLeaveRequest(formData: FormData) {
   );
 
   revalidatePath("/leave");
+}
+
+const entitlementSchema = z.object({
+  type: z.enum(["SICK", "VACATION", "PERSONAL", "OTHER"]),
+  year: z.coerce.number().int().min(2020),
+  daysAllotted: z.coerce.number().min(0),
+});
+
+export async function setLeaveEntitlement(staffId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+
+  const parsed = entitlementSchema.parse({
+    type: formData.get("type"),
+    year: formData.get("year"),
+    daysAllotted: formData.get("daysAllotted"),
+  });
+
+  await db.leaveEntitlement.upsert({
+    where: { staffId_type_year: { staffId, type: parsed.type, year: parsed.year } },
+    create: { staffId, ...parsed },
+    update: { daysAllotted: parsed.daysAllotted },
+  });
+
+  revalidatePath(`/staff/${staffId}`);
 }
 
 const decisionSchema = z.enum(["APPROVED", "REJECTED"]);

@@ -7,6 +7,7 @@ import { formatMoney, formatDate, round2 } from "@/lib/utils";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { AccountingTrendChart } from "@/components/AccountingTrendChart";
 import { RankedBarChart } from "@/components/RankedBarChart";
+import { setBudget, deleteBudget } from "./actions";
 
 function startOfMonth() {
   const d = new Date();
@@ -41,20 +42,25 @@ function TrendBadge({ change, invertColors = false }: { change: number; invertCo
 export default async function AccountingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; branchId?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; branchId?: string; brandId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
   if (!canManageAccounting(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const { from, to, branchId } = await searchParams;
+  const { from, to, branchId, brandId } = await searchParams;
   const fromDate = from ? new Date(from) : startOfMonth();
   const toDate = to ? new Date(to) : new Date();
   toDate.setHours(23, 59, 59, 999);
 
   const scope = branchScope(session, branchId);
   const showPayroll = canManagePayroll(session.role);
+  const selectedBrandId = brandId || undefined;
+  const ledgerBrandFilter = selectedBrandId
+    ? { OR: [{ sale: { brandId: selectedBrandId } }, { expense: { brandId: selectedBrandId } }] }
+    : {};
+  const directBrandFilter = selectedBrandId ? { brandId: selectedBrandId } : {};
 
   const now = new Date();
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -62,32 +68,48 @@ export default async function AccountingPage({
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
   const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-  const [ledger, branches, pendingPayrollCount, thisMonthLedger, lastMonthLedger, trendLedger, salesInRange] =
-    await Promise.all([
-      db.ledgerEntry.findMany({
-        where: { ...scope, date: { gte: fromDate, lte: toDate } },
-        include: { branch: true, sale: true, expense: true },
-        orderBy: { date: "desc" },
-      }),
-      isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
-      showPayroll ? db.payrollRun.count({ where: { status: "DRAFT" } }) : Promise.resolve(0),
-      db.ledgerEntry.findMany({
-        where: { ...scope, date: { gte: thisMonthStart, lte: now } },
-        select: { type: true, amount: true },
-      }),
-      db.ledgerEntry.findMany({
-        where: { ...scope, date: { gte: lastMonthStart, lte: lastMonthEnd } },
-        select: { type: true, amount: true },
-      }),
-      db.ledgerEntry.findMany({
-        where: { ...scope, date: { gte: trendStart } },
-        select: { date: true, type: true, amount: true },
-      }),
-      db.sale.findMany({
-        where: { ...scope, createdAt: { gte: fromDate, lte: toDate } },
-        select: { total: true },
-      }),
-    ]);
+  const [
+    ledger,
+    branches,
+    brands,
+    pendingPayrollCount,
+    thisMonthLedger,
+    lastMonthLedger,
+    trendLedger,
+    salesInRange,
+    budgets,
+    thisMonthExpenses,
+  ] = await Promise.all([
+    db.ledgerEntry.findMany({
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: fromDate, lte: toDate } },
+      include: { branch: true, sale: true, expense: true },
+      orderBy: { date: "desc" },
+    }),
+    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    showPayroll ? db.payrollRun.count({ where: { status: "DRAFT" } }) : Promise.resolve(0),
+    db.ledgerEntry.findMany({
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: thisMonthStart, lte: now } },
+      select: { type: true, amount: true },
+    }),
+    db.ledgerEntry.findMany({
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: lastMonthStart, lte: lastMonthEnd } },
+      select: { type: true, amount: true },
+    }),
+    db.ledgerEntry.findMany({
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: trendStart } },
+      select: { date: true, type: true, amount: true },
+    }),
+    db.sale.findMany({
+      where: { ...scope, ...directBrandFilter, createdAt: { gte: fromDate, lte: toDate } },
+      select: { total: true },
+    }),
+    db.budget.findMany({ where: scope, orderBy: { category: "asc" } }),
+    db.expense.findMany({
+      where: { ...scope, ...directBrandFilter, date: { gte: thisMonthStart, lte: now } },
+      select: { category: true, amount: true },
+    }),
+  ]);
 
   const income = ledger.filter((l) => l.type === "INCOME").reduce((s, l) => s + l.amount, 0);
   const expenseTotal = ledger.filter((l) => l.type === "EXPENSE").reduce((s, l) => s + l.amount, 0);
@@ -150,6 +172,16 @@ export default async function AccountingPage({
   const salesCount = salesInRange.length;
   const avgSaleValue = salesCount > 0 ? round2(salesInRange.reduce((s, x) => s + x.total, 0) / salesCount) : 0;
 
+  const spentByCategory = new Map<string, number>();
+  for (const e of thisMonthExpenses) {
+    spentByCategory.set(e.category, (spentByCategory.get(e.category) ?? 0) + e.amount);
+  }
+  const budgetRows = budgets.map((b) => {
+    const spent = round2(spentByCategory.get(b.category) ?? 0);
+    return { ...b, spent, overBudget: spent > b.monthlyLimit };
+  });
+  const overBudgetCount = budgetRows.filter((b) => b.overBudget).length;
+
   return (
     <div className="space-y-6">
       <h1 className="page-title">Accounting</h1>
@@ -174,6 +206,19 @@ export default async function AccountingPage({
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>
               <option value="">All branches</option>
               {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {brands.length > 0 && (
+          <div>
+            <label className="label">Brand</label>
+            <select className="input" name="brandId" defaultValue={brandId ?? ""}>
+              <option value="">All brands</option>
+              {brands.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
@@ -249,21 +294,108 @@ export default async function AccountingPage({
         )}
       </div>
 
-      {showPayroll && (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {showPayroll && (
+          <div className="card flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-medium">Payroll</h2>
+              <p className="text-sm text-stone-500">
+                {pendingPayrollCount > 0
+                  ? `${pendingPayrollCount} draft run${pendingPayrollCount === 1 ? "" : "s"} waiting to be reviewed and paid.`
+                  : "Generated from attendance and approved leave."}
+              </p>
+            </div>
+            <Link href="/accounting/payroll" className="btn-primary">
+              Open Payroll
+            </Link>
+          </div>
+        )}
         <div className="card flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-medium">Payroll</h2>
-            <p className="text-sm text-stone-500">
-              {pendingPayrollCount > 0
-                ? `${pendingPayrollCount} draft run${pendingPayrollCount === 1 ? "" : "s"} waiting to be reviewed and paid.`
-                : "Generated from attendance and approved leave."}
-            </p>
+            <h2 className="font-medium">Financial statements</h2>
+            <p className="text-sm text-stone-500">Profit &amp; Loss, Balance Sheet, and cost-cutting insights.</p>
           </div>
-          <Link href="/accounting/payroll" className="btn-primary">
-            Open Payroll
+          <Link href="/accounting/statements" className="btn-primary">
+            Open Statements
           </Link>
         </div>
-      )}
+      </div>
+
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium">Budgets — this month</h2>
+          {overBudgetCount > 0 && (
+            <span className="badge bg-red-100 text-red-700">
+              {overBudgetCount} over budget
+            </span>
+          )}
+        </div>
+
+        {budgetRows.length > 0 && (
+          <div className="space-y-2">
+            {budgetRows.map((b) => {
+              const pct = b.monthlyLimit > 0 ? Math.min(round2((b.spent / b.monthlyLimit) * 100), 999) : 0;
+              return (
+                <div key={b.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-ink-800">{b.category}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={b.overBudget ? "text-red-700" : "text-stone-500"}>
+                        {formatMoney(b.spent)} / {formatMoney(b.monthlyLimit)}
+                      </span>
+                      <form action={deleteBudget.bind(null, b.id)}>
+                        <button type="submit" className="text-xs text-stone-400 hover:text-red-600">
+                          Remove
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+                    <div
+                      className={`h-full rounded-full ${b.overBudget ? "bg-red-500" : "bg-brand-500"}`}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {budgetRows.length === 0 && (
+          <p className="text-sm text-stone-400">No budgets set yet — add one below to start tracking overspend.</p>
+        )}
+
+        <form action={setBudget} className="flex flex-wrap items-end gap-3 border-t border-stone-100 pt-4">
+          <div>
+            <label className="label">Category</label>
+            <input className="input" name="category" required placeholder="Rent, Marketing…" list="expense-categories" />
+            <datalist id="expense-categories">
+              {Array.from(spentByCategory.keys()).map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label className="label">Monthly limit</label>
+            <input className="input max-w-[140px]" name="monthlyLimit" type="number" step="0.01" min="0" required />
+          </div>
+          {isCompanyWide(session.role) && (
+            <div>
+              <label className="label">Branch</label>
+              <select className="input" name="branchId" defaultValue={branches[0]?.id ?? ""}>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button type="submit" className="btn-secondary">
+            Set budget
+          </button>
+        </form>
+      </div>
 
       <div className="card max-w-lg">
         <h2 className="mb-3 font-medium">Record an expense</h2>
@@ -271,6 +403,8 @@ export default async function AccountingPage({
           branches={branches}
           showBranchSelect={isCompanyWide(session.role)}
           defaultBranchId={session.branchId ?? branches[0]?.id ?? ""}
+          brands={brands}
+          defaultBrandId={selectedBrandId}
         />
       </div>
 

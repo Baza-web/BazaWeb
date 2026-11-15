@@ -1,6 +1,5 @@
 import { login } from "./actions";
 import { googleSignInConfigured } from "@/lib/google-auth";
-import { Diamond } from "@phosphor-icons/react/ssr";
 
 export default async function LoginPage({
   searchParams,
@@ -14,10 +13,8 @@ export default async function LoginPage({
     <div className="flex min-h-screen items-center justify-center bg-ink-950 bg-[radial-gradient(circle_at_50%_0%,rgba(234,184,104,0.12),transparent_60%)] px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600/20">
-            <Diamond size={26} weight="fill" className="text-brand-300" aria-hidden="true" />
-          </span>
-          <h1 className="font-display text-3xl font-semibold text-white">Baza ERP</h1>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-full.png" alt="Baza Boutique" className="mx-auto h-40 w-auto" />
           <p className="mt-1 text-sm text-ink-300">Jewelry &amp; Gem Business Suite</p>
         </div>
         <div className="card space-y-4">

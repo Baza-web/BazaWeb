@@ -1,5 +1,5 @@
 self.addEventListener("push", (event) => {
-  let data = { title: "Baza ERP", body: "You have a new notification." };
+  let data = { title: "Baza Boutique", body: "You have a new notification." };
   try {
     data = event.data.json();
   } catch {
@@ -10,7 +10,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       data: { link: data.link || "/" },
-      icon: "/icon.png",
+      icon: "/icons/icon-192.png",
     }),
   );
 });

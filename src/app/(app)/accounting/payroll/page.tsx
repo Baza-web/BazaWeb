@@ -30,7 +30,7 @@ export default async function PayrollPage({
 
   const runs = await db.payrollRun.findMany({
     where: { periodStart, periodEnd },
-    include: { staff: true, branch: true },
+    include: { staff: { include: { brands: true } }, branch: true },
     orderBy: { staff: { name: "asc" } },
   });
 
@@ -132,6 +132,7 @@ export default async function PayrollPage({
             <tr>
               <th>Staff</th>
               <th>Branch</th>
+              <th>Brands</th>
               <th>Base</th>
               <th>Present</th>
               <th>Leave</th>
@@ -150,6 +151,9 @@ export default async function PayrollPage({
                   </Link>
                 </td>
                 <td>{run.branch.name}</td>
+                <td className="text-xs text-stone-500">
+                  {run.staff.brands.length > 0 ? run.staff.brands.map((b) => b.name).join(", ") : "—"}
+                </td>
                 <td>{formatMoney(run.baseSalary)}</td>
                 <td>{run.daysPresent}</td>
                 <td>{run.leaveDaysTaken}</td>
@@ -204,7 +208,7 @@ export default async function PayrollPage({
             ))}
             {runs.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-6 text-center text-stone-400">
+                <td colSpan={10} className="py-6 text-center text-stone-400">
                   No payroll runs for this period yet.
                 </td>
               </tr>

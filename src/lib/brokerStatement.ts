@@ -20,7 +20,7 @@ type StatementRow = {
  */
 export async function generateBrokerStatementXlsx(brokerName: string, rows: StatementRow[]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Baza ERP";
+  workbook.creator = "Baza Boutique";
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet("Statement", { views: [{ state: "frozen", ySplit: 4 }] });
@@ -104,7 +104,7 @@ export async function generateBrokerStatementXlsx(brokerName: string, rows: Stat
 export function brokerStatementEmailHtml(brokerName: string, totalOutstandingValue: number) {
   return `
     <div style="font-family: Arial, sans-serif; color: #1c1917;">
-      <h2 style="color: #a66316;">Baza ERP — Memo statement</h2>
+      <h2 style="color: #a66316;">Baza Boutique — Memo statement</h2>
       <p>Dear ${brokerName},</p>
       <p>Attached is your updated memo statement listing the gemstones and jewelry currently with you,
       along with your full memo history.</p>

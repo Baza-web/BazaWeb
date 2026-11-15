@@ -158,6 +158,23 @@ model Branch {
   brokers        Broker[]
   brokerMemos    BrokerMemo[]
   payrollRuns    PayrollRun[]
+  budgets        Budget[]
+}
+
+// A house brand this business trades under (e.g. "Baza Boutique", "Silver
+// Boutique") — distinct from Branch, which is a physical location. One
+// branch can sell for several brands; one brand can span several branches.
+// Owner/Admin can add more brands as the business grows.
+model Brand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  staff       Staff[]      @relation("StaffBrands")
+  socialPosts SocialPost[]
+  expenses    Expense[]
+  sales       Sale[]
 }
 
 model Staff {
@@ -217,6 +234,12 @@ model Staff {
   deletionRequestsMade     DeletionRequest[] @relation("DeletionRequester")
   deletionRequestsReviewed DeletionRequest[] @relation("DeletionReviewer")
   groupMessagesSent  GroupMessage[]
+  socialPostsAssigned SocialPost[] @relation("SocialPostAssignee")
+  socialPostsCreated  SocialPost[] @relation("SocialPostCreator")
+  leaveEntitlements   LeaveEntitlement[]
+  onboardingTasks     OnboardingTask[]
+  brands              Brand[] @relation("StaffBrands")
+  socialPostsApproved SocialPost[] @relation("SocialPostApprover")
 
   @@index([branchId])
 }
@@ -295,6 +318,7 @@ model Sale {
   invoiceNumber String        @unique
   customerId    String?
   branchId      String
+  brandId       String?
   staffId       String
   subtotal      Float
   discount      Float         @default(0)
@@ -307,12 +331,14 @@ model Sale {
   createdAt     DateTime      @default(now())
 
   branch   Branch     @relation(fields: [branchId], references: [id])
+  brand    Brand?     @relation(fields: [brandId], references: [id])
   staff    Staff      @relation(fields: [staffId], references: [id])
   customer Customer?  @relation(fields: [customerId], references: [id])
   items    SaleItem[]
   ledgerEntry LedgerEntry?
 
   @@index([branchId])
+  @@index([brandId])
   @@index([customerId])
 }
 
@@ -332,6 +358,7 @@ model SaleItem {
 model Expense {
   id          String   @id @default(cuid())
   branchId    String
+  brandId     String?
   category    String
   description String
   amount      Float
@@ -343,12 +370,29 @@ model Expense {
   purchaseOrderId String?
 
   branch        Branch         @relation(fields: [branchId], references: [id])
+  brand         Brand?         @relation(fields: [brandId], references: [id])
   createdBy     Staff          @relation(fields: [createdById], references: [id])
   purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
   ledgerEntry   LedgerEntry?
 
   @@index([branchId])
+  @@index([brandId])
   @@index([purchaseOrderId])
+}
+
+// A monthly spending cap per expense category, so Accounting can flag
+// overspend and point at exactly where to cut cost.
+model Budget {
+  id           String   @id @default(cuid())
+  branchId     String
+  category     String
+  monthlyLimit Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, category])
 }
 
 model LedgerEntry {
@@ -470,6 +514,37 @@ model LeaveRequest {
   @@index([staffId])
 }
 
+// How many days of each leave type a staff member gets in a given year —
+// set once by an Owner/Admin/Manager; balance is this minus approved requests.
+model LeaveEntitlement {
+  id           String    @id @default(cuid())
+  staffId      String
+  type         LeaveType
+  year         Int
+  daysAllotted Float
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, type, year])
+}
+
+// A simple new-hire checklist seeded automatically when a staff account is
+// created — nothing fancier than a fixed list of common onboarding steps.
+model OnboardingTask {
+  id          String    @id @default(cuid())
+  staffId     String
+  label       String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+}
+
 model AttendanceLog {
   id          String    @id @default(cuid())
   staffId     String
@@ -576,12 +651,68 @@ model StaffGroup {
   isCreativeTeam Boolean  @default(false)
   createdAt      DateTime @default(now())
 
-  branch  Branch  @relation(fields: [branchId], references: [id])
-  members Staff[] @relation("GroupMembers")
-  tasks   Task[]
-  messages GroupMessage[]
+  branch      Branch       @relation(fields: [branchId], references: [id])
+  members     Staff[]      @relation("GroupMembers")
+  tasks       Task[]
+  messages    GroupMessage[]
+  socialPosts SocialPost[]
 
   @@index([branchId])
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  WHATSAPP_STATUS
+  OTHER
+}
+
+enum ContentStatus {
+  IDEA
+  DRAFTING
+  READY
+  SCHEDULED
+  POSTED
+}
+
+// A planned social-media post for a creative team: what/when/for which
+// platform. Publishing itself stays manual (posted from the real
+// Instagram/TikTok app) — this is the planning board, not a bot.
+model SocialPost {
+  id           String         @id @default(cuid())
+  groupId      String
+  brandId      String
+  platform     SocialPlatform @default(INSTAGRAM)
+  title        String
+  caption      String?
+  notes        String?
+  images       String[]       @default([])
+  scheduledAt  DateTime?
+  status       ContentStatus  @default(IDEA)
+  assignedToId String?
+  createdById  String
+  postedAt     DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Instagram auto-publish: a Creative can request it, but an Owner/Admin
+  // must approve before the scheduled publish job will actually post it.
+  autoPublish            Boolean   @default(false)
+  approvedById           String?
+  approvedAt             DateTime?
+  publishedToInstagramAt DateTime?
+  instagramMediaId       String?
+  publishError           String?
+
+  group      StaffGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  brand      Brand      @relation(fields: [brandId], references: [id])
+  assignedTo Staff?     @relation("SocialPostAssignee", fields: [assignedToId], references: [id])
+  createdBy  Staff      @relation("SocialPostCreator", fields: [createdById], references: [id])
+  approvedBy Staff?     @relation("SocialPostApprover", fields: [approvedById], references: [id])
+
+  @@index([groupId, scheduledAt])
+  @@index([brandId])
 }
 
 // Simple in-app group chat scoped to a Staff Group (e.g. the Creatives team) —
