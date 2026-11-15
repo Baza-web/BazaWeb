@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { createSessionCookie, hashPassword } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
+import { TRIAL_DAYS } from "@/lib/plans";
 
 const KNOWN_DEFAULT_PASSWORDS = new Set(["password", "password123", "owner123", "admin123", "12345678"]);
 
@@ -47,7 +48,13 @@ export async function signUp(formData: FormData) {
   try {
     ({ organization, staff } = await db.$transaction(async (tx) => {
       const organization = await tx.organization.create({
-        data: { name: parsed.data.businessName, slug, status: "TRIAL", plan: "trial" },
+        data: {
+          name: parsed.data.businessName,
+          slug,
+          status: "TRIAL",
+          plan: "trial",
+          trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+        },
       });
       const branch = await tx.branch.create({
         data: { name: "Main Branch", isMain: true, organizationId: organization.id },

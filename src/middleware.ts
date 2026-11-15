@@ -31,6 +31,9 @@ export function middleware(request: NextRequest) {
   } else {
     requestHeaders.delete("x-org-slug");
   }
+  // Lets server-side code (requireScopedSession in tenant-db.ts) enforce
+  // plan-based access without every page passing its own module name.
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
   return NextResponse.next({ request: { headers: requestHeaders } });
 }

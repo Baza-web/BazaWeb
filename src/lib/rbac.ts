@@ -116,6 +116,11 @@ export function branchScope(session: SessionPayload, branchFilter?: string | nul
   return { branchId: session.branchId ?? "__none__" };
 }
 
+/** Subscription changes (upgrade/downgrade/cancel) are Owner-only — the most sensitive org-wide financial action. */
+export function canManageBilling(role: Role) {
+  return role === "OWNER";
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   OWNER: "Owner",
   ADMIN: "Admin",

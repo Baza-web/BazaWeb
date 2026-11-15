@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/branding";
+import { TRIAL_DAYS, PLAN_CATALOG, MODULE_LABELS } from "@/lib/plans";
 import {
   MagnifyingGlass,
   Diamond,
@@ -14,6 +15,7 @@ import {
   Storefront,
   ClockCountdown,
   ArrowRight,
+  Check,
 } from "@phosphor-icons/react/ssr";
 
 const FEATURES = [
@@ -83,6 +85,9 @@ export default async function Home() {
             <Link href="#features" className="hidden text-sm text-stone-600 hover:text-ink-900 sm:inline">
               Features
             </Link>
+            <Link href="#pricing" className="hidden text-sm text-stone-600 hover:text-ink-900 sm:inline">
+              Pricing
+            </Link>
             <Link href="/login" className="text-sm text-stone-600 hover:text-ink-900">
               Sign in
             </Link>
@@ -115,7 +120,7 @@ export default async function Home() {
               Sign in
             </Link>
           </div>
-          <p className="mt-4 text-xs text-ink-400">No credit card required.</p>
+          <p className="mt-4 text-xs text-ink-400">{TRIAL_DAYS}-day free trial. No credit card required.</p>
         </div>
       </section>
 
@@ -148,6 +153,48 @@ export default async function Home() {
                 </span>
                 <h3 className="section-title">{title}</h3>
                 <p className="mt-1.5 text-sm text-stone-600">{body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="bg-stone-50 px-4 py-16 sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="font-display text-2xl font-semibold text-ink-900 sm:text-3xl">Simple, per-business pricing</h2>
+            <p className="mt-3 text-sm text-stone-600 sm:text-base">
+              Every {TRIAL_DAYS}-day trial includes everything. Pick a plan when you're ready to keep going.
+            </p>
+          </div>
+          <div className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-6 sm:grid-cols-2">
+            {Object.values(PLAN_CATALOG).map((plan) => (
+              <div key={plan.id} className={`card ${plan.id === "full" ? "border-brand-300 shadow-card-hover" : ""}`}>
+                {plan.id === "full" && (
+                  <span className="mb-3 inline-block rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700">
+                    Most popular
+                  </span>
+                )}
+                <h3 className="font-display text-xl font-semibold text-ink-900">{plan.name}</h3>
+                <p className="mt-1 text-3xl font-semibold text-ink-900">
+                  {plan.priceLabel.replace("/mo", "")}
+                  <span className="text-base font-normal text-stone-500">/mo</span>
+                </p>
+                <ul className="mt-5 space-y-2.5">
+                  {plan.modules.map((moduleKey) => (
+                    <li key={moduleKey} className="flex items-start gap-2 text-sm text-stone-600">
+                      <Check size={16} weight="bold" className="mt-0.5 shrink-0 text-brand-600" aria-hidden="true" />
+                      {MODULE_LABELS[moduleKey]}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/signup"
+                  className={`mt-6 w-full justify-center ${plan.id === "full" ? "btn-primary" : "btn-secondary"}`}
+                >
+                  Start free trial
+                </Link>
               </div>
             ))}
           </div>

@@ -128,19 +128,28 @@ enum PurchaseOrderStatus {
 enum OrganizationStatus {
   TRIAL
   ACTIVE
+  PAST_DUE
+  CANCELED
   SUSPENDED
 }
 
 // A customer business (tenant) of the SaaS. Every other model below belongs
 // to exactly one Organization — see organizationId on each.
 model Organization {
-  id        String             @id @default(cuid())
-  name      String
-  slug      String             @unique
-  status    OrganizationStatus @default(TRIAL)
-  plan      String             @default("trial")
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  id                   String             @id @default(cuid())
+  name                 String
+  slug                 String             @unique
+  status               OrganizationStatus @default(TRIAL)
+  // One of "self-hosted" | "trial" | "lite" | "full" — see src/lib/plans.ts.
+  // A free-form string (not an enum) because "self-hosted" is a deployment
+  // marker, not a billing tier, and the paid tier list may grow over time.
+  plan                 String             @default("trial")
+  trialEndsAt          DateTime?
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   branches               Branch[]
   staff                  Staff[]

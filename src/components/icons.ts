@@ -66,6 +66,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   groups: UsersFour,
   brokers: Handshake,
   targets: Target,
+  billing: Wallet,
 };
 
 export {
