@@ -14,6 +14,9 @@ const PAYMENT_COLORS: Record<string, string> = {
 
 export default async function SalesPage() {
   const session = await requireSessionOrRedirect();
+  if (!canRecordSale(session.role)) {
+    return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
+  }
 
   const sales = await db.sale.findMany({
     where: branchScope(session),

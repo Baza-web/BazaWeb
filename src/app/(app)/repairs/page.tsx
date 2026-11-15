@@ -22,6 +22,9 @@ export default async function RepairsPage({
   const session = await requireSessionOrRedirect();
   const canManage = canManageRepairs(session.role);
   const canUpdateStatus = canManage || session.role === "CRAFTSMAN";
+  if (!canUpdateStatus) {
+    return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
+  }
   const { status } = await searchParams;
 
   const scope = branchScope(session);

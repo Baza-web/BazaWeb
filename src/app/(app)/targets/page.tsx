@@ -13,6 +13,9 @@ function daysRemaining(periodEnd: Date) {
 export default async function TargetsPage() {
   const session = await requireSessionOrRedirect();
   const manager = canManageSalesTargets(session.role);
+  if (!manager && session.role !== "SALES") {
+    return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
+  }
   const scope = branchScope(session);
 
   const [targets, staffOptions, branches] = await Promise.all([

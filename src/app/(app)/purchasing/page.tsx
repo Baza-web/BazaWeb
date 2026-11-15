@@ -18,6 +18,9 @@ export default async function PurchasingPage() {
   const session = await requireSessionOrRedirect();
   const canManage = canManagePurchasing(session.role);
   const canPay = canManageAccounting(session.role);
+  if (!canManage && !canPay) {
+    return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
+  }
 
   const scope = branchScope(session);
 
