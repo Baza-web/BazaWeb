@@ -128,7 +128,7 @@ export function ContentCalendar({
                     type="button"
                     onClick={() => openModalFor(day)}
                     aria-label={`Plan a post for ${monthLabel} ${day}`}
-                    className="cursor-pointer text-[11px] text-stone-300 hover:text-brand-600"
+                    className="cursor-pointer text-[11px] text-stone-500 hover:text-brand-600"
                   >
                     +
                   </button>
@@ -139,7 +139,7 @@ export function ContentCalendar({
                       key={post.id}
                       href={`/creative/posts/${post.id}`}
                       className="flex items-center gap-1 rounded bg-stone-50 px-1 py-0.5 text-[10px] text-ink-800 hover:bg-stone-100"
-                      title={post.title}
+                      title={`${post.title} · ${PLATFORM_LABELS[post.platform]} · ${post.status}`}
                     >
                       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[post.status]}`} aria-hidden="true" />
                       <span className="truncate">

@@ -248,6 +248,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
               <form action={toggleOnboardingTask.bind(null, task.id)}>
                 <button
                   type="submit"
+                  aria-pressed={task.completed}
                   className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-stone-50 ${
                     task.completed ? "text-stone-400 line-through" : "text-ink-800"
                   }`}
