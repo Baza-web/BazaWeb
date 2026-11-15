@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canAssignTasks, isCompanyWide } from "@/lib/rbac";
 import { TaskBoard } from "@/components/TaskBoard";
+import { PrintButton } from "@/components/PrintButton";
+import { formatDate } from "@/lib/utils";
 
 export default async function TasksPage({
   searchParams,
@@ -61,23 +63,72 @@ export default async function TasksPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Tasks</h1>
-        {manager && (
-          <div className="flex gap-2 text-sm">
-            <Link href="/tasks" className={!mineOnly ? "font-medium text-brand-700" : "text-stone-500"}>
-              Team tasks
-            </Link>
-            <span className="text-stone-300">|</span>
-            <Link href="/tasks?view=mine" className={mineOnly ? "font-medium text-brand-700" : "text-stone-500"}>
-              My tasks
-            </Link>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <PrintButton selector="#tasks-print-table" label="Print" />
+          {manager && (
+            <div className="flex gap-2 text-sm print:hidden">
+              <Link href="/tasks" className={!mineOnly ? "font-medium text-brand-700" : "text-stone-500"}>
+                Team tasks
+              </Link>
+              <span className="text-stone-300">|</span>
+              <Link href="/tasks?view=mine" className={mineOnly ? "font-medium text-brand-700" : "text-stone-500"}>
+                My tasks
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
 
-      <p className="text-sm text-stone-500">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{mineOnly ? "My tasks" : "Team tasks"}</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {boardTasks.length} task(s)</p>
+      </div>
+
+      <p className="text-sm text-stone-500 print:hidden">
         Drag a card between columns to update its status, or use the dropdown on the card — both work.
       </p>
 
+      <div id="tasks-print-table" className="card hidden overflow-x-auto print:block">
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
+              <th>Title</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Assigned to</th>
+              <th>Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            {boardTasks.map((t) => (
+              <tr key={t.id} data-print-row>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include task ${t.title} in print`} />
+                </td>
+                <td>{t.title}</td>
+                <td>{t.type.replace("_", " ")}</td>
+                <td>{t.priority}</td>
+                <td>{t.status.replace("_", " ")}</td>
+                <td>{t.group ? `${t.group.name} (group)` : t.assignedTo.name}</td>
+                <td>{t.dueDate ? formatDate(new Date(t.dueDate)) : "—"}</td>
+              </tr>
+            ))}
+            {boardTasks.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-6 text-center text-stone-400">
+                  No tasks to show.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="print:hidden">
       <TaskBoard
         tasks={boardTasks}
         canEditAny={manager}
@@ -93,6 +144,7 @@ export default async function TasksPage({
         defaultBranchId={session.branchId ?? ""}
         canAssign={manager}
       />
+      </div>
     </div>
   );
 }

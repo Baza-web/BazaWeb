@@ -4,6 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canViewReports, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate, round2 } from "@/lib/utils";
 import { Trophy, ChartPieSlice, ClockCountdown, Percent, Truck, Wallet, MagnifyingGlass } from "@phosphor-icons/react/ssr";
+import { PrintButton } from "@/components/PrintButton";
 
 function startOfMonth() {
   const d = new Date();
@@ -105,9 +106,19 @@ export default async function ReportsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Reports</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="page-title">Reports</h1>
+        <PrintButton label="Print report" />
+      </div>
 
-      <form className="card flex flex-wrap items-end gap-3" action="/reports">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Reports</h2>
+        <p className="text-sm text-stone-500">
+          {formatDate(fromDate)} – {formatDate(toDate)} · Printed {formatDate(new Date())}
+        </p>
+      </div>
+
+      <form className="card flex flex-wrap items-end gap-3 print:hidden" action="/reports">
         <div>
           <label className="label">From</label>
           <input className="input" type="date" name="from" defaultValue={fromDate.toISOString().slice(0, 10)} />
@@ -181,7 +192,7 @@ export default async function ReportsPage({
         </div>
       </div>
 
-      <div className="card flex flex-wrap items-center justify-between gap-3">
+      <div className="card flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h2 className="font-medium">Deep insights</h2>
           <p className="text-sm text-stone-500">Customer segmentation, inventory turnover, and a revenue forecast.</p>
@@ -192,14 +203,20 @@ export default async function ReportsPage({
         </Link>
       </div>
 
-      <div className="card overflow-x-auto">
-        <h2 className="section-title mb-3 flex items-center gap-2">
-          <Truck size={18} className="text-brand-500" aria-hidden="true" />
-          Purchase orders — open & due
-        </h2>
+      <div id="po-dues-table" className="card overflow-x-auto">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-title flex items-center gap-2">
+            <Truck size={18} className="text-brand-500" aria-hidden="true" />
+            Purchase orders — open &amp; due
+          </h2>
+          <PrintButton selector="#po-dues-table" label="Print" />
+        </div>
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Order #</th>
               <th>Supplier</th>
               <th>Status</th>
@@ -211,7 +228,10 @@ export default async function ReportsPage({
             {poDues.map((po) => {
               const overdue = po.status === "ORDERED" && po.expectedDate && po.expectedDate < new Date();
               return (
-                <tr key={po.id}>
+                <tr key={po.id} data-print-row>
+                  <td className="print:hidden">
+                    <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${po.orderNumber} in print`} />
+                  </td>
                   <td>{po.orderNumber}</td>
                   <td>{po.supplier.name}</td>
                   <td>
@@ -225,7 +245,7 @@ export default async function ReportsPage({
             })}
             {poDues.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-stone-400">
+                <td colSpan={6} className="py-6 text-center text-stone-400">
                   No purchase order balances outstanding.
                 </td>
               </tr>
@@ -234,14 +254,20 @@ export default async function ReportsPage({
         </table>
       </div>
 
-      <div className="card overflow-x-auto">
-        <h2 className="section-title mb-3 flex items-center gap-2">
-          <Wallet size={18} className="text-brand-500" aria-hidden="true" />
-          Customer dues — unpaid & partial sales
-        </h2>
+      <div id="customer-dues-table" className="card overflow-x-auto">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-title flex items-center gap-2">
+            <Wallet size={18} className="text-brand-500" aria-hidden="true" />
+            Customer dues — unpaid &amp; partial sales
+          </h2>
+          <PrintButton selector="#customer-dues-table" label="Print" />
+        </div>
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Invoice</th>
               <th>Customer</th>
               <th>Sold</th>
@@ -251,7 +277,10 @@ export default async function ReportsPage({
           </thead>
           <tbody>
             {saleDues.map((sale) => (
-              <tr key={sale.id}>
+              <tr key={sale.id} data-print-row>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include invoice ${sale.invoiceNumber} in print`} />
+                </td>
                 <td>{sale.invoiceNumber}</td>
                 <td>{sale.customer?.name ?? "Walk-in customer"}</td>
                 <td>{formatDate(sale.createdAt)}</td>
@@ -264,7 +293,7 @@ export default async function ReportsPage({
             ))}
             {saleDues.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-stone-400">
+                <td colSpan={6} className="py-6 text-center text-stone-400">
                   No outstanding customer balances.
                 </td>
               </tr>

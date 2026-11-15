@@ -6,6 +6,7 @@ import { formatMoney } from "@/lib/utils";
 import { deleteInventoryItemPermanently } from "./actions";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { Plus } from "@phosphor-icons/react/ssr";
+import { PrintButton } from "@/components/PrintButton";
 
 const STATUS_COLORS: Record<string, string> = {
   IN_STOCK: "bg-green-100 text-green-700",
@@ -54,10 +55,18 @@ export default async function InventoryPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Inventory</h1>
-        <Link href="/inventory/new" className="btn-primary">
-          <Plus size={16} aria-hidden="true" />
-          Add item
-        </Link>
+        <div className="flex items-center gap-2">
+          <PrintButton selector="#inventory-table" />
+          <Link href="/inventory/new" className="btn-primary print:hidden">
+            <Plus size={16} aria-hidden="true" />
+            Add item
+          </Link>
+        </div>
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Inventory report</h2>
+        <p className="text-sm text-stone-500">Printed {new Date().toLocaleDateString()} — {items.length} item(s)</p>
       </div>
 
       {lowStock.length > 0 && (
@@ -66,7 +75,7 @@ export default async function InventoryPage({
         </div>
       )}
 
-      <form className="card flex flex-wrap gap-3" action="/inventory">
+      <form className="card flex flex-wrap gap-3 print:hidden" action="/inventory">
         <input
           className="input max-w-xs"
           name="q"
@@ -96,10 +105,13 @@ export default async function InventoryPage({
         </button>
       </form>
 
-      <div className="card overflow-x-auto">
+      <div id="inventory-table" className="card overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>SKU</th>
               <th>Name</th>
               <th>Category</th>
@@ -109,12 +121,15 @@ export default async function InventoryPage({
               {showCost && <th>Cost</th>}
               <th>Price</th>
               <th>Status</th>
-              {canDelete && <th>Actions</th>}
+              {canDelete && <th className="print:hidden">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id}>
+              <tr key={item.id} data-print-row>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${item.sku} in print`} />
+                </td>
                 <td>
                   <Link href={`/inventory/${item.id}`} className="text-brand-700 hover:underline">
                     {item.sku}
@@ -142,7 +157,7 @@ export default async function InventoryPage({
                   </span>
                 </td>
                 {canDelete && (
-                  <td>
+                  <td className="print:hidden">
                     <DeleteRecordButton
                       action={deleteInventoryItemPermanently.bind(null, item.id)}
                       label="item"
@@ -156,7 +171,7 @@ export default async function InventoryPage({
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={showCost ? (canDelete ? 10 : 9) : canDelete ? 9 : 8} className="py-6 text-center text-stone-400">
+                <td colSpan={showCost ? (canDelete ? 11 : 10) : canDelete ? 10 : 9} className="py-6 text-center text-stone-400">
                   No items match.
                 </td>
               </tr>

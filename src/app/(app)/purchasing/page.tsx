@@ -5,6 +5,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { PurchaseOrderForm } from "@/components/PurchaseOrderForm";
 import { createSupplier, updatePurchaseOrderStatus, recordPurchaseOrderPayment } from "./actions";
 import { Truck } from "@phosphor-icons/react/ssr";
+import { PrintButton } from "@/components/PrintButton";
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: "bg-stone-100 text-stone-600",
@@ -37,7 +38,7 @@ export default async function PurchasingPage() {
 
       {canManage && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="card">
+          <div className="card print:hidden">
             <h2 className="section-title mb-3 flex items-center gap-2">
               <Truck size={18} className="text-brand-500" aria-hidden="true" />
               New purchase order
@@ -55,8 +56,8 @@ export default async function PurchasingPage() {
           </div>
 
           <div className="card">
-            <h2 className="section-title mb-3">Add supplier</h2>
-            <form action={createSupplier} className="space-y-3">
+            <h2 className="section-title mb-3 print:hidden">Add supplier</h2>
+            <form action={createSupplier} className="space-y-3 print:hidden">
               <div>
                 <label className="label">Name</label>
                 <input className="input" name="name" required />
@@ -89,29 +90,68 @@ export default async function PurchasingPage() {
             </form>
 
             {suppliers.length > 0 && (
-              <ul className="mt-4 divide-y divide-stone-100 text-sm">
-                {suppliers.map((s) => (
-                  <li key={s.id} className="py-2">
-                    <p className="font-medium text-ink-900">{s.name}</p>
-                    <p className="text-stone-500">
-                      {[s.contactName, s.phone, s.email].filter(Boolean).join(" · ") || "—"}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              <div id="suppliers-table" className="mt-4">
+                <div className="mb-2 flex items-center justify-end">
+                  <PrintButton selector="#suppliers-table" label="Print suppliers" />
+                </div>
+                <div className="print-report-header">
+                  <h2 className="font-display text-xl font-semibold">Supplier directory</h2>
+                  <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {suppliers.length} supplier(s)</p>
+                </div>
+                <table className="table-base">
+                  <thead>
+                    <tr>
+                      <th className="w-8 print:hidden">
+                        <span className="sr-only">Include in print</span>
+                      </th>
+                      <th>Name</th>
+                      <th>Contact</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {suppliers.map((s) => (
+                      <tr key={s.id} data-print-row>
+                        <td className="print:hidden">
+                          <input
+                            type="checkbox"
+                            data-print-checkbox
+                            defaultChecked
+                            className="h-4 w-4 rounded border-stone-300"
+                            aria-label={`Include supplier ${s.name} in print`}
+                          />
+                        </td>
+                        <td className="font-medium text-ink-900">{s.name}</td>
+                        <td className="text-stone-500">
+                          {[s.contactName, s.phone, s.email].filter(Boolean).join(" · ") || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      <div className="card overflow-x-auto">
-        <h2 className="section-title mb-3">Purchase orders</h2>
+      <div id="purchase-orders-table" className="card overflow-x-auto">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-title print:hidden">Purchase orders</h2>
+          <PrintButton selector="#purchase-orders-table" label="Print orders" />
+        </div>
+        <div className="print-report-header">
+          <h2 className="font-display text-xl font-semibold">Purchase orders report</h2>
+          <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {orders.length} order(s)</p>
+        </div>
         {orders.length === 0 ? (
           <p className="text-sm text-stone-400">No purchase orders yet.</p>
         ) : (
           <table className="table-base">
             <thead>
               <tr>
+                <th className="w-8 print:hidden">
+                  <span className="sr-only">Include in print</span>
+                </th>
                 <th>Order #</th>
                 <th>Supplier</th>
                 <th>Items</th>
@@ -119,14 +159,23 @@ export default async function PurchasingPage() {
                 <th>Total</th>
                 <th>Paid</th>
                 <th>Status</th>
-                {(canManage || canPay) && <th>Actions</th>}
+                {(canManage || canPay) && <th className="print:hidden">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {orders.map((order) => {
                 const balance = order.totalAmount - order.amountPaid;
                 return (
-                  <tr key={order.id}>
+                  <tr key={order.id} data-print-row>
+                    <td className="print:hidden">
+                      <input
+                        type="checkbox"
+                        data-print-checkbox
+                        defaultChecked
+                        className="h-4 w-4 rounded border-stone-300"
+                        aria-label={`Include order ${order.orderNumber} in print`}
+                      />
+                    </td>
                     <td className="font-medium text-ink-900">{order.orderNumber}</td>
                     <td>
                       {order.supplier.name}
@@ -145,7 +194,7 @@ export default async function PurchasingPage() {
                       <span className={`badge ${STATUS_STYLES[order.status]}`}>{order.status}</span>
                     </td>
                     {(canManage || canPay) && (
-                      <td>
+                      <td className="print:hidden">
                         <div className="flex flex-wrap items-center gap-2">
                           {canManage && (
                             <form

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, isCompanyWide } from "@/lib/rbac";
 import { createCustomer } from "./actions";
+import { PrintButton } from "@/components/PrintButton";
+import { formatDate } from "@/lib/utils";
 
 export default async function CustomersPage({
   searchParams,
@@ -35,19 +37,32 @@ export default async function CustomersPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Customers</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="page-title">Customers</h1>
+        <PrintButton selector="#customers-table" />
+      </div>
 
-      <form className="card flex flex-wrap gap-3" action="/customers">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Customer list</h2>
+        <p className="text-sm text-stone-500">
+          {q ? `Filtered by "${q}" — ` : ""}Printed {formatDate(new Date())} — {customers.length} customer(s)
+        </p>
+      </div>
+
+      <form className="card flex flex-wrap gap-3 print:hidden" action="/customers">
         <input className="input max-w-xs" name="q" placeholder="Search name, phone, email…" defaultValue={q} />
         <button type="submit" className="btn-secondary">
           Search
         </button>
       </form>
 
-      <div className="card overflow-x-auto">
+      <div id="customers-table" className="card overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Name</th>
               <th>Phone</th>
               <th>Email</th>
@@ -56,7 +71,10 @@ export default async function CustomersPage({
           </thead>
           <tbody>
             {customers.map((c) => (
-              <tr key={c.id}>
+              <tr key={c.id} data-print-row>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${c.name} in print`} />
+                </td>
                 <td>
                   <Link href={`/customers/${c.id}`} className="text-brand-700 hover:underline">
                     {c.name}
@@ -69,7 +87,7 @@ export default async function CustomersPage({
             ))}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-6 text-center text-stone-400">
+                <td colSpan={5} className="py-6 text-center text-stone-400">
                   No customers yet.
                 </td>
               </tr>
@@ -78,7 +96,7 @@ export default async function CustomersPage({
         </table>
       </div>
 
-      <div className="card max-w-lg">
+      <div className="card max-w-lg print:hidden">
         <h2 className="mb-3 font-medium">Add a customer</h2>
         <form action={createCustomer} className="space-y-3">
           {isCompanyWide(session.role) && (

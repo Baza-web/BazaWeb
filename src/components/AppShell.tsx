@@ -44,7 +44,7 @@ export function AppShell({
       )}
 
       <aside
-        className={`bg-sidebar-sheen fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 transform flex-col bg-ink-950 py-6 transition-transform duration-200 md:static md:z-auto md:w-60 md:translate-x-0 ${
+        className={`bg-sidebar-sheen fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 transform flex-col bg-ink-950 py-6 transition-transform duration-200 print:hidden md:static md:z-auto md:w-60 md:translate-x-0 ${
           menuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -77,7 +77,7 @@ export function AppShell({
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-6">
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur print:hidden sm:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -128,7 +128,7 @@ export function AppShell({
             <LogoutButton logoutAction={logoutAction} />
           </div>
         </header>
-        <main className="min-w-0 p-4 sm:p-6">{children}</main>
+        <main className="min-w-0 p-4 sm:p-6 print:p-0">{children}</main>
       </div>
     </div>
   );
