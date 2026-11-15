@@ -5,11 +5,13 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canRecordSale, isCompanyWide, COMPANY_WIDE_ROLES } from "@/lib/rbac";
+import { revalidatePath } from "next/cache";
+import { canRecordSale, isCompanyWide, COMPANY_WIDE_ROLES, branchScope, canDeleteOrRequest } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { round2 } from "@/lib/utils";
 import { detectFileKind } from "@/lib/uploads";
 import { extractOrderFromImage, extractOrderFromText, aiConfigured } from "@/lib/ai";
+import { initiateDeletion } from "@/lib/deletion";
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -317,4 +319,23 @@ export async function createSale(formData: FormData) {
   }
 
   redirect(`/sales/${sale.created.id}`);
+}
+
+/**
+ * Voids and deletes a sale: Owner deletes immediately, Admin can only request
+ * it pending Owner approval. Voiding restores the sold stock and removes the
+ * ledger income entry before the sale row itself is deleted.
+ */
+export async function deleteSalePermanently(saleId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+
+  const sale = await db.sale.findFirst({ where: { id: saleId, ...branchScope(session) } });
+  if (!sale) throw new Error("Forbidden");
+
+  const reason = String(formData.get("reason") || "").trim() || undefined;
+  const result = await initiateDeletion(session, "SALE", saleId, sale.invoiceNumber, reason);
+  revalidatePath("/sales");
+  revalidatePath(`/sales/${saleId}`);
+  return result;
 }

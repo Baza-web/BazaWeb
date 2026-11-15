@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope } from "@/lib/rbac";
+import { branchScope, canDeleteOrRequest } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { PrintButton } from "@/components/PrintButton";
+import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { deleteSalePermanently } from "../actions";
 
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -97,7 +99,19 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         )}
       </div>
 
-      <PrintButton />
+      <div className="flex items-center gap-4 print:hidden">
+        <PrintButton />
+        {canDeleteOrRequest(session.role) && (
+          <DeleteRecordButton
+            action={deleteSalePermanently.bind(null, sale.id)}
+            label="sale"
+            isOwner={session.role === "OWNER"}
+            redirectTo="/sales"
+            confirmMessage={`Permanently delete invoice ${sale.invoiceNumber}? This restores the sold stock and removes its income entry — this can't be undone.`}
+            requestMessage={`Request permanent deletion of invoice ${sale.invoiceNumber}? An Owner will need to approve it before anything happens.`}
+          />
+        )}
+      </div>
     </div>
   );
 }

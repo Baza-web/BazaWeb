@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canViewCost } from "@/lib/rbac";
+import { branchScope, canViewCost, canDeleteOrRequest } from "@/lib/rbac";
 import { formatMoney } from "@/lib/utils";
+import { deleteInventoryItemPermanently } from "./actions";
+import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { Plus } from "@phosphor-icons/react/ssr";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -20,6 +22,7 @@ export default async function InventoryPage({
 }) {
   const session = await requireSessionOrRedirect();
   const showCost = canViewCost(session.role);
+  const canDelete = canDeleteOrRequest(session.role);
   const { q, status } = await searchParams;
 
   const items = await db.inventoryItem.findMany({
@@ -91,6 +94,7 @@ export default async function InventoryPage({
               {showCost && <th>Cost</th>}
               <th>Price</th>
               <th>Status</th>
+              {canDelete && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -121,11 +125,22 @@ export default async function InventoryPage({
                     {item.status.replace("_", " ")}
                   </span>
                 </td>
+                {canDelete && (
+                  <td>
+                    <DeleteRecordButton
+                      action={deleteInventoryItemPermanently.bind(null, item.id)}
+                      label="item"
+                      isOwner={session.role === "OWNER"}
+                      confirmMessage={`Permanently delete ${item.sku} — ${item.name}? This can't be undone.`}
+                      requestMessage={`Request permanent deletion of ${item.sku} — ${item.name}? An Owner will need to approve it before anything happens.`}
+                    />
+                  </td>
+                )}
               </tr>
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={showCost ? 8 : 7} className="py-6 text-center text-stone-400">
+                <td colSpan={showCost ? (canDelete ? 9 : 8) : canDelete ? 8 : 7} className="py-6 text-center text-stone-400">
                   No items match.
                 </td>
               </tr>
