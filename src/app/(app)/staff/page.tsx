@@ -5,6 +5,8 @@ import { canManageStaffScoped, canManageStaff, branchScope, ROLE_LABELS } from "
 import { toggleStaffActive, deleteStaffPermanently } from "./actions";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { Plus } from "@phosphor-icons/react/ssr";
+import { PrintButton } from "@/components/PrintButton";
+import { formatDate } from "@/lib/utils";
 
 export default async function StaffPage() {
   const session = await requireSessionOrRedirect();
@@ -24,28 +26,42 @@ export default async function StaffPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Staff accounts</h1>
-        <Link href="/staff/new" className="btn-primary">
-          <Plus size={16} aria-hidden="true" />
-          Add staff
-        </Link>
+        <div className="flex items-center gap-2">
+          <PrintButton selector="#staff-table" />
+          <Link href="/staff/new" className="btn-primary print:hidden">
+            <Plus size={16} aria-hidden="true" />
+            Add staff
+          </Link>
+        </div>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Staff directory</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {staff.length} staff member(s)</p>
+      </div>
+
+      <div id="staff-table" className="card overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
               <th>Branch</th>
               <th>Brands</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th className="print:hidden">Actions</th>
             </tr>
           </thead>
           <tbody>
             {staff.map((s) => (
-              <tr key={s.id} className={s.active ? undefined : "opacity-60"}>
+              <tr key={s.id} data-print-row className={s.active ? undefined : "opacity-60"}>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${s.name} in print`} />
+                </td>
                 <td className="font-medium">
                   <Link href={`/staff/${s.id}`} className="text-brand-700 hover:underline">
                     {s.name}
@@ -66,7 +82,7 @@ export default async function StaffPage() {
                     {s.active ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td>
+                <td className="print:hidden">
                   {s.id !== session.staffId && (
                     <div className="flex items-center gap-3">
                       <form action={toggleStaffActive.bind(null, s.id)}>

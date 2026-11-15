@@ -185,7 +185,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       )}
 
       <div className="flex items-center gap-4 print:hidden">
-        <PrintButton />
+        <PrintButton label="Print invoice" />
         {canDeleteOrRequest(session.role) && (
           <DeleteRecordButton
             action={deleteSalePermanently.bind(null, sale.id)}

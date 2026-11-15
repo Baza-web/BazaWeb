@@ -18,6 +18,16 @@ body {
   }
 }
 
+.print-report-header {
+  display: none;
+}
+@media print {
+  .print-report-header {
+    display: block;
+    margin-bottom: 1rem;
+  }
+}
+
 .font-display {
   font-family: var(--font-display), ui-serif, Georgia, serif;
 }
@@ -101,4 +111,28 @@ body {
 .stat-tile::before {
   content: "";
   @apply absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-400 via-brand-600 to-brand-400;
+}
+
+@media print {
+  html,
+  body {
+    background-color: white;
+  }
+  .card {
+    box-shadow: none;
+    border-color: #e5e5e5;
+    border-radius: 0;
+    padding: 0;
+  }
+  .table-base {
+    font-size: 11px;
+  }
+  .table-base th,
+  .table-base td {
+    padding: 4px 6px;
+  }
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
 }

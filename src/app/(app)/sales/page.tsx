@@ -4,6 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canRecordSale } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { Plus } from "@phosphor-icons/react/ssr";
+import { PrintButton } from "@/components/PrintButton";
 
 const PAYMENT_COLORS: Record<string, string> = {
   PAID: "bg-green-100 text-green-700",
@@ -25,18 +26,29 @@ export default async function SalesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Sales</h1>
-        {canRecordSale(session.role) && (
-          <Link href="/sales/new" className="btn-primary">
-            <Plus size={16} aria-hidden="true" />
-            New sale
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          <PrintButton selector="#sales-table" />
+          {canRecordSale(session.role) && (
+            <Link href="/sales/new" className="btn-primary print:hidden">
+              <Plus size={16} aria-hidden="true" />
+              New sale
+            </Link>
+          )}
+        </div>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Sales report</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {sales.length} sale(s)</p>
+      </div>
+
+      <div id="sales-table" className="card overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Invoice</th>
               <th>Date</th>
               <th>Customer</th>
@@ -47,9 +59,18 @@ export default async function SalesPage() {
           </thead>
           <tbody>
             {sales.map((s) => (
-              <tr key={s.id}>
+              <tr key={s.id} data-print-row>
+                <td className="print:hidden">
+                  <input
+                    type="checkbox"
+                    data-print-checkbox
+                    defaultChecked
+                    className="h-4 w-4 rounded border-stone-300"
+                    aria-label={`Include invoice ${s.invoiceNumber} in print`}
+                  />
+                </td>
                 <td>
-                  <Link href={`/sales/${s.id}`} className="text-brand-700 hover:underline">
+                  <Link href={`/sales/${s.id}`} className="text-brand-700 hover:underline print:text-ink-900 print:no-underline">
                     {s.invoiceNumber}
                   </Link>
                 </td>
@@ -64,7 +85,7 @@ export default async function SalesPage() {
             ))}
             {sales.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-stone-400">
+                <td colSpan={7} className="py-6 text-center text-stone-400">
                   No sales recorded yet.
                 </td>
               </tr>
