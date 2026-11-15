@@ -12,19 +12,21 @@ function startOfMonth() {
 export default async function StatementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; branchId?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; branchId?: string; brandId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
   if (!canManageAccounting(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const { from, to, branchId } = await searchParams;
+  const { from, to, branchId, brandId } = await searchParams;
   const fromDate = from ? new Date(from) : startOfMonth();
   const toDate = to ? new Date(to) : new Date();
   toDate.setHours(23, 59, 59, 999);
 
   const scope = branchScope(session, branchId);
+  const selectedBrandId = brandId || undefined;
+  const directBrandFilter = selectedBrandId ? { brandId: selectedBrandId } : {};
   const now = new Date();
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -32,6 +34,7 @@ export default async function StatementsPage({
 
   const [
     branches,
+    brands,
     saleItemsInRange,
     expensesInRange,
     allTimeLedger,
@@ -43,21 +46,22 @@ export default async function StatementsPage({
     lastMonthExpensesByCategory,
   ] = await Promise.all([
     isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     db.saleItem.findMany({
-      where: { sale: { ...scope, createdAt: { gte: fromDate, lte: toDate } } },
+      where: { sale: { ...scope, ...directBrandFilter, createdAt: { gte: fromDate, lte: toDate } } },
       include: { inventoryItem: true },
     }),
-    db.expense.findMany({ where: { ...scope, date: { gte: fromDate, lte: toDate } } }),
+    db.expense.findMany({ where: { ...scope, ...directBrandFilter, date: { gte: fromDate, lte: toDate } } }),
     db.ledgerEntry.findMany({ where: scope, select: { type: true, amount: true } }),
     db.inventoryItem.findMany({
       where: { ...scope, status: { in: ["IN_STOCK", "RESERVED"] } },
       select: { costPrice: true, quantity: true },
     }),
     db.purchaseOrder.findMany({ where: { ...scope, status: { in: ["ORDERED", "RECEIVED"] } } }),
-    db.sale.findMany({ where: { ...scope, paymentStatus: { in: ["PARTIAL", "UNPAID"] } } }),
+    db.sale.findMany({ where: { ...scope, ...directBrandFilter, paymentStatus: { in: ["PARTIAL", "UNPAID"] } } }),
     db.budget.findMany({ where: scope }),
-    db.expense.findMany({ where: { ...scope, date: { gte: thisMonthStart, lte: now } }, select: { category: true, amount: true } }),
-    db.expense.findMany({ where: { ...scope, date: { gte: lastMonthStart, lte: lastMonthEnd } }, select: { category: true, amount: true } }),
+    db.expense.findMany({ where: { ...scope, ...directBrandFilter, date: { gte: thisMonthStart, lte: now } }, select: { category: true, amount: true } }),
+    db.expense.findMany({ where: { ...scope, ...directBrandFilter, date: { gte: lastMonthStart, lte: lastMonthEnd } }, select: { category: true, amount: true } }),
   ]);
 
   // --- Profit & Loss ---
@@ -162,6 +166,19 @@ export default async function StatementsPage({
             </select>
           </div>
         )}
+        {brands.length > 0 && (
+          <div>
+            <label className="label">Brand</label>
+            <select className="input" name="brandId" defaultValue={brandId ?? ""}>
+              <option value="">All brands</option>
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <button type="submit" className="btn-secondary">
           Apply
         </button>
@@ -213,7 +230,11 @@ export default async function StatementsPage({
 
       <div className="card max-w-xl">
         <h2 className="mb-1 font-medium">Balance sheet</h2>
-        <p className="mb-4 text-xs text-stone-400">Snapshot as of today — not limited to the date range above.</p>
+        <p className="mb-4 text-xs text-stone-400">
+          Snapshot as of today — not limited to the date range above. Cash, inventory, and accounts payable are
+          whole-business figures regardless of the brand filter (they aren&apos;t tracked per brand); accounts
+          receivable does respect it.
+        </p>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
             <p className="mb-2 text-sm font-medium text-stone-600">Assets</p>

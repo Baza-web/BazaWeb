@@ -147,6 +147,7 @@ const lineSchema = z.object({
 const saleSchema = z.object({
   customerId: z.string().optional(),
   branchId: z.string().min(1),
+  brandId: z.string().optional(),
   discount: z.coerce.number().min(0).default(0),
   tax: z.coerce.number().min(0).default(0),
   amountPaid: z.coerce.number().min(0).default(0),
@@ -173,6 +174,7 @@ export async function createSale(formData: FormData) {
   const parsed = saleSchema.parse({
     customerId: formData.get("customerId") || undefined,
     branchId,
+    brandId: formData.get("brandId") || undefined,
     discount: formData.get("discount") || 0,
     tax: formData.get("tax") || 0,
     amountPaid: formData.get("amountPaid") || 0,
@@ -221,6 +223,7 @@ export async function createSale(formData: FormData) {
         invoiceNumber: invoiceNumber(),
         customerId: parsed.customerId || null,
         branchId: parsed.branchId,
+        brandId: parsed.brandId || null,
         staffId: session.staffId,
         subtotal,
         discount,

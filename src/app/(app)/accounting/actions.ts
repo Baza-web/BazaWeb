@@ -72,6 +72,7 @@ const expenseSchema = z.object({
   amount: z.coerce.number().positive(),
   date: z.coerce.date().optional(),
   branchId: z.string().min(1),
+  brandId: z.string().optional(),
 });
 
 export async function createExpense(formData: FormData) {
@@ -82,12 +83,15 @@ export async function createExpense(formData: FormData) {
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
+  const brandIdRaw = String(formData.get("brandId") || "");
+
   const parsed = expenseSchema.parse({
     category: formData.get("category"),
     description: formData.get("description"),
     amount: formData.get("amount"),
     date: formData.get("date") || undefined,
     branchId,
+    brandId: brandIdRaw || undefined,
   });
 
   const receiptFile = formData.get("receiptImage");
@@ -98,6 +102,7 @@ export async function createExpense(formData: FormData) {
     const expense = await tx.expense.create({
       data: {
         branchId: parsed.branchId,
+        brandId: parsed.brandId,
         category: parsed.category,
         description: parsed.description,
         amount: parsed.amount,

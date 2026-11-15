@@ -42,20 +42,25 @@ function TrendBadge({ change, invertColors = false }: { change: number; invertCo
 export default async function AccountingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; branchId?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; branchId?: string; brandId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
   if (!canManageAccounting(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const { from, to, branchId } = await searchParams;
+  const { from, to, branchId, brandId } = await searchParams;
   const fromDate = from ? new Date(from) : startOfMonth();
   const toDate = to ? new Date(to) : new Date();
   toDate.setHours(23, 59, 59, 999);
 
   const scope = branchScope(session, branchId);
   const showPayroll = canManagePayroll(session.role);
+  const selectedBrandId = brandId || undefined;
+  const ledgerBrandFilter = selectedBrandId
+    ? { OR: [{ sale: { brandId: selectedBrandId } }, { expense: { brandId: selectedBrandId } }] }
+    : {};
+  const directBrandFilter = selectedBrandId ? { brandId: selectedBrandId } : {};
 
   const now = new Date();
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -66,6 +71,7 @@ export default async function AccountingPage({
   const [
     ledger,
     branches,
+    brands,
     pendingPayrollCount,
     thisMonthLedger,
     lastMonthLedger,
@@ -75,31 +81,32 @@ export default async function AccountingPage({
     thisMonthExpenses,
   ] = await Promise.all([
     db.ledgerEntry.findMany({
-      where: { ...scope, date: { gte: fromDate, lte: toDate } },
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: fromDate, lte: toDate } },
       include: { branch: true, sale: true, expense: true },
       orderBy: { date: "desc" },
     }),
     isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     showPayroll ? db.payrollRun.count({ where: { status: "DRAFT" } }) : Promise.resolve(0),
     db.ledgerEntry.findMany({
-      where: { ...scope, date: { gte: thisMonthStart, lte: now } },
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: thisMonthStart, lte: now } },
       select: { type: true, amount: true },
     }),
     db.ledgerEntry.findMany({
-      where: { ...scope, date: { gte: lastMonthStart, lte: lastMonthEnd } },
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: lastMonthStart, lte: lastMonthEnd } },
       select: { type: true, amount: true },
     }),
     db.ledgerEntry.findMany({
-      where: { ...scope, date: { gte: trendStart } },
+      where: { ...scope, ...ledgerBrandFilter, date: { gte: trendStart } },
       select: { date: true, type: true, amount: true },
     }),
     db.sale.findMany({
-      where: { ...scope, createdAt: { gte: fromDate, lte: toDate } },
+      where: { ...scope, ...directBrandFilter, createdAt: { gte: fromDate, lte: toDate } },
       select: { total: true },
     }),
     db.budget.findMany({ where: scope, orderBy: { category: "asc" } }),
     db.expense.findMany({
-      where: { ...scope, date: { gte: thisMonthStart, lte: now } },
+      where: { ...scope, ...directBrandFilter, date: { gte: thisMonthStart, lte: now } },
       select: { category: true, amount: true },
     }),
   ]);
@@ -199,6 +206,19 @@ export default async function AccountingPage({
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>
               <option value="">All branches</option>
               {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {brands.length > 0 && (
+          <div>
+            <label className="label">Brand</label>
+            <select className="input" name="brandId" defaultValue={brandId ?? ""}>
+              <option value="">All brands</option>
+              {brands.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
@@ -383,6 +403,8 @@ export default async function AccountingPage({
           branches={branches}
           showBranchSelect={isCompanyWide(session.role)}
           defaultBranchId={session.branchId ?? branches[0]?.id ?? ""}
+          brands={brands}
+          defaultBrandId={selectedBrandId}
         />
       </div>
 

@@ -14,6 +14,7 @@ type InventoryOption = {
 
 type CustomerOption = { id: string; name: string; branchId: string };
 type BranchOption = { id: string; name: string };
+type BrandOption = { id: string; name: string };
 
 type Line = { inventoryItemId: string; quantity: number; priceEach: number };
 
@@ -23,12 +24,14 @@ export function SaleForm({
   branches,
   showBranchSelect,
   defaultBranchId,
+  brands,
 }: {
   inventory: InventoryOption[];
   customers: CustomerOption[];
   branches: BranchOption[];
   showBranchSelect: boolean;
   defaultBranchId: string;
+  brands: BrandOption[];
 }) {
   const [branchId, setBranchId] = useState(defaultBranchId);
   const [lines, setLines] = useState<Line[]>([]);
@@ -189,6 +192,20 @@ export function SaleForm({
         </div>
       ) : (
         <input type="hidden" name="branchId" value={defaultBranchId} />
+      )}
+
+      {brands.length > 0 && (
+        <div>
+          <label className="label">Brand (optional)</label>
+          <select className="input" name="brandId" defaultValue="">
+            <option value="">No specific brand</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       <div>
