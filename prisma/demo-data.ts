@@ -1,8 +1,10 @@
 /**
  * Populates realistic sample data across every module — customers, inventory,
- * sales, accounting, tasks, repairs, purchasing, brokers & memos, and more —
- * so an Owner/Admin can click through the whole app and see it working with
- * real-looking numbers instead of empty states.
+ * sales, accounting (with budgets and brand-tagged records), tasks, repairs,
+ * purchasing, brokers & memos, brands, the Creative Hub's content calendar,
+ * and HRM (leave entitlements, onboarding checklists) — so an Owner/Admin
+ * can click through the whole app and see it working with real-looking
+ * numbers instead of empty states.
  *
  * Safe to run once on a live system: everything it creates is tagged "Demo"
  * (staff emails end in @example.com, inventory SKUs start with DEMO-), it
@@ -79,7 +81,36 @@ async function main() {
   const craftsman = await db.staff.create({
     data: { name: "Sunil Rathnayake", email: "craftsman.demo@example.com", passwordHash, role: "CRAFTSMAN", branchId: branch.id },
   });
-  console.log(`  5 demo staff created (password for all: ${DEMO_PASSWORD})`);
+  const creative = await db.staff.create({
+    data: {
+      name: "Tharindu Jayasuriya", email: "creative.demo@example.com", passwordHash, role: "CREATIVE", branchId: branch.id,
+      baseSalary: 55000, bankName: "Commercial Bank", bankAccountNumber: "8012345678", bankBranch: "Colombo 03",
+    },
+  });
+  await db.staff.update({ where: { id: sales.id }, data: { baseSalary: 45000, bankName: "Sampath Bank", bankAccountNumber: "0045671234", bankBranch: "Nugegoda" } });
+  await db.staff.update({ where: { id: craftsman.id }, data: { baseSalary: 40000, bankName: "BOC", bankAccountNumber: "0078452233", bankBranch: "Pettah" } });
+  console.log(`  6 demo staff created (password for all: ${DEMO_PASSWORD})`);
+
+  // --- Brands + staff assignments (some staff work for 2 brands) ---------
+  const brands = await db.brand.findMany({ orderBy: { name: "asc" } });
+  const brandByName = (name: string) => brands.find((b) => b.name === name);
+  const bazaBrand = brandByName("Baza Boutique");
+  const silverBrand = brandByName("Silver Boutique");
+  const gemBrand = brandByName("Gem Boutique");
+  if (bazaBrand) {
+    await db.staff.update({ where: { id: admin.id }, data: { brands: { connect: [{ id: bazaBrand.id }] } } });
+    await db.staff.update({ where: { id: sales.id }, data: { brands: { connect: [{ id: bazaBrand.id }] } } });
+    await db.staff.update({ where: { id: accountant.id }, data: { brands: { connect: [{ id: bazaBrand.id }] } } });
+    await db.staff.update({ where: { id: craftsman.id }, data: { brands: { connect: [{ id: bazaBrand.id }] } } });
+    if (silverBrand) {
+      // Manager works across two brands — demonstrates the multi-brand staff case.
+      await db.staff.update({ where: { id: manager.id }, data: { brands: { connect: [{ id: bazaBrand.id }, { id: silverBrand.id }] } } });
+    }
+    if (gemBrand) {
+      await db.staff.update({ where: { id: creative.id }, data: { brands: { connect: [{ id: bazaBrand.id }, { id: gemBrand.id }] } } });
+    }
+    console.log("  Demo staff assigned to brands (Manager and Creative each work across 2 brands)");
+  }
 
   // --- Customers ----------------------------------------------------------
   const [cust1, cust2, cust3, cust4, cust5] = await Promise.all([
@@ -182,7 +213,7 @@ async function main() {
   async function recordSale(opts: {
     item: typeof ring; qty: number; priceEach: number; customerId?: string; staffId: string;
     discount?: number; amountPaid: number; paymentMethod: "CASH" | "CARD" | "BANK_TRANSFER" | "MOBILE_MONEY";
-    createdAt: Date;
+    createdAt: Date; brandId?: string;
   }) {
     const subtotal = round2(opts.priceEach * opts.qty);
     const discount = round2(opts.discount ?? 0);
@@ -194,7 +225,7 @@ async function main() {
     await db.$transaction(async (tx) => {
       const createdSale = await tx.sale.create({
         data: {
-          invoiceNumber, customerId: opts.customerId, branchId: branch!.id, staffId: opts.staffId,
+          invoiceNumber, customerId: opts.customerId, branchId: branch!.id, staffId: opts.staffId, brandId: opts.brandId,
           subtotal, discount, tax: 0, total, amountPaid, paymentStatus,
           paymentMethod: opts.paymentMethod, createdAt: opts.createdAt,
           items: { create: [{ inventoryItemId: opts.item.id, quantity: opts.qty, priceEach: opts.priceEach }] },
@@ -210,27 +241,37 @@ async function main() {
     });
   }
 
-  await recordSale({ item: ring, qty: 1, priceEach: 68000, customerId: cust1.id, staffId: sales.id, amountPaid: 68000, paymentMethod: "CASH", createdAt: daysAgo(6) });
-  await recordSale({ item: earrings, qty: 1, priceEach: 125000, customerId: cust2.id, staffId: sales.id, discount: 5000, amountPaid: 60000, paymentMethod: "CARD", createdAt: daysAgo(4) });
-  await recordSale({ item: bracelet, qty: 1, priceEach: 95000, customerId: cust3.id, staffId: manager.id, amountPaid: 0, paymentMethod: "BANK_TRANSFER", createdAt: daysAgo(2) });
+  await recordSale({ item: ring, qty: 1, priceEach: 68000, customerId: cust1.id, staffId: sales.id, amountPaid: 68000, paymentMethod: "CASH", createdAt: daysAgo(6), brandId: bazaBrand?.id });
+  await recordSale({ item: earrings, qty: 1, priceEach: 125000, customerId: cust2.id, staffId: sales.id, discount: 5000, amountPaid: 60000, paymentMethod: "CARD", createdAt: daysAgo(4), brandId: bazaBrand?.id });
+  await recordSale({ item: bracelet, qty: 1, priceEach: 95000, customerId: cust3.id, staffId: manager.id, amountPaid: 0, paymentMethod: "BANK_TRANSFER", createdAt: daysAgo(2), brandId: silverBrand?.id });
   await recordSale({ item: necklace, qty: 1, priceEach: 175000, staffId: sales.id, amountPaid: 175000, paymentMethod: "MOBILE_MONEY", createdAt: daysAgo(1) });
-  console.log("  4 demo sales recorded (PAID/PARTIAL/UNPAID, stock decremented, ledger updated)");
+  console.log("  4 demo sales recorded (PAID/PARTIAL/UNPAID, stock decremented, ledger updated, 2 tagged to a brand)");
 
   // --- Expenses (mirrors createExpense: Expense + ledger EXPENSE) -------
-  async function recordExpense(category: string, description: string, amount: number, date: Date) {
+  async function recordExpense(category: string, description: string, amount: number, date: Date, brandId?: string) {
     await db.$transaction(async (tx) => {
       const expense = await tx.expense.create({
-        data: { branchId: branch!.id, category, description, amount, date, createdById: accountant.id, createdAt: date },
+        data: { branchId: branch!.id, category, description, amount, date, createdById: accountant.id, createdAt: date, brandId },
       });
       await tx.ledgerEntry.create({
         data: { branchId: branch!.id, type: "EXPENSE", amount, description: `${category}: ${description}`, date, expenseId: expense.id },
       });
     });
   }
-  await recordExpense("Rent", "November shop rent", 85000, daysAgo(10));
-  await recordExpense("Utilities", "Electricity bill", 12500, daysAgo(7));
-  await recordExpense("Marketing", "Facebook & Instagram ad boost", 5000, daysAgo(3));
-  console.log("  3 demo expenses recorded");
+  await recordExpense("Rent", "November shop rent", 85000, daysAgo(10), bazaBrand?.id);
+  await recordExpense("Utilities", "Electricity bill", 12500, daysAgo(7), bazaBrand?.id);
+  await recordExpense("Marketing", "Facebook & Instagram ad boost", 5000, daysAgo(3), silverBrand?.id);
+  console.log("  3 demo expenses recorded (tagged to brands)");
+
+  // --- Accounting budgets --------------------------------------------
+  await db.budget.createMany({
+    data: [
+      { branchId: branch.id, category: "Rent", monthlyLimit: 90000 },
+      { branchId: branch.id, category: "Utilities", monthlyLimit: 15000 },
+      { branchId: branch.id, category: "Marketing", monthlyLimit: 20000 },
+    ],
+  });
+  console.log("  3 demo budgets created (Rent, Utilities, Marketing)");
 
   // --- Suppliers & Purchase Orders ---------------------------------------
   const supplier1 = await db.supplier.create({
@@ -270,7 +311,64 @@ async function main() {
   const group = await db.staffGroup.create({
     data: { name: "Showroom Team", branchId: branch.id, members: { connect: [{ id: sales.id }, { id: manager.id }] } },
   });
-  console.log("  1 staff group created (Showroom Team)");
+  const creativeGroup = await db.staffGroup.create({
+    data: {
+      name: "Creative Team", branchId: branch.id, isCreativeTeam: true,
+      members: { connect: [{ id: creative.id }, { id: manager.id }] },
+    },
+  });
+  console.log("  2 staff groups created (Showroom Team, Creative Team)");
+
+  // --- Creative Hub: content calendar ------------------------------------
+  if (bazaBrand) {
+    await db.socialPost.create({
+      data: {
+        groupId: creativeGroup.id, brandId: bazaBrand.id, platform: "INSTAGRAM", title: "New arrivals teaser",
+        caption: "✨ New arrivals landing this week at Baza Boutique — stay tuned!", status: "IDEA",
+        assignedToId: creative.id, createdById: creative.id,
+      },
+    });
+    await db.socialPost.create({
+      data: {
+        groupId: creativeGroup.id, brandId: bazaBrand.id, platform: "INSTAGRAM", title: "Lotus ring close-up reel",
+        caption: "The Kandyan Lotus Ring, up close. #BazaBoutique #CeylonGold", status: "DRAFTING",
+        scheduledAt: daysFromNow(2), assignedToId: creative.id, createdById: creative.id,
+      },
+    });
+    await db.socialPost.create({
+      data: {
+        groupId: creativeGroup.id, brandId: bazaBrand.id, platform: "INSTAGRAM", title: "Festive season promo",
+        caption: "Light up the season with Baza Boutique gold. Visit us in-store today.", status: "READY",
+        scheduledAt: daysFromNow(4), assignedToId: creative.id, createdById: manager.id,
+      },
+    });
+    await db.socialPost.create({
+      data: {
+        groupId: creativeGroup.id, brandId: bazaBrand.id, platform: "INSTAGRAM", title: "Weekend showroom hours",
+        caption: "We're open this weekend 10am–7pm. Come say hello!", status: "SCHEDULED",
+        scheduledAt: daysFromNow(1), assignedToId: creative.id, createdById: creative.id,
+        autoPublish: true, approvedById: admin.id, approvedAt: daysAgo(0),
+      },
+    });
+    await db.socialPost.create({
+      data: {
+        groupId: creativeGroup.id, brandId: bazaBrand.id, platform: "INSTAGRAM", title: "Throwback: Temple necklace",
+        caption: "One of our finest handcrafted pieces — sold, but the craftsmanship lives on. 💛", status: "POSTED",
+        scheduledAt: daysAgo(5), postedAt: daysAgo(5), assignedToId: creative.id, createdById: creative.id,
+      },
+    });
+    if (silverBrand) {
+      await db.socialPost.create({
+        data: {
+          groupId: creativeGroup.id, brandId: silverBrand.id, platform: "FACEBOOK", title: "Silver Boutique launch post",
+          caption: "Introducing Silver Boutique — timeless silver jewellery for every day.", status: "SCHEDULED",
+          scheduledAt: daysFromNow(3), assignedToId: creative.id, createdById: creative.id,
+          autoPublish: true,
+        },
+      });
+    }
+    console.log("  6 demo content calendar posts created (every status, 2 brands, 1 pending Instagram approval)");
+  }
 
   // --- Tasks ----------------------------------------------------------
   const t1 = await db.task.create({
@@ -316,6 +414,34 @@ async function main() {
     data: { staffId: craftsman.id, type: "SICK", startDate: daysAgo(5), endDate: daysAgo(4), reason: "Flu.", status: "APPROVED", reviewedById: manager.id, reviewedAt: daysAgo(5) },
   });
   console.log("  2 demo leave requests created (1 pending, 1 approved)");
+
+  // --- Leave entitlements + onboarding checklist, for every demo staff ---
+  const currentYear = new Date().getFullYear();
+  const demoStaff = [admin, manager, sales, accountant, craftsman, creative];
+  const ONBOARDING_LABELS = [
+    "Collect ID/NIC copy",
+    "Collect bank details for payroll",
+    "Issue uniform / ID badge",
+    "Walk through POS, attendance clock-in, and the app",
+    "Add to the relevant Staff Group",
+  ];
+  for (const [i, s] of demoStaff.entries()) {
+    await db.leaveEntitlement.createMany({
+      data: [
+        { staffId: s.id, type: "VACATION", year: currentYear, daysAllotted: 14 },
+        { staffId: s.id, type: "SICK", year: currentYear, daysAllotted: 7 },
+        { staffId: s.id, type: "PERSONAL", year: currentYear, daysAllotted: 3 },
+      ],
+    });
+    // Vary how far along onboarding is per staff, so the checklist looks lived-in rather than uniformly blank.
+    const doneCount = Math.min(i + 1, ONBOARDING_LABELS.length);
+    await db.onboardingTask.createMany({
+      data: ONBOARDING_LABELS.map((label, idx) => ({
+        staffId: s.id, label, completed: idx < doneCount, completedAt: idx < doneCount ? daysAgo(20 - idx) : null,
+      })),
+    });
+  }
+  console.log("  Leave entitlements + onboarding checklists created for all 6 demo staff");
 
   // --- Attendance -------------------------------------------------------
   await db.attendanceLog.create({
@@ -385,7 +511,8 @@ async function main() {
   console.log(`  Sales:      sales.demo@example.com / ${DEMO_PASSWORD}`);
   console.log(`  Accountant: accountant.demo@example.com / ${DEMO_PASSWORD}`);
   console.log(`  Craftsman:  craftsman.demo@example.com / ${DEMO_PASSWORD}`);
-  console.log("\nThis data is linked across modules (sales reference inventory, memos reference brokers, etc.), so it can't be cleanly removed by just deleting the 5 staff accounts from the UI — ask for a cleanup script when you're ready to clear it out.");
+  console.log(`  Creative:   creative.demo@example.com / ${DEMO_PASSWORD}`);
+  console.log("\nThis data is linked across modules (sales reference inventory, memos reference brokers, etc.), so it can't be cleanly removed by just deleting the 6 staff accounts from the UI — ask for a cleanup script when you're ready to clear it out.");
 }
 
 main()
