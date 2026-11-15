@@ -15,6 +15,14 @@ function emptyToUndefined(value: FormDataEntryValue | null) {
   return s === "" ? undefined : s;
 }
 
+const DEFAULT_ONBOARDING_TASKS = [
+  "Collect ID/NIC copy",
+  "Collect bank details for payroll",
+  "Issue uniform / ID badge",
+  "Walk through POS, attendance clock-in, and the app",
+  "Add to the relevant Staff Group",
+];
+
 const createSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
@@ -49,7 +57,7 @@ export async function createStaff(formData: FormData) {
 
   const passwordHash = await hashPassword(parsed.password);
 
-  await db.staff.create({
+  const staff = await db.staff.create({
     data: {
       name: parsed.name,
       email: parsed.email.toLowerCase(),
@@ -58,6 +66,10 @@ export async function createStaff(formData: FormData) {
       branchId: parsed.branchId,
       passwordHash,
     },
+  });
+
+  await db.onboardingTask.createMany({
+    data: DEFAULT_ONBOARDING_TASKS.map((label) => ({ staffId: staff.id, label })),
   });
 
   redirect("/staff");
@@ -194,4 +206,18 @@ export async function addStaffDocuments(staffId: string, formData: FormData) {
   const newDocs = await saveUploadedImages(files, "staff-documents", true);
   await db.staff.update({ where: { id: staffId }, data: { documents: [...staff.documents, ...newDocs] } });
   revalidatePath(`/staff/${staffId}`);
+}
+
+export async function toggleOnboardingTask(taskId: string) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+
+  const task = await db.onboardingTask.findUniqueOrThrow({ where: { id: taskId }, include: { staff: true } });
+  if (!isCompanyWide(session.role) && task.staff.branchId !== session.branchId) throw new Error("Forbidden");
+
+  await db.onboardingTask.update({
+    where: { id: taskId },
+    data: { completed: !task.completed, completedAt: !task.completed ? new Date() : null },
+  });
+  revalidatePath(`/staff/${task.staffId}`);
 }

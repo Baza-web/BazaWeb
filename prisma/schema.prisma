@@ -220,6 +220,8 @@ model Staff {
   groupMessagesSent  GroupMessage[]
   socialPostsAssigned SocialPost[] @relation("SocialPostAssignee")
   socialPostsCreated  SocialPost[] @relation("SocialPostCreator")
+  leaveEntitlements   LeaveEntitlement[]
+  onboardingTasks     OnboardingTask[]
 
   @@index([branchId])
 }
@@ -484,6 +486,37 @@ model LeaveRequest {
 
   staff      Staff  @relation("LeaveRequester", fields: [staffId], references: [id])
   reviewedBy Staff? @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+
+  @@index([staffId])
+}
+
+// How many days of each leave type a staff member gets in a given year —
+// set once by an Owner/Admin/Manager; balance is this minus approved requests.
+model LeaveEntitlement {
+  id           String    @id @default(cuid())
+  staffId      String
+  type         LeaveType
+  year         Int
+  daysAllotted Float
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, type, year])
+}
+
+// A simple new-hire checklist seeded automatically when a staff account is
+// created — nothing fancier than a fixed list of common onboarding steps.
+model OnboardingTask {
+  id          String    @id @default(cuid())
+  staffId     String
+  label       String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id])
 
   @@index([staffId])
 }

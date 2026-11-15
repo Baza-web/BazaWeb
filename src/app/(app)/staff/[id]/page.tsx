@@ -2,16 +2,24 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageStaffScoped, canViewSalary, isCompanyWide, ROLE_LABELS } from "@/lib/rbac";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney, round2 } from "@/lib/utils";
 import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
+import { setLeaveEntitlement } from "../../leave/actions";
+import { toggleOnboardingTask } from "../actions";
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
   FULL_TIME: "Full-time",
   PART_TIME: "Part-time",
   CONTRACT: "Contract",
 };
+
+const LEAVE_TYPES = ["SICK", "VACATION", "PERSONAL", "OTHER"] as const;
+
+function daysInclusive(start: Date, end: Date) {
+  return Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
 
 export default async function StaffProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -27,6 +35,30 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
   if (!staff) notFound();
 
   const showSalary = canViewSalary(session.role);
+  const currentYear = new Date().getFullYear();
+  const yearStart = new Date(currentYear, 0, 1);
+  const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+
+  const [entitlements, approvedLeaveThisYear, onboardingTasks] = await Promise.all([
+    db.leaveEntitlement.findMany({ where: { staffId: staff.id, year: currentYear } }),
+    db.leaveRequest.findMany({
+      where: { staffId: staff.id, status: "APPROVED", startDate: { gte: yearStart, lte: yearEnd } },
+    }),
+    db.onboardingTask.findMany({ where: { staffId: staff.id }, orderBy: { createdAt: "asc" } }),
+  ]);
+
+  const usedByType = new Map<string, number>();
+  for (const req of approvedLeaveThisYear) {
+    usedByType.set(req.type, (usedByType.get(req.type) ?? 0) + daysInclusive(req.startDate, req.endDate));
+  }
+  const leaveRows = LEAVE_TYPES.map((type) => {
+    const entitlement = entitlements.find((e) => e.type === type);
+    const allotted = entitlement?.daysAllotted ?? 0;
+    const used = usedByType.get(type) ?? 0;
+    return { type, allotted, used, remaining: round2(allotted - used) };
+  });
+
+  const onboardingDone = onboardingTasks.filter((t) => t.completed).length;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -128,6 +160,83 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
           <p className="mb-3 text-sm text-stone-400">No documents uploaded yet.</p>
         )}
         <StaffDocumentsForm staffId={staff.id} />
+      </div>
+
+      <div className="card overflow-x-auto">
+        <h2 className="mb-3 font-medium">Leave balances — {currentYear}</h2>
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Allotted</th>
+              <th>Used</th>
+              <th>Remaining</th>
+              <th>Set allotted days</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leaveRows.map((row) => (
+              <tr key={row.type}>
+                <td>{row.type}</td>
+                <td>{row.allotted}</td>
+                <td>{row.used}</td>
+                <td className={row.remaining < 0 ? "text-red-700" : undefined}>{row.remaining}</td>
+                <td>
+                  <form action={setLeaveEntitlement.bind(null, staff.id)} className="flex items-center gap-1">
+                    <input type="hidden" name="type" value={row.type} />
+                    <input type="hidden" name="year" value={currentYear} />
+                    <input
+                      name="daysAllotted"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      defaultValue={row.allotted}
+                      className="input w-20 text-xs"
+                    />
+                    <button type="submit" className="btn-secondary text-xs">
+                      Save
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-medium">Onboarding checklist</h2>
+          <span className="text-xs text-stone-400">
+            {onboardingDone} / {onboardingTasks.length} done
+          </span>
+        </div>
+        <ul className="space-y-2">
+          {onboardingTasks.map((task) => (
+            <li key={task.id}>
+              <form action={toggleOnboardingTask.bind(null, task.id)}>
+                <button
+                  type="submit"
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-stone-50 ${
+                    task.completed ? "text-stone-400 line-through" : "text-ink-800"
+                  }`}
+                >
+                  <span
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                      task.completed ? "border-brand-500 bg-brand-500 text-white" : "border-stone-300"
+                    }`}
+                  >
+                    {task.completed && "✓"}
+                  </span>
+                  {task.label}
+                </button>
+              </form>
+            </li>
+          ))}
+          {onboardingTasks.length === 0 && (
+            <p className="text-sm text-stone-400">No onboarding checklist for this account.</p>
+          )}
+        </ul>
       </div>
     </div>
   );
