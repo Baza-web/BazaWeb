@@ -4,6 +4,8 @@ import { canManageStaff, canAddOrDeleteBranches } from "@/lib/rbac";
 import { GeofenceForm } from "@/components/GeofenceForm";
 import { DeleteBranchButton } from "@/components/DeleteBranchButton";
 import { createBranch, setMainBranch } from "./actions";
+import { PrintButton } from "@/components/PrintButton";
+import { formatDate } from "@/lib/utils";
 
 export default async function BranchesPage() {
   const session = await requireSessionOrRedirect();
@@ -19,24 +21,38 @@ export default async function BranchesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Branches</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="page-title print:hidden">Branches</h1>
+        <PrintButton selector="#branches-table" />
+      </div>
 
-      <div className="card overflow-x-auto">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Branches</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {branches.length} branch(es)</p>
+      </div>
+
+      <div id="branches-table" className="card overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Name</th>
               <th>Address</th>
               <th>Phone</th>
               <th>Staff</th>
               <th>Inventory items</th>
               <th>Main location</th>
-              {canAddOrDelete && <th>Actions</th>}
+              {canAddOrDelete && <th className="print:hidden">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {branches.map((b) => (
-              <tr key={b.id}>
+              <tr key={b.id} data-print-row>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${b.name} in print`} />
+                </td>
                 <td className="font-medium">{b.name}</td>
                 <td>{b.address ?? "—"}</td>
                 <td>{b.phone ?? "—"}</td>
@@ -54,7 +70,7 @@ export default async function BranchesPage() {
                   )}
                 </td>
                 {canAddOrDelete && (
-                  <td>
+                  <td className="print:hidden">
                     <DeleteBranchButton branchId={b.id} branchName={b.name} />
                   </td>
                 )}
@@ -62,7 +78,7 @@ export default async function BranchesPage() {
             ))}
             {branches.length === 0 && (
               <tr>
-                <td colSpan={canAddOrDelete ? 7 : 6} className="py-6 text-center text-stone-400">
+                <td colSpan={canAddOrDelete ? 8 : 7} className="py-6 text-center text-stone-400">
                   No branches yet.
                 </td>
               </tr>
@@ -71,7 +87,7 @@ export default async function BranchesPage() {
         </table>
       </div>
 
-      <div className="card space-y-4">
+      <div className="card space-y-4 print:hidden">
         <div>
           <h2 className="section-title">Clock-in location (geofence)</h2>
           <p className="text-sm text-stone-500">
@@ -95,7 +111,7 @@ export default async function BranchesPage() {
       </div>
 
       {canAddOrDelete && (
-        <div className="card max-w-md">
+        <div className="card max-w-md print:hidden">
           <h2 className="mb-3 font-medium">Add a branch</h2>
           <form action={createBranch} className="space-y-3">
             <div>

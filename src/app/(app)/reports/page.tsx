@@ -107,7 +107,7 @@ export default async function ReportsPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="page-title">Reports</h1>
+        <h1 className="page-title print:hidden">Reports</h1>
         <PrintButton label="Print report" />
       </div>
 

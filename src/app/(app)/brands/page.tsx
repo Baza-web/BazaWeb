@@ -4,6 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageBrands } from "@/lib/rbac";
 import { formatDate } from "@/lib/utils";
 import { createBrand, toggleBrandActive } from "./actions";
+import { PrintButton } from "@/components/PrintButton";
 
 export default async function BrandsPage() {
   const session = await requireSessionOrRedirect();
@@ -23,16 +24,24 @@ export default async function BrandsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="page-title">Brands</h1>
-        <p className="text-sm text-stone-500">
-          The house brands this business trades under — used to organize Creative planning and Accounting across
-          your different lines. Separate from Branches, which are physical locations.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="print:hidden">
+          <h1 className="page-title">Brands</h1>
+          <p className="text-sm text-stone-500">
+            The house brands this business trades under — used to organize Creative planning and Accounting across
+            your different lines. Separate from Branches, which are physical locations.
+          </p>
+        </div>
+        <PrintButton selector="#brands-table" />
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Brands</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {brands.length} brand(s)</p>
       </div>
 
       {pendingBrandRequests.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
           <p className="font-medium">
             {pendingBrandRequests.length} brand {pendingBrandRequests.length === 1 ? "change is" : "changes are"}{" "}
             awaiting Owner approval
@@ -50,7 +59,7 @@ export default async function BrandsPage() {
         </div>
       )}
 
-      <div className="card max-w-sm">
+      <div className="card max-w-sm print:hidden">
         <h2 className="mb-3 font-medium">Add a brand</h2>
         <form action={createBrand} className="flex gap-2">
           <input className="input" name="name" required placeholder="New brand name" />
@@ -63,20 +72,26 @@ export default async function BrandsPage() {
         )}
       </div>
 
-      <div className="card overflow-x-auto">
+      <div id="brands-table" className="card overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Name</th>
               <th>Added</th>
               <th>Used in</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th className="print:hidden">Actions</th>
             </tr>
           </thead>
           <tbody>
             {brands.map((b) => (
-              <tr key={b.id} className={b.active ? undefined : "opacity-60"}>
+              <tr key={b.id} data-print-row className={b.active ? undefined : "opacity-60"}>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${b.name} in print`} />
+                </td>
                 <td className="font-medium">
                   <Link href={`/brands/${b.id}`} className="text-brand-700 hover:underline">
                     {b.name}
@@ -92,7 +107,7 @@ export default async function BrandsPage() {
                     {b.active ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td>
+                <td className="print:hidden">
                   <form action={toggleBrandActive.bind(null, b.id)}>
                     <button type="submit" className="btn-secondary text-xs">
                       {b.active ? "Deactivate" : "Reactivate"}

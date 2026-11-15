@@ -8,6 +8,7 @@ import { ExpenseForm } from "@/components/ExpenseForm";
 import { AccountingTrendChart } from "@/components/AccountingTrendChart";
 import { RankedBarChart } from "@/components/RankedBarChart";
 import { setBudget, deleteBudget } from "./actions";
+import { PrintButton } from "@/components/PrintButton";
 
 function startOfMonth() {
   const d = new Date();
@@ -184,9 +185,9 @@ export default async function AccountingPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Accounting</h1>
+      <h1 className="page-title print:hidden">Accounting</h1>
 
-      <form className="card flex flex-wrap items-end gap-3" action="/accounting">
+      <form className="card flex flex-wrap items-end gap-3 print:hidden" action="/accounting">
         <div>
           <label className="label">From</label>
           <input
@@ -231,7 +232,7 @@ export default async function AccountingPage({
         </button>
       </form>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 print:hidden">
         <div className="card">
           <p className="text-xs text-stone-500">Income</p>
           <p className="text-xl font-semibold text-green-700">{formatMoney(income)}</p>
@@ -248,7 +249,7 @@ export default async function AccountingPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 print:hidden">
         <div className="card">
           <p className="text-xs text-stone-500">Profit margin</p>
           <p className="text-xl font-semibold text-ink-900">{profitMargin.toFixed(1)}%</p>
@@ -268,12 +269,12 @@ export default async function AccountingPage({
         </div>
       </div>
 
-      <div className="card">
+      <div className="card print:hidden">
         <h2 className="mb-3 font-medium">Income, expenses & profit — last 6 months</h2>
         <AccountingTrendChart data={trendData} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 print:hidden">
         <div className="card">
           <h2 className="mb-3 font-medium">Expenses by category</h2>
           <RankedBarChart data={categoryData} />
@@ -294,7 +295,7 @@ export default async function AccountingPage({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 print:hidden">
         {showPayroll && (
           <div className="card flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -321,7 +322,7 @@ export default async function AccountingPage({
         </div>
       </div>
 
-      <div className="card space-y-4">
+      <div className="card space-y-4 print:hidden">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Budgets — this month</h2>
           {overBudgetCount > 0 && (
@@ -397,7 +398,7 @@ export default async function AccountingPage({
         </form>
       </div>
 
-      <div className="card max-w-lg">
+      <div className="card max-w-lg print:hidden">
         <h2 className="mb-3 font-medium">Record an expense</h2>
         <ExpenseForm
           branches={branches}
@@ -408,11 +409,23 @@ export default async function AccountingPage({
         />
       </div>
 
-      <div className="card overflow-x-auto">
-        <h2 className="mb-3 font-medium">Ledger</h2>
+      <div id="ledger-table" className="card overflow-x-auto">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-medium print:hidden">Ledger</h2>
+          <PrintButton selector="#ledger-table" label="Print" />
+        </div>
+        <div className="print-report-header">
+          <h2 className="font-display text-xl font-semibold">Accounting ledger</h2>
+          <p className="text-sm text-stone-500">
+            {formatDate(fromDate)} – {formatDate(toDate)} · Printed {formatDate(new Date())} — {ledger.length} entries
+          </p>
+        </div>
         <table className="table-base">
           <thead>
             <tr>
+              <th className="w-8 print:hidden">
+                <span className="sr-only">Include in print</span>
+              </th>
               <th>Date</th>
               <th>Branch</th>
               <th>Type</th>
@@ -422,7 +435,10 @@ export default async function AccountingPage({
           </thead>
           <tbody>
             {ledger.map((entry) => (
-              <tr key={entry.id}>
+              <tr key={entry.id} data-print-row>
+                <td className="print:hidden">
+                  <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label="Include entry in print" />
+                </td>
                 <td>{formatDate(entry.date)}</td>
                 <td>{entry.branch.name}</td>
                 <td>
@@ -455,7 +471,7 @@ export default async function AccountingPage({
             ))}
             {ledger.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-stone-400">
+                <td colSpan={6} className="py-6 text-center text-stone-400">
                   No activity in this range.
                 </td>
               </tr>

@@ -4,6 +4,7 @@ import { canReviewLeave, isCompanyWide } from "@/lib/rbac";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { createLeaveRequest, reviewLeaveRequest } from "./actions";
 import { CalendarCheck } from "@phosphor-icons/react/ssr";
+import { PrintButton } from "@/components/PrintButton";
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-700",
@@ -37,7 +38,7 @@ export default async function LeavePage() {
       <h1 className="page-title">Leave</h1>
 
       {reviewer && (
-        <div className="card">
+        <div className="card print:hidden">
           <h2 className="section-title mb-3 flex items-center gap-2">
             <CalendarCheck size={18} className="text-brand-500" aria-hidden="true" />
             Pending approvals
@@ -78,7 +79,7 @@ export default async function LeavePage() {
         </div>
       )}
 
-      <div className="card max-w-lg">
+      <div className="card max-w-lg print:hidden">
         <h2 className="section-title mb-3">Request leave</h2>
         <form action={createLeaveRequest} className="space-y-4">
           <div>
@@ -110,14 +111,24 @@ export default async function LeavePage() {
         </form>
       </div>
 
-      <div className="card">
-        <h2 className="section-title mb-3">Your requests</h2>
+      <div id="leave-requests-table" className="card">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-title print:hidden">Your requests</h2>
+          <PrintButton selector="#leave-requests-table" label="Print" />
+        </div>
+        <div className="print-report-header">
+          <h2 className="font-display text-xl font-semibold">Leave requests</h2>
+          <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {myRequests.length} request(s)</p>
+        </div>
         {myRequests.length === 0 ? (
           <p className="text-sm text-stone-400">No leave requests yet.</p>
         ) : (
           <table className="table-base">
             <thead>
               <tr>
+                <th className="w-8 print:hidden">
+                  <span className="sr-only">Include in print</span>
+                </th>
                 <th>Type</th>
                 <th>Dates</th>
                 <th>Submitted</th>
@@ -126,7 +137,10 @@ export default async function LeavePage() {
             </thead>
             <tbody>
               {myRequests.map((req) => (
-                <tr key={req.id}>
+                <tr key={req.id} data-print-row>
+                  <td className="print:hidden">
+                    <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label="Include in print" />
+                  </td>
                   <td>{req.type.replace("_", " ")}</td>
                   <td>
                     {formatDate(req.startDate)} – {formatDate(req.endDate)}

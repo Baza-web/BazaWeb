@@ -4,6 +4,7 @@ import { branchScope, canManageRepairs, isCompanyWide } from "@/lib/rbac";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { createRepairOrder, updateRepairStatus, assignRepairOrder } from "./actions";
 import { Wrench } from "@phosphor-icons/react/ssr";
+import { PrintButton } from "@/components/PrintButton";
 
 const STATUS_STYLES: Record<string, string> = {
   RECEIVED: "bg-stone-100 text-stone-600",
@@ -51,10 +52,10 @@ export default async function RepairsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Repairs &amp; Custom Orders</h1>
+      <h1 className="page-title print:hidden">Repairs &amp; Custom Orders</h1>
 
       {canManage && (
-        <div className="card max-w-2xl">
+        <div className="card max-w-2xl print:hidden">
           <h2 className="section-title mb-3 flex items-center gap-2">
             <Wrench size={18} className="text-brand-500" aria-hidden="true" />
             Intake new order
@@ -143,12 +144,12 @@ export default async function RepairsPage({
         </div>
       )}
 
-      <div className="card overflow-x-auto">
+      <div id="repairs-table" className="card overflow-x-auto">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="section-title">
+          <h2 className="section-title print:hidden">
             {session.role === "CRAFTSMAN" ? "Assigned to me" : "All orders"}
           </h2>
-          <form action="/repairs" className="flex gap-2">
+          <form action="/repairs" className="flex gap-2 print:hidden">
             <select className="input text-sm" name="status" defaultValue={status ?? ""}>
               <option value="">All statuses</option>
               <option value="RECEIVED">Received</option>
@@ -161,6 +162,16 @@ export default async function RepairsPage({
               Filter
             </button>
           </form>
+          <PrintButton selector="#repairs-table" label="Print" />
+        </div>
+
+        <div className="print-report-header">
+          <h2 className="font-display text-xl font-semibold">
+            {session.role === "CRAFTSMAN" ? "Assigned to me" : "Repairs & custom orders"}
+          </h2>
+          <p className="text-sm text-stone-500">
+            {status ? `Status: ${status.replace("_", " ")} — ` : ""}Printed {formatDate(new Date())} — {orders.length} order(s)
+          </p>
         </div>
 
         {orders.length === 0 ? (
@@ -169,6 +180,9 @@ export default async function RepairsPage({
           <table className="table-base">
             <thead>
               <tr>
+                <th className="w-8 print:hidden">
+                  <span className="sr-only">Include in print</span>
+                </th>
                 <th>Customer</th>
                 <th>Type</th>
                 <th>Description</th>
@@ -176,7 +190,7 @@ export default async function RepairsPage({
                 <th>Cost</th>
                 <th>Assigned to</th>
                 <th>Status</th>
-                {canUpdateStatus && <th>Update</th>}
+                {canUpdateStatus && <th className="print:hidden">Update</th>}
               </tr>
             </thead>
             <tbody>
@@ -184,7 +198,10 @@ export default async function RepairsPage({
                 const canUpdateThis =
                   canManage || (session.role === "CRAFTSMAN" && order.assignedToId === session.staffId);
                 return (
-                  <tr key={order.id}>
+                  <tr key={order.id} data-print-row>
+                    <td className="print:hidden">
+                      <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${order.customer.name}'s order in print`} />
+                    </td>
                     <td>
                       <p className="font-medium text-ink-900">{order.customer.name}</p>
                       {isCompanyWide(session.role) && (
@@ -202,30 +219,33 @@ export default async function RepairsPage({
                           : "—"}
                     </td>
                     <td>
-                      {canManage ? (
-                        <form
-                          action={assignRepairOrder.bind(null, order.id)}
-                          className="flex items-center gap-1"
-                        >
-                          <select
-                            className="input text-xs"
-                            name="assignedToId"
-                            defaultValue={order.assignedToId ?? ""}
+                      <span className="print:hidden">
+                        {canManage ? (
+                          <form
+                            action={assignRepairOrder.bind(null, order.id)}
+                            className="flex items-center gap-1"
                           >
-                            <option value="">Unassigned</option>
-                            {craftsmen.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button type="submit" className="btn-secondary text-xs">
-                            Set
-                          </button>
-                        </form>
-                      ) : (
-                        order.assignedTo?.name ?? "—"
-                      )}
+                            <select
+                              className="input text-xs"
+                              name="assignedToId"
+                              defaultValue={order.assignedToId ?? ""}
+                            >
+                              <option value="">Unassigned</option>
+                              {craftsmen.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button type="submit" className="btn-secondary text-xs">
+                              Set
+                            </button>
+                          </form>
+                        ) : (
+                          order.assignedTo?.name ?? "—"
+                        )}
+                      </span>
+                      <span className="hidden print:inline">{order.assignedTo?.name ?? "—"}</span>
                     </td>
                     <td>
                       <span className={`badge ${STATUS_STYLES[order.status]}`}>
@@ -233,7 +253,7 @@ export default async function RepairsPage({
                       </span>
                     </td>
                     {canManage && (
-                      <td>
+                      <td className="print:hidden">
                         {canUpdateThis && (
                           <form
                             action={updateRepairStatus.bind(null, order.id)}
