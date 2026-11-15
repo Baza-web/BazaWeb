@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canManageAccounting, isCompanyWide } from "@/lib/rbac";
+import { branchScope, canManageAccounting, canManagePayroll, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { ExpenseForm } from "@/components/ExpenseForm";
 
@@ -25,14 +26,16 @@ export default async function AccountingPage({
   toDate.setHours(23, 59, 59, 999);
 
   const scope = branchScope(session, branchId);
+  const showPayroll = canManagePayroll(session.role);
 
-  const [ledger, branches] = await Promise.all([
+  const [ledger, branches, pendingPayrollCount] = await Promise.all([
     db.ledgerEntry.findMany({
       where: { ...scope, date: { gte: fromDate, lte: toDate } },
       include: { branch: true, sale: true, expense: true },
       orderBy: { date: "desc" },
     }),
     isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    showPayroll ? db.payrollRun.count({ where: { status: "DRAFT" } }) : Promise.resolve(0),
   ]);
 
   const income = ledger.filter((l) => l.type === "INCOME").reduce((s, l) => s + l.amount, 0);
@@ -91,6 +94,22 @@ export default async function AccountingPage({
           </p>
         </div>
       </div>
+
+      {showPayroll && (
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Payroll</h2>
+            <p className="text-sm text-stone-500">
+              {pendingPayrollCount > 0
+                ? `${pendingPayrollCount} draft run${pendingPayrollCount === 1 ? "" : "s"} waiting to be reviewed and paid.`
+                : "Generated from attendance and approved leave."}
+            </p>
+          </div>
+          <Link href="/accounting/payroll" className="btn-primary">
+            Open Payroll
+          </Link>
+        </div>
+      )}
 
       <div className="card max-w-lg">
         <h2 className="mb-3 font-medium">Record an expense</h2>
