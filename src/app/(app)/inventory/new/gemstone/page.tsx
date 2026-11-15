@@ -10,7 +10,10 @@ export default async function NewGemstonePage() {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const branches = isCompanyWide(session.role) ? await db.branch.findMany({ orderBy: { name: "asc" } }) : [];
+  const [branches, brands] = await Promise.all([
+    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -38,6 +41,20 @@ export default async function NewGemstonePage() {
           </div>
         ) : (
           <input type="hidden" name="branchId" value={session.branchId ?? ""} />
+        )}
+
+        {brands.length > 0 && (
+          <div>
+            <label className="label">Brand (optional)</label>
+            <select className="input" name="brandId" defaultValue="">
+              <option value="">No specific brand</option>
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -24,13 +24,16 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
 
   const item = await db.inventoryItem.findFirst({
     where: { id, ...branchScope(session) },
-    include: { branch: true, saleItems: { include: { sale: true } } },
+    include: { branch: true, brand: true, saleItems: { include: { sale: true } } },
   });
   if (!item) notFound();
 
-  const pendingEdit = canManageInventory(session.role)
-    ? await db.editRequest.findFirst({ where: { entityType: "INVENTORY", entityId: item.id, status: "PENDING" } })
-    : null;
+  const [pendingEdit, brands] = await Promise.all([
+    canManageInventory(session.role)
+      ? db.editRequest.findFirst({ where: { entityType: "INVENTORY", entityId: item.id, status: "PENDING" } })
+      : Promise.resolve(null),
+    canManageInventory(session.role) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+  ]);
 
   const detail: { label: string; value: string | null }[] = [
     { label: "Metal", value: [item.metalType, item.metalPurity].filter(Boolean).join(" · ") || null },
@@ -52,7 +55,10 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
       <div>
         <p className="text-sm text-stone-500">{item.sku}</p>
         <h1 className="page-title">{item.name}</h1>
-        <p className="text-sm text-stone-500">{item.branch.name}</p>
+        <p className="text-sm text-stone-500">
+          {item.branch.name}
+          {item.brand && <> · {item.brand.name}</>}
+        </p>
       </div>
 
       {pendingEdit && (
@@ -208,6 +214,19 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
               <label className="label">Low stock at</label>
               <input className="input" type="number" name="lowStockAt" defaultValue={item.lowStockAt} disabled={!!pendingEdit} />
             </div>
+            {brands.length > 0 && (
+              <div>
+                <label className="label">Brand</label>
+                <select className="input" name="brandId" defaultValue={item.brandId ?? ""} disabled={!!pendingEdit}>
+                  <option value="">No specific brand</option>
+                  {brands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className="label">Notes</label>
               <textarea className="input" name="notes" defaultValue={item.notes ?? ""} disabled={!!pendingEdit} rows={2} />

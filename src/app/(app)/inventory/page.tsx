@@ -18,31 +18,35 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; brandId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
   const showCost = canViewCost(session.role);
   const canDelete = canDeleteOrRequest(session.role);
-  const { q, status } = await searchParams;
+  const { q, status, brandId } = await searchParams;
 
-  const items = await db.inventoryItem.findMany({
-    where: {
-      ...branchScope(session),
-      ...(status ? { status: status as never } : {}),
-      ...(q
-        ? {
-            OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { sku: { contains: q, mode: "insensitive" } },
-              { gemstoneType: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
-    include: { branch: true },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+  const [items, brands] = await Promise.all([
+    db.inventoryItem.findMany({
+      where: {
+        ...branchScope(session),
+        ...(status ? { status: status as never } : {}),
+        ...(brandId ? { brandId } : {}),
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { sku: { contains: q, mode: "insensitive" } },
+                { gemstoneType: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      include: { branch: true, brand: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+  ]);
 
   const lowStock = items.filter((i) => i.status === "IN_STOCK" && i.quantity <= i.lowStockAt);
 
@@ -77,6 +81,16 @@ export default async function InventoryPage({
           <option value="IN_REPAIR">In repair</option>
           <option value="CONSIGNMENT">Consignment</option>
         </select>
+        {brands.length > 0 && (
+          <select className="input max-w-[180px]" name="brandId" defaultValue={brandId ?? ""}>
+            <option value="">All brands</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
         <button type="submit" className="btn-secondary">
           Filter
         </button>
@@ -90,6 +104,7 @@ export default async function InventoryPage({
               <th>Name</th>
               <th>Category</th>
               <th>Branch</th>
+              <th>Brand</th>
               <th>Qty</th>
               {showCost && <th>Cost</th>}
               <th>Price</th>
@@ -108,6 +123,7 @@ export default async function InventoryPage({
                 <td>{item.name}</td>
                 <td>{item.category.replace("_", " ")}</td>
                 <td>{item.branch.name}</td>
+                <td className="text-xs text-stone-500">{item.brand?.name ?? "—"}</td>
                 <td>
                   <span className={item.quantity <= item.lowStockAt ? "font-semibold text-amber-700" : undefined}>
                     {item.quantity}
@@ -140,7 +156,7 @@ export default async function InventoryPage({
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={showCost ? (canDelete ? 9 : 8) : canDelete ? 8 : 7} className="py-6 text-center text-stone-400">
+                <td colSpan={showCost ? (canDelete ? 10 : 9) : canDelete ? 9 : 8} className="py-6 text-center text-stone-400">
                   No items match.
                 </td>
               </tr>

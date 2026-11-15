@@ -175,6 +175,7 @@ model Brand {
   socialPosts SocialPost[]
   expenses    Expense[]
   sales       Sale[]
+  inventoryItems InventoryItem[]
 }
 
 model Staff {
@@ -270,16 +271,19 @@ model InventoryItem {
   lowStockAt     Int          @default(1)
   notes          String?
   branchId       String
+  brandId        String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   branch       Branch        @relation(fields: [branchId], references: [id])
+  brand        Brand?        @relation(fields: [brandId], references: [id])
   saleItems    SaleItem[]
   repairOrders RepairOrder[]
   brokerMemoItems BrokerMemoItem[]
 
   @@index([branchId])
   @@index([status])
+  @@index([brandId])
 }
 
 model Customer {

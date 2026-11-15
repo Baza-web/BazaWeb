@@ -50,6 +50,7 @@ const itemSchema = z.object({
   lowStockAt: z.coerce.number().int().min(0).default(1),
   notes: z.string().optional(),
   branchId: z.string().min(1),
+  brandId: z.string().optional(),
   driveLink: z.string().url().optional(),
 });
 
@@ -86,6 +87,7 @@ export async function createInventoryItem(formData: FormData) {
     lowStockAt: formData.get("lowStockAt") || 1,
     notes: emptyToUndefined(formData.get("notes")),
     branchId,
+    brandId: emptyToUndefined(formData.get("brandId")),
     driveLink: emptyToUndefined(formData.get("driveLink")),
   });
 
@@ -95,7 +97,7 @@ export async function createInventoryItem(formData: FormData) {
   const docFiles = formData.getAll("documents").filter((f) => f instanceof File) as File[];
   const documents = await saveUploadedImages(docFiles, "inventory-documents", true);
 
-  const item = await db.inventoryItem.create({ data: { ...parsed, images, documents } });
+  const item = await db.inventoryItem.create({ data: { ...parsed, brandId: parsed.brandId ?? null, images, documents } });
   redirect(`/inventory/${item.id}`);
 }
 
@@ -188,6 +190,7 @@ const editableItemSchema = z.object({
   sellingPrice: z.coerce.number().min(0),
   lowStockAt: z.coerce.number().int().min(0).default(1),
   notes: z.string().optional(),
+  brandId: z.string().optional(),
 });
 
 /**
@@ -217,12 +220,14 @@ export async function updateInventoryItem(itemId: string, formData: FormData) {
     sellingPrice: formData.get("sellingPrice"),
     lowStockAt: formData.get("lowStockAt") || 1,
     notes: emptyToUndefined(formData.get("notes")),
+    brandId: emptyToUndefined(formData.get("brandId")),
   });
 
   const changeNotes: string[] = [];
   if (parsed.name !== item.name) changeNotes.push(`Name: ${item.name} → ${parsed.name}`);
   if (parsed.costPrice !== item.costPrice) changeNotes.push(`Cost: ${formatMoney(item.costPrice)} → ${formatMoney(parsed.costPrice)}`);
   if (parsed.sellingPrice !== item.sellingPrice) changeNotes.push(`Price: ${formatMoney(item.sellingPrice)} → ${formatMoney(parsed.sellingPrice)}`);
+  if ((parsed.brandId ?? null) !== item.brandId) changeNotes.push("Brand changed");
   const fieldSummary = changeNotes.length > 0 ? changeNotes.join("; ") : "Updated item details";
 
   await initiateEdit(
@@ -231,7 +236,7 @@ export async function updateInventoryItem(itemId: string, formData: FormData) {
     itemId,
     `${item.sku} — ${item.name}`,
     fieldSummary,
-    { ...parsed, metalType: parsed.metalType ?? null, metalPurity: parsed.metalPurity ?? null, grossWeightG: parsed.grossWeightG ?? null, netWeightG: parsed.netWeightG ?? null, gemstoneType: parsed.gemstoneType ?? null, caratWeight: parsed.caratWeight ?? null, clarity: parsed.clarity ?? null, cut: parsed.cut ?? null, certification: parsed.certification ?? null, notes: parsed.notes ?? null },
+    { ...parsed, metalType: parsed.metalType ?? null, metalPurity: parsed.metalPurity ?? null, grossWeightG: parsed.grossWeightG ?? null, netWeightG: parsed.netWeightG ?? null, gemstoneType: parsed.gemstoneType ?? null, caratWeight: parsed.caratWeight ?? null, clarity: parsed.clarity ?? null, cut: parsed.cut ?? null, certification: parsed.certification ?? null, notes: parsed.notes ?? null, brandId: parsed.brandId ?? null },
   );
   revalidatePath(`/inventory/${itemId}`);
   revalidatePath("/inventory");

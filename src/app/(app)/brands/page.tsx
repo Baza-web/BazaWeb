@@ -77,7 +77,11 @@ export default async function BrandsPage() {
           <tbody>
             {brands.map((b) => (
               <tr key={b.id} className={b.active ? undefined : "opacity-60"}>
-                <td className="font-medium">{b.name}</td>
+                <td className="font-medium">
+                  <Link href={`/brands/${b.id}`} className="text-brand-700 hover:underline">
+                    {b.name}
+                  </Link>
+                </td>
                 <td>{formatDate(b.createdAt)}</td>
                 <td className="text-xs text-stone-500">
                   {b._count.staff} staff · {b._count.socialPosts} posts · {b._count.sales} sales ·{" "}
