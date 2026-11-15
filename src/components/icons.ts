@@ -45,6 +45,8 @@ import {
   Wallet,
   Handshake,
   ArrowCounterClockwise,
+  PaintBrush,
+  Money,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -66,6 +68,8 @@ export const NAV_ICONS: Record<string, Icon> = {
   groups: UsersFour,
   brokers: Handshake,
   targets: Target,
+  deletions: Trash,
+  creative: PaintBrush,
 };
 
 export {
@@ -115,4 +119,6 @@ export {
   Wallet,
   Handshake,
   ArrowCounterClockwise,
+  PaintBrush,
+  Money,
 };

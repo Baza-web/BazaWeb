@@ -15,6 +15,13 @@ enum Role {
   SALES
   ACCOUNTANT
   CRAFTSMAN
+  CREATIVE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
 }
 
 enum ItemCategory {
@@ -150,6 +157,7 @@ model Branch {
   salesTargets   SalesTarget[]
   brokers        Broker[]
   brokerMemos    BrokerMemo[]
+  payrollRuns    PayrollRun[]
 }
 
 model Staff {
@@ -164,6 +172,21 @@ model Staff {
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   createdAt    DateTime @default(now())
+  deletedAt    DateTime?
+
+  // HR details
+  nic                    String?
+  dateOfBirth            DateTime?
+  address                String?
+  emergencyContactName   String?
+  emergencyContactPhone  String?
+  dateOfJoining          DateTime?
+  employmentType         EmploymentType?
+  bankName               String?
+  bankAccountNumber      String?
+  bankBranch             String?
+  baseSalary             Float?
+  documents              String[] @default([])
 
   branch Branch? @relation(fields: [branchId], references: [id])
 
@@ -189,6 +212,11 @@ model Staff {
   memosCreated      BrokerMemo[]            @relation("MemoCreatedBy")
   memoEditsRequested BrokerMemoEditRequest[] @relation("MemoEditRequester")
   memoEditsReviewed  BrokerMemoEditRequest[] @relation("MemoEditReviewer")
+  payrollRuns        PayrollRun[]            @relation("PayrollFor")
+  payrollRunsCreated PayrollRun[]            @relation("PayrollCreatedBy")
+  deletionRequestsMade     DeletionRequest[] @relation("DeletionRequester")
+  deletionRequestsReviewed DeletionRequest[] @relation("DeletionReviewer")
+  groupMessagesSent  GroupMessage[]
 
   @@index([branchId])
 }
@@ -542,16 +570,33 @@ model PurchaseOrderItem {
 }
 
 model StaffGroup {
-  id        String   @id @default(cuid())
-  name      String
-  branchId  String
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  name           String
+  branchId       String
+  isCreativeTeam Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
   branch  Branch  @relation(fields: [branchId], references: [id])
   members Staff[] @relation("GroupMembers")
   tasks   Task[]
+  messages GroupMessage[]
 
   @@index([branchId])
+}
+
+// Simple in-app group chat scoped to a Staff Group (e.g. the Creatives team) —
+// a shared channel any member can post in, separate from 1:1 Messages.
+model GroupMessage {
+  id        String   @id @default(cuid())
+  groupId   String
+  senderId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  group  StaffGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender Staff      @relation(fields: [senderId], references: [id])
+
+  @@index([groupId, createdAt])
 }
 
 model SalesTarget {
@@ -661,4 +706,67 @@ model BrokerMemoEditRequest {
   reviewedBy  Staff?     @relation("MemoEditReviewer", fields: [reviewedById], references: [id])
 
   @@index([memoId])
+}
+
+enum PayrollStatus {
+  DRAFT
+  PAID
+}
+
+// One staff member's pay for one period. Attendance/leave figures are a
+// snapshot captured at creation time for the Accountant to review, not a
+// live link — editing past attendance later never silently changes a
+// payroll record that's already been drafted or paid.
+model PayrollRun {
+  id             String        @id @default(cuid())
+  staffId        String
+  branchId       String
+  periodStart    DateTime
+  periodEnd      DateTime
+  baseSalary     Float
+  daysPresent    Int
+  leaveDaysTaken Int
+  adjustment     Float         @default(0)
+  adjustmentNote String?
+  netPay         Float
+  status         PayrollStatus @default(DRAFT)
+  paidAt         DateTime?
+  expenseId      String?       @unique
+  createdById    String
+  createdAt      DateTime      @default(now())
+
+  staff     Staff  @relation("PayrollFor", fields: [staffId], references: [id])
+  branch    Branch @relation(fields: [branchId], references: [id])
+  createdBy Staff  @relation("PayrollCreatedBy", fields: [createdById], references: [id])
+
+  @@index([staffId])
+  @@index([branchId, periodStart])
+}
+
+enum DeletionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Maker-checker control for permanently deleting a record: Admin can only
+// request it, a different Owner must approve before anything is actually
+// deleted. entityLabel keeps a human-readable snapshot so the request is
+// still legible even after the underlying record is gone.
+model DeletionRequest {
+  id            String                 @id @default(cuid())
+  entityType    String
+  entityId      String
+  entityLabel   String
+  reason        String?
+  status        DeletionRequestStatus  @default(PENDING)
+  requestedById String
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime               @default(now())
+
+  requestedBy Staff  @relation("DeletionRequester", fields: [requestedById], references: [id])
+  reviewedBy  Staff? @relation("DeletionReviewer", fields: [reviewedById], references: [id])
+
+  @@index([entityType, entityId])
 }

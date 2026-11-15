@@ -53,6 +53,8 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/groups", label: "Groups", iconKey: "groups", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/branches", label: "Branches", iconKey: "branches", roles: ["OWNER", "ADMIN"] },
   { href: "/brokers", label: "Brokers & Memos", iconKey: "brokers", roles: ["OWNER", "ADMIN"] },
+  { href: "/deletion-requests", label: "Deletion requests", iconKey: "deletions", roles: ["OWNER"] },
+  { href: "/creative", label: "Creative Hub", iconKey: "creative", roles: ["OWNER", "ADMIN", "CREATIVE"] },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

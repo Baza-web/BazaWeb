@@ -104,6 +104,33 @@ export function canViewCost(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin only — salary and bank details are more sensitive than the rest of a staff profile, which Manager can already see/edit. */
+export function canViewSalary(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
+/** Owner only — the Owner is always the one who reviews a pending deletion request, never the Admin who raised it. */
+export function canReviewDeletions(role: Role) {
+  return role === "OWNER";
+}
+
+/** Owner/Admin — who may delete (directly, Owner) or request deletion of (Admin) a Staff/Inventory/Sale record. */
+export function canDeleteOrRequest(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
+const PAYROLL_MANAGER_ROLES: Role[] = ["OWNER", "ADMIN", "ACCOUNTANT"];
+
+/** Owner/Admin/Accountant run payroll — it needs attendance + salary data but isn't a branch-manager task. */
+export function canManagePayroll(role: Role) {
+  return PAYROLL_MANAGER_ROLES.includes(role);
+}
+
+/** Owner/Admin see every creative team for planning; Creative staff see only their own team's hub. */
+export function canAccessCreativeHub(role: Role) {
+  return role === "CREATIVE" || STAFF_MANAGER_ROLES.includes(role);
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`
@@ -123,4 +150,5 @@ export const ROLE_LABELS: Record<Role, string> = {
   SALES: "Sales Staff",
   ACCOUNTANT: "Accountant",
   CRAFTSMAN: "Craftsman / Goldsmith",
+  CREATIVE: "Creative",
 };

@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
-import { branchScope, canManageInventory, isCompanyWide } from "@/lib/rbac";
+import { branchScope, canManageInventory, canDeleteOrRequest, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedImages } from "@/lib/uploads";
+import { initiateDeletion } from "@/lib/deletion";
 
 async function requireItemInScope(itemId: string, session: SessionPayload) {
   const item = await db.inventoryItem.findFirst({ where: { id: itemId, ...branchScope(session) } });
@@ -138,4 +139,16 @@ export async function updateInventoryStatus(itemId: string, formData: FormData) 
   await db.inventoryItem.update({ where: { id: itemId }, data: { status } });
   revalidatePath(`/inventory/${itemId}`);
   revalidatePath("/inventory");
+}
+
+/** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the item has any sale/memo/repair history. */
+export async function deleteInventoryItemPermanently(itemId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+  const item = await requireItemInScope(itemId, session);
+
+  const reason = String(formData.get("reason") || "").trim() || undefined;
+  const result = await initiateDeletion(session, "INVENTORY", itemId, `${item.sku} — ${item.name}`, reason);
+  revalidatePath("/inventory");
+  return result;
 }

@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canViewReports, isCompanyWide } from "@/lib/rbac";
-import { formatMoney, formatDate } from "@/lib/utils";
-import { Trophy, ChartPieSlice, ClockCountdown, Percent } from "@phosphor-icons/react/ssr";
+import { formatMoney, formatDate, round2 } from "@/lib/utils";
+import { Trophy, ChartPieSlice, ClockCountdown, Percent, Truck, Wallet } from "@phosphor-icons/react/ssr";
 
 function startOfMonth() {
   const d = new Date();
@@ -26,26 +26,50 @@ export default async function ReportsPage({
 
   const scope = branchScope(session, branchId);
 
-  const [saleItemsInRange, staffLeaderboard, agingItems, branches] = await Promise.all([
-    db.saleItem.findMany({
-      where: { sale: { ...scope, createdAt: { gte: fromDate, lte: toDate } } },
-      include: { inventoryItem: true },
-    }),
-    db.sale.groupBy({
-      by: ["staffId"],
-      where: { ...scope, createdAt: { gte: fromDate, lte: toDate } },
-      _sum: { total: true },
-      _count: true,
-      orderBy: { _sum: { total: "desc" } },
-      take: 10,
-    }),
-    db.inventoryItem.findMany({
-      where: { ...scope, status: "IN_STOCK" },
-      orderBy: { createdAt: "asc" },
-      take: 10,
-    }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
-  ]);
+  const [saleItemsInRange, staffLeaderboard, agingItems, branches, openPurchaseOrders, unpaidSales] =
+    await Promise.all([
+      db.saleItem.findMany({
+        where: { sale: { ...scope, createdAt: { gte: fromDate, lte: toDate } } },
+        include: { inventoryItem: true },
+      }),
+      db.sale.groupBy({
+        by: ["staffId"],
+        where: { ...scope, createdAt: { gte: fromDate, lte: toDate } },
+        _sum: { total: true },
+        _count: true,
+        orderBy: { _sum: { total: "desc" } },
+        take: 10,
+      }),
+      db.inventoryItem.findMany({
+        where: { ...scope, status: "IN_STOCK" },
+        orderBy: { createdAt: "asc" },
+        take: 10,
+      }),
+      isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+      db.purchaseOrder.findMany({
+        where: { ...scope, status: { in: ["ORDERED", "RECEIVED"] } },
+        include: { supplier: true },
+        orderBy: { expectedDate: "asc" },
+      }),
+      db.sale.findMany({
+        where: { ...scope, paymentStatus: { in: ["PARTIAL", "UNPAID"] } },
+        include: { customer: true },
+        orderBy: { createdAt: "asc" },
+        take: 50,
+      }),
+    ]);
+
+  const poDues = openPurchaseOrders
+    .map((po) => ({ ...po, balance: round2(po.totalAmount - po.amountPaid) }))
+    .filter((po) => po.balance > 0);
+  const totalPODues = poDues.reduce((s, po) => s + po.balance, 0);
+
+  const saleDues = unpaidSales.map((sale) => ({
+    ...sale,
+    balance: round2(sale.total - sale.amountPaid),
+    daysOutstanding: Math.floor((Date.now() - sale.createdAt.getTime()) / 86_400_000),
+  }));
+  const totalSaleDues = saleDues.reduce((s, sale) => s + sale.balance, 0);
 
   // Aggregate best-sellers and profit margin in JS — revenue per line is
   // priceEach * quantity, which Prisma's groupBy can't compute directly.
@@ -131,6 +155,110 @@ export default async function ReportsPage({
           </div>
           <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{margin.toFixed(1)}%</p>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Owed to suppliers</p>
+            <Truck size={18} className="text-red-600" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-red-700">{formatMoney(totalPODues)}</p>
+          <p className="mt-1 text-xs text-stone-500">
+            {poDues.length} open purchase order{poDues.length === 1 ? "" : "s"} with a balance
+          </p>
+        </div>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Owed by customers</p>
+            <Wallet size={18} className="text-amber-600" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-amber-700">{formatMoney(totalSaleDues)}</p>
+          <p className="mt-1 text-xs text-stone-500">
+            {saleDues.length} unpaid or partially paid sale{saleDues.length === 1 ? "" : "s"}
+          </p>
+        </div>
+      </div>
+
+      <div className="card overflow-x-auto">
+        <h2 className="section-title mb-3 flex items-center gap-2">
+          <Truck size={18} className="text-brand-500" aria-hidden="true" />
+          Purchase orders — open & due
+        </h2>
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Supplier</th>
+              <th>Status</th>
+              <th>Expected</th>
+              <th>Balance due</th>
+            </tr>
+          </thead>
+          <tbody>
+            {poDues.map((po) => {
+              const overdue = po.status === "ORDERED" && po.expectedDate && po.expectedDate < new Date();
+              return (
+                <tr key={po.id}>
+                  <td>{po.orderNumber}</td>
+                  <td>{po.supplier.name}</td>
+                  <td>
+                    <span className="badge bg-stone-200 text-stone-600">{po.status}</span>
+                    {overdue && <span className="badge ml-2 bg-red-100 text-red-700">Overdue</span>}
+                  </td>
+                  <td>{po.expectedDate ? formatDate(po.expectedDate) : "—"}</td>
+                  <td className="font-medium text-red-700">{formatMoney(po.balance)}</td>
+                </tr>
+              );
+            })}
+            {poDues.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-6 text-center text-stone-400">
+                  No purchase order balances outstanding.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card overflow-x-auto">
+        <h2 className="section-title mb-3 flex items-center gap-2">
+          <Wallet size={18} className="text-brand-500" aria-hidden="true" />
+          Customer dues — unpaid & partial sales
+        </h2>
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Customer</th>
+              <th>Sold</th>
+              <th>Days outstanding</th>
+              <th>Balance due</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saleDues.map((sale) => (
+              <tr key={sale.id}>
+                <td>{sale.invoiceNumber}</td>
+                <td>{sale.customer?.name ?? "Walk-in customer"}</td>
+                <td>{formatDate(sale.createdAt)}</td>
+                <td>
+                  {sale.daysOutstanding}
+                  {sale.daysOutstanding > 30 && <span className="badge ml-2 bg-red-100 text-red-700">30+ days</span>}
+                </td>
+                <td className="font-medium text-amber-700">{formatMoney(sale.balance)}</td>
+              </tr>
+            ))}
+            {saleDues.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-6 text-center text-stone-400">
+                  No outstanding customer balances.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       <div className="card overflow-x-auto">

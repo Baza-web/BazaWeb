@@ -15,9 +15,11 @@ export async function createGroup(formData: FormData) {
     : session.branchId ?? String(formData.get("branchId"));
 
   const { name } = z.object({ name: z.string().min(2) }).parse({ name: formData.get("name") });
+  const isCreativeTeam = formData.get("isCreativeTeam") === "on";
 
-  await db.staffGroup.create({ data: { name, branchId } });
+  await db.staffGroup.create({ data: { name, branchId, isCreativeTeam } });
   revalidatePath("/groups");
+  revalidatePath("/creative");
 }
 
 async function assertGroupInScope(groupId: string, session: SessionPayload) {
@@ -44,6 +46,7 @@ export async function addGroupMember(groupId: string, formData: FormData) {
     data: { members: { connect: { id: staffId } } },
   });
   revalidatePath("/groups");
+  revalidatePath("/creative");
 }
 
 export async function removeGroupMember(groupId: string, formData: FormData) {
@@ -58,4 +61,5 @@ export async function removeGroupMember(groupId: string, formData: FormData) {
     data: { members: { disconnect: { id: staffId } } },
   });
   revalidatePath("/groups");
+  revalidatePath("/creative");
 }

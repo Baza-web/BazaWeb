@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageStaffScoped, branchScope, ROLE_LABELS } from "@/lib/rbac";
-import { toggleStaffActive } from "./actions";
+import { canManageStaffScoped, canManageStaff, branchScope, ROLE_LABELS } from "@/lib/rbac";
+import { toggleStaffActive, deleteStaffPermanently } from "./actions";
+import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { Plus } from "@phosphor-icons/react/ssr";
 
 export default async function StaffPage() {
@@ -10,11 +11,13 @@ export default async function StaffPage() {
   if (!canManageStaffScoped(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
+  const canDelete = canManageStaff(session.role);
 
   const staff = await db.staff.findMany({
-    where: branchScope(session),
+    where: { ...branchScope(session), deletedAt: null },
     include: { branch: true },
-    orderBy: { createdAt: "asc" },
+    // Active staff first, then by name, so a growing roster of leavers never buries who's actually working today.
+    orderBy: [{ active: "desc" }, { name: "asc" }],
   });
 
   return (
@@ -36,13 +39,17 @@ export default async function StaffPage() {
               <th>Role</th>
               <th>Branch</th>
               <th>Status</th>
-              <th></th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {staff.map((s) => (
-              <tr key={s.id}>
-                <td className="font-medium">{s.name}</td>
+              <tr key={s.id} className={s.active ? undefined : "opacity-60"}>
+                <td className="font-medium">
+                  <Link href={`/staff/${s.id}`} className="text-brand-700 hover:underline">
+                    {s.name}
+                  </Link>
+                </td>
                 <td>{s.email}</td>
                 <td>{ROLE_LABELS[s.role]}</td>
                 <td>{s.branch?.name ?? "—"}</td>
@@ -57,11 +64,22 @@ export default async function StaffPage() {
                 </td>
                 <td>
                   {s.id !== session.staffId && (
-                    <form action={toggleStaffActive.bind(null, s.id)}>
-                      <button type="submit" className="btn-secondary text-xs">
-                        {s.active ? "Deactivate" : "Reactivate"}
-                      </button>
-                    </form>
+                    <div className="flex items-center gap-3">
+                      <form action={toggleStaffActive.bind(null, s.id)}>
+                        <button type="submit" className="btn-secondary text-xs">
+                          {s.active ? "Deactivate" : "Reactivate"}
+                        </button>
+                      </form>
+                      {canDelete && (
+                        <DeleteRecordButton
+                          action={deleteStaffPermanently.bind(null, s.id)}
+                          label="account"
+                          isOwner={session.role === "OWNER"}
+                          confirmMessage={`Permanently delete ${s.name}? Their login is removed and they're hidden everywhere — this can't be undone.`}
+                          requestMessage={`Request permanent deletion of ${s.name}? An Owner will need to approve it before anything happens.`}
+                        />
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>
