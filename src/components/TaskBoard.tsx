@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { updateTaskStatus } from "@/app/(app)/tasks/actions";
 import { initials, formatDate } from "@/lib/utils";
@@ -67,6 +67,13 @@ export function TaskBoard({
   const [modalOpen, setModalOpen] = useState(false);
   const [, startTransition] = useTransition();
 
+  const tasksByStatus = useMemo(() => {
+    const grouped = new Map<TaskStatus, BoardTask[]>();
+    for (const col of COLUMNS) grouped.set(col.status, []);
+    for (const t of items) grouped.get(t.status)?.push(t);
+    return grouped;
+  }, [items]);
+
   function canEdit(task: BoardTask) {
     return (
       canEditAny ||
@@ -102,7 +109,7 @@ export function TaskBoard({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {COLUMNS.map((col) => {
-          const colTasks = items.filter((t) => t.status === col.status);
+          const colTasks = tasksByStatus.get(col.status) ?? [];
           return (
             <div
               key={col.status}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { SocialPostModal } from "./SocialPostModal";
 import { CaretRight, Plus } from "./icons";
@@ -58,22 +58,26 @@ export function ContentCalendar({
   const [modalOpen, setModalOpen] = useState(false);
   const [modalDate, setModalDate] = useState<string | undefined>(undefined);
 
-  const firstOfMonth = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startWeekday = firstOfMonth.getDay();
+  const { postsByDay, cells } = useMemo(() => {
+    const firstOfMonth = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startWeekday = firstOfMonth.getDay();
 
-  const postsByDay = new Map<number, CalendarPost[]>();
-  for (const post of posts) {
-    const d = new Date(post.scheduledAt);
-    if (d.getFullYear() !== year || d.getMonth() !== month) continue;
-    const day = d.getDate();
-    if (!postsByDay.has(day)) postsByDay.set(day, []);
-    postsByDay.get(day)!.push(post);
-  }
+    const byDay = new Map<number, CalendarPost[]>();
+    for (const post of posts) {
+      const d = new Date(post.scheduledAt);
+      if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+      const day = d.getDate();
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day)!.push(post);
+    }
 
-  const cells: (number | null)[] = Array(startWeekday).fill(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
+    const dayCells: (number | null)[] = Array(startWeekday).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) dayCells.push(d);
+    while (dayCells.length % 7 !== 0) dayCells.push(null);
+
+    return { postsByDay: byDay, cells: dayCells };
+  }, [posts, year, month]);
 
   function openModalFor(day: number) {
     const dt = new Date(year, month, day, 10, 0);
