@@ -3,8 +3,14 @@ import { db } from "./db";
 import type { SessionPayload } from "./auth";
 import type { Prisma } from "@prisma/client";
 import { round2 } from "./utils";
+import { notifyStaff } from "./notifications";
 
 export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND";
+
+async function notifyOwners(title: string, body: string, link: string) {
+  const owners = await db.staff.findMany({ where: { role: "OWNER", active: true } });
+  await Promise.all(owners.map((o) => notifyStaff(o.id, "SYSTEM", title, body, link)));
+}
 
 /**
  * A sale's total/paymentStatus are derived from its items (unaffected here)
@@ -86,6 +92,11 @@ export async function initiateEdit(
   await db.editRequest.create({
     data: { entityType, entityId, entityLabel, fieldSummary, proposedData, reason, requestedById: session.staffId },
   });
+  await notifyOwners(
+    "Edit awaiting approval",
+    `${session.name} wants to update ${entityLabel} — ${fieldSummary}`,
+    "/edit-requests",
+  );
   return { status: "requested" };
 }
 
@@ -103,4 +114,11 @@ export async function reviewEditRequest(session: SessionPayload, requestId: stri
     where: { id: requestId },
     data: { status: decision, reviewedById: session.staffId, reviewedAt: new Date() },
   });
+  await notifyStaff(
+    request.requestedById,
+    "SYSTEM",
+    decision === "APPROVED" ? "Your edit was approved" : "Your edit was rejected",
+    `${session.name} ${decision === "APPROVED" ? "approved" : "rejected"} your edit to ${request.entityLabel} — ${request.fieldSummary}`,
+    "/edit-requests",
+  );
 }

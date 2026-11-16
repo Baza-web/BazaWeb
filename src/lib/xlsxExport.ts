@@ -89,7 +89,7 @@ export function xlsxResponse(buffer: Buffer, filename: string) {
   });
 }
 
-export function timestampedFilename(base: string) {
+export function timestampedFilename(base: string, extension = "xlsx") {
   const d = new Date().toISOString().slice(0, 10);
-  return `${base}-${d}.xlsx`;
+  return `${base}-${d}.${extension}`;
 }
