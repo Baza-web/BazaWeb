@@ -509,6 +509,41 @@ There's no one-click removal once it's there (the records reference each
 other), so only run it if you're fine leaving it in for a while, or ask
 for a cleanup script when you want it gone.
 
+## Accounting cross-check demo data (for QA / accounts-team handover)
+
+To exercise every Accounting feature — auto-posting, Trial Balance,
+Balance Sheet, Cash Flow, AR/AP aging, Bank Reconciliation — with
+realistic numbers under the Baza Boutique and Maison Dor brands before
+handing the system to your accounts team, run:
+
+```
+docker compose exec app node_modules/.bin/tsx prisma/accounting-demo-data.ts
+```
+
+This creates, per brand: 10 customers, 10 inventory items, 10 sales
+(mixed PAID/PARTIAL/UNPAID, spread across every AR aging bucket), and 10
+expenses (one per expense category) — plus, not brand-specific: 10
+suppliers, 10 purchase orders (mixed payment status, spread across AP
+aging buckets), 10 manual journal entries, and 10 bank statement lines
+on the Bank account (6 with a real match waiting in Bank Reconciliation,
+4 deliberately unmatched, so the team can practice both the match and
+the "no match found" paths). Running it twice is a no-op (it checks for
+a customer on `@acct-demo.test` first).
+
+Everything it creates is tagged `[ACCT-DEMO]` in notes/descriptions, with
+emails ending in `@acct-demo.test` and inventory SKUs starting with
+`ACCTDEMO-` — unmistakably test data. When you're done cross-checking
+and ready to hand over a clean system, remove all of it with:
+
+```
+docker compose exec app node_modules/.bin/tsx prisma/accounting-demo-cleanup.ts
+```
+
+This hard-deletes everything the seed script created (restocking the
+demo inventory first) — safe because none of it was ever a real
+financial record. It only ever matches by the `[ACCT-DEMO]` tag, never
+by date or id range, so it can't touch anything else.
+
 ## Where things live
 
 | What | Where |
