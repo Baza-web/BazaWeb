@@ -3,7 +3,7 @@ import { db } from "./db";
 import type { SessionPayload } from "./auth";
 import { notifyStaff } from "./notifications";
 
-export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE";
+export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE" | "CUSTOMER" | "EXPENSE" | "BROKER";
 
 async function notifyOwners(title: string, body: string, link: string) {
   const owners = await db.staff.findMany({ where: { role: "OWNER", active: true } });
@@ -77,10 +77,50 @@ async function performSaleDeletion(entityId: string) {
   });
 }
 
+/** Refuses to delete a customer with real purchase or repair history — that's business data, never silently cascaded away. */
+async function performCustomerDeletion(entityId: string) {
+  const [saleCount, repairCount] = await Promise.all([
+    db.sale.count({ where: { customerId: entityId } }),
+    db.repairOrder.count({ where: { customerId: entityId } }),
+  ]);
+  if (saleCount + repairCount > 0) {
+    throw new Error("This customer has sales or repair history and can't be deleted.");
+  }
+  await db.$transaction([
+    db.customerNote.deleteMany({ where: { customerId: entityId } }),
+    db.emailLog.deleteMany({ where: { customerId: entityId } }),
+    db.customer.delete({ where: { id: entityId } }),
+  ]);
+}
+
+/** Refuses to delete an expense created from a Purchase Order payment — PurchaseOrder.amountPaid is a running total that isn't recalculated from its linked expenses, so removing one here would silently overstate how much is still owed. */
+async function performExpenseDeletion(entityId: string) {
+  const expense = await db.expense.findUniqueOrThrow({ where: { id: entityId } });
+  if (expense.purchaseOrderId) {
+    throw new Error("This expense was created from a Purchase Order payment and can't be deleted here.");
+  }
+  await db.$transaction([
+    db.ledgerEntry.deleteMany({ where: { expenseId: entityId } }),
+    db.expense.delete({ where: { id: entityId } }),
+  ]);
+}
+
+/** Refuses to delete a broker with any memo history — consignment stock may still be outstanding against them. */
+async function performBrokerDeletion(entityId: string) {
+  const memoCount = await db.brokerMemo.count({ where: { brokerId: entityId } });
+  if (memoCount > 0) {
+    throw new Error("This broker has memo history and can't be deleted — mark them inactive instead if they're no longer active.");
+  }
+  await db.broker.delete({ where: { id: entityId } });
+}
+
 const PERFORMERS: Record<DeletableEntityType, (id: string) => Promise<void>> = {
   STAFF: performStaffDeletion,
   INVENTORY: performInventoryDeletion,
   SALE: performSaleDeletion,
+  CUSTOMER: performCustomerDeletion,
+  EXPENSE: performExpenseDeletion,
+  BROKER: performBrokerDeletion,
 };
 
 async function assertNoPendingRequest(entityType: DeletableEntityType, entityId: string) {
@@ -112,6 +152,18 @@ export async function initiateDeletion(
     "/deletion-requests",
   );
   return { status: "requested" };
+}
+
+/** Lets the person who made a pending deletion request withdraw it themselves, instead of being stuck waiting on an Owner who may never review it. */
+export async function cancelDeletionRequest(session: SessionPayload, requestId: string) {
+  const request = await db.deletionRequest.findUniqueOrThrow({ where: { id: requestId } });
+  if (request.status !== "PENDING") throw new Error("This request has already been reviewed.");
+  if (request.requestedById !== session.staffId) throw new Error("You can only cancel your own request.");
+
+  await db.deletionRequest.update({
+    where: { id: requestId },
+    data: { status: "REJECTED", reviewedById: session.staffId, reviewedAt: new Date() },
+  });
 }
 
 export async function reviewDeletionRequest(

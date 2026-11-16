@@ -10,6 +10,8 @@ const TYPE_LABELS: Record<string, string> = {
   CUSTOMER: "Customer",
   SALE: "Sale",
   BRAND: "Brand",
+  EXPENSE: "Expense",
+  BROKER: "Broker",
 };
 
 export default async function EditRequestsPage() {

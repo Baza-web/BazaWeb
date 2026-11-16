@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
 import { branchScope, canManageBrokers, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
+import { initiateEdit } from "@/lib/editRequests";
+import { initiateDeletion } from "@/lib/deletion";
 import { round2 } from "@/lib/utils";
 import { generateBrokerStatementXlsx, brokerStatementEmailHtml } from "@/lib/brokerStatement";
 import { sendEmail } from "@/lib/email";
@@ -93,6 +95,44 @@ export async function createBroker(formData: FormData) {
 
   await db.broker.create({ data: { ...parsed, createdById: session.staffId } });
   revalidatePath("/brokers");
+}
+
+/** Owner's edit applies immediately; anyone else's is a pending request an Owner must approve first. */
+export async function updateBroker(brokerId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+
+  const broker = await db.broker.findFirst({ where: { id: brokerId, ...branchScope(session) } });
+  if (!broker) throw new Error("Forbidden");
+
+  const parsed = brokerSchema.omit({ branchId: true }).parse({
+    name: formData.get("name"),
+    company: emptyToUndefined(formData.get("company")),
+    email: emptyToUndefined(formData.get("email")),
+    phone: emptyToUndefined(formData.get("phone")),
+    address: emptyToUndefined(formData.get("address")),
+    notes: emptyToUndefined(formData.get("notes")),
+  });
+
+  await initiateEdit(session, "BROKER", brokerId, broker.name, "Updated broker contact details", { ...parsed });
+  revalidatePath("/brokers");
+  revalidatePath(`/brokers/${brokerId}`);
+  revalidatePath("/edit-requests");
+}
+
+/** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the broker has any memo history. */
+export async function deleteBrokerPermanently(brokerId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+
+  const broker = await db.broker.findFirst({ where: { id: brokerId, ...branchScope(session) } });
+  if (!broker) throw new Error("Forbidden");
+
+  const reason = String(formData.get("reason") || "").trim() || undefined;
+  const result = await initiateDeletion(session, "BROKER", brokerId, broker.name, reason);
+  revalidatePath("/brokers");
+  revalidatePath("/deletion-requests");
+  return result;
 }
 
 const memoLineSchema = z.object({
@@ -209,6 +249,50 @@ const editRequestSchema = z.object({
   reason: z.string().optional(),
 });
 
+type MemoWithItems = Awaited<ReturnType<typeof db.brokerMemo.findFirstOrThrow<{ include: { items: true; broker: true } }>>>;
+
+/** The actual mutation behind an approved (or Owner-immediate) memo edit — shared by requestMemoEdit's Owner path and reviewMemoEditRequest's approval path, so they can never drift apart. */
+async function applyMemoEditChanges(
+  memo: MemoWithItems,
+  itemReturns: { memoItemId: string; returnQuantity: number }[],
+  notesChange: string | undefined,
+) {
+  await db.$transaction(async (tx) => {
+    for (const r of itemReturns) {
+      if (r.returnQuantity <= 0) continue;
+      const item = memo.items.find((i) => i.id === r.memoItemId);
+      if (!item) continue;
+
+      await tx.brokerMemoItem.update({
+        where: { id: r.memoItemId },
+        data: { returnedQuantity: { increment: r.returnQuantity } },
+      });
+
+      const invItem = await tx.inventoryItem.findUniqueOrThrow({ where: { id: item.inventoryItemId } });
+      await tx.inventoryItem.update({
+        where: { id: item.inventoryItemId },
+        data: {
+          quantity: { increment: r.returnQuantity },
+          status: invItem.status === "CONSIGNMENT" ? "IN_STOCK" : invItem.status,
+        },
+      });
+    }
+
+    const updatedItems = await tx.brokerMemoItem.findMany({ where: { memoId: memo.id } });
+    const totalTaken = updatedItems.reduce((s, i) => s + i.quantity, 0);
+    const totalReturned = updatedItems.reduce((s, i) => s + i.returnedQuantity, 0);
+    const newStatus = totalReturned === 0 ? "OPEN" : totalReturned < totalTaken ? "PARTIALLY_RETURNED" : "RETURNED";
+
+    await tx.brokerMemo.update({
+      where: { id: memo.id },
+      data: { status: newStatus, notes: notesChange !== undefined ? notesChange : undefined },
+    });
+  });
+
+  await sendBrokerStatement(memo.brokerId).catch((err) => console.error("Failed to email broker statement:", err));
+}
+
+/** Owner's edit applies immediately, same convention as initiateEdit/initiateDeletion elsewhere — Admin's still goes to a pending request a different Owner/Admin must approve. */
 export async function requestMemoEdit(memoId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   if (!canManageBrokers(session.role)) throw new Error("Forbidden");
@@ -237,6 +321,13 @@ export async function requestMemoEdit(memoId: string, formData: FormData) {
 
   const hasChange = parsed.itemReturns.some((r) => r.returnQuantity > 0) || parsed.notesChange !== undefined;
   if (!hasChange) throw new Error("Nothing to change.");
+
+  if (session.role === "OWNER") {
+    await applyMemoEditChanges(memo, parsed.itemReturns, parsed.notesChange);
+    revalidatePath(`/brokers/${memo.brokerId}`);
+    revalidatePath("/inventory");
+    return;
+  }
 
   await db.brokerMemoEditRequest.create({
     data: {
@@ -289,50 +380,11 @@ export async function reviewMemoEditRequest(requestId: string, formData: FormDat
     });
   } else {
     const itemReturns = request.itemReturns as { memoItemId: string; returnQuantity: number }[];
-
-    await db.$transaction(async (tx) => {
-      for (const r of itemReturns) {
-        if (r.returnQuantity <= 0) continue;
-        const item = request.memo.items.find((i) => i.id === r.memoItemId);
-        if (!item) continue;
-
-        await tx.brokerMemoItem.update({
-          where: { id: r.memoItemId },
-          data: { returnedQuantity: { increment: r.returnQuantity } },
-        });
-
-        const invItem = await tx.inventoryItem.findUniqueOrThrow({ where: { id: item.inventoryItemId } });
-        await tx.inventoryItem.update({
-          where: { id: item.inventoryItemId },
-          data: {
-            quantity: { increment: r.returnQuantity },
-            status: invItem.status === "CONSIGNMENT" ? "IN_STOCK" : invItem.status,
-          },
-        });
-      }
-
-      const updatedItems = await tx.brokerMemoItem.findMany({ where: { memoId: request.memoId } });
-      const totalTaken = updatedItems.reduce((s, i) => s + i.quantity, 0);
-      const totalReturned = updatedItems.reduce((s, i) => s + i.returnedQuantity, 0);
-      const newStatus = totalReturned === 0 ? "OPEN" : totalReturned < totalTaken ? "PARTIALLY_RETURNED" : "RETURNED";
-
-      await tx.brokerMemo.update({
-        where: { id: request.memoId },
-        data: {
-          status: newStatus,
-          notes: request.notesChange !== null ? request.notesChange ?? undefined : undefined,
-        },
-      });
-
-      await tx.brokerMemoEditRequest.update({
-        where: { id: requestId },
-        data: { status: "APPROVED", reviewedById: session.staffId, reviewedAt: new Date() },
-      });
+    await applyMemoEditChanges(request.memo, itemReturns, request.notesChange ?? undefined);
+    await db.brokerMemoEditRequest.update({
+      where: { id: requestId },
+      data: { status: "APPROVED", reviewedById: session.staffId, reviewedAt: new Date() },
     });
-
-    await sendBrokerStatement(request.memo.brokerId).catch((err) =>
-      console.error("Failed to email broker statement:", err),
-    );
   }
 
   await notifyStaff(

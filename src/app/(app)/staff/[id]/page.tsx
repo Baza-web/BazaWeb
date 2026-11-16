@@ -6,6 +6,8 @@ import { formatDate, formatMoney, round2 } from "@/lib/utils";
 import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
 import { StaffPasswordForm } from "@/components/StaffPasswordForm";
+import { CancelRequestButton } from "@/components/CancelRequestButton";
+import { withdrawEditRequest } from "../../edit-requests/actions";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
 import { setLeaveEntitlement } from "../../leave/actions";
 import { toggleOnboardingTask, setStaffBrands } from "../actions";
@@ -79,6 +81,9 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
             {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
             further edits can be made to this profile until that request is approved or rejected.
           </p>
+          {pendingEdit.requestedById === session.staffId && (
+            <CancelRequestButton onCancel={withdrawEditRequest.bind(null, pendingEdit.id)} />
+          )}
         </div>
       )}
 

@@ -2,10 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope } from "@/lib/rbac";
+import { branchScope, canDeleteOrRequest } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
-import { addCustomerNote, updateCustomer } from "../actions";
+import { addCustomerNote, updateCustomer, deleteCustomerPermanently } from "../actions";
 import { EnvelopeSimple } from "@/components/icons";
+import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { CancelRequestButton } from "@/components/CancelRequestButton";
+import { withdrawEditRequest } from "../../edit-requests/actions";
 
 function toDateInput(d: Date | null) {
   return d ? d.toISOString().slice(0, 10) : "";
@@ -40,12 +43,24 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"}
           </p>
         </div>
-        {customer.email && (
-          <Link href={`/email?customerId=${customer.id}`} className="btn-secondary inline-flex items-center gap-1.5 text-sm">
-            <EnvelopeSimple size={16} aria-hidden="true" />
-            Email
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {customer.email && (
+            <Link href={`/email?customerId=${customer.id}`} className="btn-secondary inline-flex items-center gap-1.5 text-sm">
+              <EnvelopeSimple size={16} aria-hidden="true" />
+              Email
+            </Link>
+          )}
+          {canDeleteOrRequest(session.role) && (
+            <DeleteRecordButton
+              action={deleteCustomerPermanently.bind(null, customer.id)}
+              label="customer"
+              isOwner={session.role === "OWNER"}
+              confirmMessage={`Permanently delete ${customer.name}? This can't be undone.`}
+              requestMessage={`Request permanent deletion of ${customer.name}? An Owner will need to approve it before anything happens.`}
+              redirectTo="/customers"
+            />
+          )}
+        </div>
       </div>
 
       {pendingEdit && (
@@ -55,6 +70,9 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
             further edits can be made until that request is approved or rejected.
           </p>
+          {pendingEdit.requestedById === session.staffId && (
+            <CancelRequestButton onCancel={withdrawEditRequest.bind(null, pendingEdit.id)} />
+          )}
         </div>
       )}
 

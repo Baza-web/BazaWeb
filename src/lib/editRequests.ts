@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { round2 } from "./utils";
 import { notifyStaff } from "./notifications";
 
-export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND";
+export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND" | "EXPENSE" | "BROKER";
 
 async function notifyOwners(title: string, body: string, link: string) {
   const owners = await db.staff.findMany({ where: { role: "OWNER", active: true } });
@@ -48,6 +48,21 @@ async function applyBrandEdit(id: string, data: Prisma.JsonObject) {
   await db.brand.update({ where: { id }, data: rest as Prisma.BrandUpdateInput });
 }
 
+/** Keeps the linked LedgerEntry's amount in sync, same reasoning as applySaleEdit. Refuses to edit an expense created from a Purchase Order payment — PurchaseOrder.amountPaid isn't recalculated from its linked expenses, so changing one here would silently desync how much is recorded as paid. */
+async function applyExpenseEdit(id: string, data: Prisma.JsonObject) {
+  const expense = await db.expense.findUniqueOrThrow({ where: { id } });
+  if (expense.purchaseOrderId) {
+    throw new Error("This expense was created from a Purchase Order payment and can't be edited here.");
+  }
+  const { amount: rawAmount, ...rest } = data;
+  const amount = typeof rawAmount === "number" ? rawAmount : expense.amount;
+
+  await db.$transaction(async (tx) => {
+    await tx.expense.update({ where: { id }, data: { ...(rest as Prisma.ExpenseUpdateInput), amount } });
+    await tx.ledgerEntry.updateMany({ where: { expenseId: id }, data: { amount } });
+  });
+}
+
 const PERFORMERS: Record<EditableEntityType, (id: string, data: Prisma.JsonObject) => Promise<void>> = {
   STAFF: async (id, data) => {
     await db.staff.update({ where: { id }, data: data as Prisma.StaffUpdateInput });
@@ -60,6 +75,10 @@ const PERFORMERS: Record<EditableEntityType, (id: string, data: Prisma.JsonObjec
   },
   SALE: applySaleEdit,
   BRAND: applyBrandEdit,
+  EXPENSE: applyExpenseEdit,
+  BROKER: async (id, data) => {
+    await db.broker.update({ where: { id }, data: data as Prisma.BrokerUpdateInput });
+  },
 };
 
 async function assertNoPendingRequest(entityType: EditableEntityType, entityId: string) {
@@ -98,6 +117,18 @@ export async function initiateEdit(
     "/edit-requests",
   );
   return { status: "requested" };
+}
+
+/** Lets the person who made a pending request withdraw it themselves, instead of being stuck waiting on an Owner who may never review it (e.g. they changed their mind, or made a mistake). */
+export async function cancelEditRequest(session: SessionPayload, requestId: string) {
+  const request = await db.editRequest.findUniqueOrThrow({ where: { id: requestId } });
+  if (request.status !== "PENDING") throw new Error("This request has already been reviewed.");
+  if (request.requestedById !== session.staffId) throw new Error("You can only cancel your own request.");
+
+  await db.editRequest.update({
+    where: { id: requestId },
+    data: { status: "REJECTED", reviewedById: session.staffId, reviewedAt: new Date() },
+  });
 }
 
 export async function reviewEditRequest(session: SessionPayload, requestId: string, decision: "APPROVED" | "REJECTED") {

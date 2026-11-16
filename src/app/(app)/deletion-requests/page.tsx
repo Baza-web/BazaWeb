@@ -8,6 +8,9 @@ const TYPE_LABELS: Record<string, string> = {
   STAFF: "Staff account",
   INVENTORY: "Inventory item",
   SALE: "Sale",
+  CUSTOMER: "Customer",
+  EXPENSE: "Expense",
+  BROKER: "Broker",
 };
 
 export default async function DeletionRequestsPage() {

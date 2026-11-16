@@ -4,9 +4,11 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageAccounting, isCompanyWide } from "@/lib/rbac";
+import { canManageAccounting, canDeleteOrRequest, isCompanyWide, branchScope } from "@/lib/rbac";
 import { saveUploadedFile, detectFileKind } from "@/lib/uploads";
 import { extractExpenseFromImage, extractExpenseFromText, aiConfigured, type ExtractedExpense } from "@/lib/ai";
+import { initiateEdit } from "@/lib/editRequests";
+import { initiateDeletion } from "@/lib/deletion";
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -125,6 +127,53 @@ export async function createExpense(formData: FormData) {
   });
 
   revalidatePath("/accounting");
+}
+
+const expenseEditSchema = z.object({
+  category: z.string().min(1),
+  description: z.string().min(1),
+  amount: z.coerce.number().positive(),
+  date: z.coerce.date(),
+});
+
+/** Owner's edit applies immediately; anyone else's is a pending request an Owner must approve first. Refused for expenses created from a Purchase Order payment. */
+export async function updateExpense(expenseId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+
+  const expense = await db.expense.findFirst({ where: { id: expenseId, ...branchScope(session) } });
+  if (!expense) throw new Error("Forbidden");
+
+  const parsed = expenseEditSchema.parse({
+    category: formData.get("category"),
+    description: formData.get("description"),
+    amount: formData.get("amount"),
+    date: formData.get("date"),
+  });
+
+  await initiateEdit(session, "EXPENSE", expenseId, expense.description, "Updated expense details", {
+    category: parsed.category,
+    description: parsed.description,
+    amount: parsed.amount,
+    date: parsed.date.toISOString(),
+  });
+  revalidatePath("/accounting");
+  revalidatePath("/edit-requests");
+}
+
+/** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused for expenses created from a Purchase Order payment. */
+export async function deleteExpensePermanently(expenseId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+
+  const expense = await db.expense.findFirst({ where: { id: expenseId, ...branchScope(session) } });
+  if (!expense) throw new Error("Forbidden");
+
+  const reason = String(formData.get("reason") || "").trim() || undefined;
+  const result = await initiateDeletion(session, "EXPENSE", expenseId, expense.description, reason);
+  revalidatePath("/accounting");
+  revalidatePath("/deletion-requests");
+  return result;
 }
 
 const budgetSchema = z.object({

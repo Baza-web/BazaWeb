@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canReviewDeletions } from "@/lib/rbac";
-import { reviewDeletionRequest } from "@/lib/deletion";
+import { reviewDeletionRequest, cancelDeletionRequest } from "@/lib/deletion";
 
 export async function decideDeletionRequest(requestId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
@@ -17,4 +17,11 @@ export async function decideDeletionRequest(requestId: string, formData: FormDat
   revalidatePath("/staff");
   revalidatePath("/inventory");
   revalidatePath("/sales");
+}
+
+/** The requester can withdraw their own still-pending request at any time, rather than being stuck waiting on an Owner. */
+export async function withdrawDeletionRequest(requestId: string) {
+  const session = await requireSessionOrRedirect();
+  await cancelDeletionRequest(session, requestId);
+  revalidatePath("/deletion-requests");
 }

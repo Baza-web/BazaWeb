@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canReviewDeletions } from "@/lib/rbac";
-import { reviewEditRequest } from "@/lib/editRequests";
+import { reviewEditRequest, cancelEditRequest } from "@/lib/editRequests";
 
 export async function decideEditRequest(requestId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
@@ -19,4 +19,11 @@ export async function decideEditRequest(requestId: string, formData: FormData) {
   revalidatePath("/customers");
   revalidatePath("/sales");
   revalidatePath("/brands");
+}
+
+/** The requester can withdraw their own still-pending request at any time, rather than being stuck waiting on an Owner. */
+export async function withdrawEditRequest(requestId: string) {
+  const session = await requireSessionOrRedirect();
+  await cancelEditRequest(session, requestId);
+  revalidatePath("/edit-requests");
 }

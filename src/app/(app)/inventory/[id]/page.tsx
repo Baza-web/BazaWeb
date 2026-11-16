@@ -6,6 +6,8 @@ import { branchScope, canManageInventory, canViewCost } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink, updateInventoryItem } from "../actions";
 import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
+import { CancelRequestButton } from "@/components/CancelRequestButton";
+import { withdrawEditRequest } from "../../edit-requests/actions";
 
 const CATEGORY_LABELS: Record<string, string> = {
   RING: "Ring",
@@ -69,6 +71,9 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
             {new Date(pendingEdit.createdAt).toLocaleDateString()}. No further edits can be made to this item
             until that request is approved or rejected.
           </p>
+          {pendingEdit.requestedById === session.staffId && (
+            <CancelRequestButton onCancel={withdrawEditRequest.bind(null, pendingEdit.id)} />
+          )}
         </div>
       )}
 
