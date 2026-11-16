@@ -9,6 +9,7 @@ import { AccountingTrendChart } from "@/components/AccountingTrendChart";
 import { RankedBarChart } from "@/components/RankedBarChart";
 import { setBudget, deleteBudget } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
+import { ExportButton } from "@/components/ExportButton";
 
 function startOfMonth() {
   const d = new Date();
@@ -412,7 +413,17 @@ export default async function AccountingPage({
       <div id="ledger-table" className="card overflow-x-auto">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-medium print:hidden">Ledger</h2>
-          <PrintButton selector="#ledger-table" label="Print" />
+          <div className="flex items-center gap-2 print:hidden">
+            <ExportButton
+              href={`/api/export/accounting?${new URLSearchParams({
+                ...(from ? { from } : {}),
+                ...(to ? { to } : {}),
+                ...(branchId ? { branchId } : {}),
+                ...(brandId ? { brandId } : {}),
+              }).toString()}`}
+            />
+            <PrintButton selector="#ledger-table" label="Print" />
+          </div>
         </div>
         <div className="print-report-header">
           <h2 className="font-display text-xl font-semibold">Accounting ledger</h2>

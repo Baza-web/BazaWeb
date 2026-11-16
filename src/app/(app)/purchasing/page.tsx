@@ -6,6 +6,7 @@ import { PurchaseOrderForm } from "@/components/PurchaseOrderForm";
 import { createSupplier, updatePurchaseOrderStatus, recordPurchaseOrderPayment } from "./actions";
 import { Truck } from "@phosphor-icons/react/ssr";
 import { PrintButton } from "@/components/PrintButton";
+import { ExportButton } from "@/components/ExportButton";
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: "bg-stone-100 text-stone-600",
@@ -37,7 +38,10 @@ export default async function PurchasingPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Suppliers &amp; Purchase Orders</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="page-title">Suppliers &amp; Purchase Orders</h1>
+        <ExportButton href="/api/export/purchasing" label="Export all" />
+      </div>
 
       {canManage && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

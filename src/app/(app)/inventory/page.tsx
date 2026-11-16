@@ -7,6 +7,7 @@ import { deleteInventoryItemPermanently } from "./actions";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { Plus } from "@phosphor-icons/react/ssr";
 import { PrintButton } from "@/components/PrintButton";
+import { ExportButton } from "@/components/ExportButton";
 
 const STATUS_COLORS: Record<string, string> = {
   IN_STOCK: "bg-green-100 text-green-700",
@@ -56,6 +57,13 @@ export default async function InventoryPage({
       <div className="flex items-center justify-between">
         <h1 className="page-title">Inventory</h1>
         <div className="flex items-center gap-2">
+          <ExportButton
+            href={`/api/export/inventory?${new URLSearchParams({
+              ...(q ? { q } : {}),
+              ...(status ? { status } : {}),
+              ...(brandId ? { brandId } : {}),
+            }).toString()}`}
+          />
           <PrintButton selector="#inventory-table" />
           <Link href="/inventory/new" className="btn-primary print:hidden">
             <Plus size={16} aria-hidden="true" />

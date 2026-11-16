@@ -48,6 +48,7 @@ import {
   PaintBrush,
   Money,
   Tag,
+  FileXls,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -125,4 +126,5 @@ export {
   PaintBrush,
   Money,
   Tag,
+  FileXls,
 };
