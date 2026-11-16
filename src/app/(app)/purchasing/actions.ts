@@ -8,6 +8,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageAccounting, canManagePurchasing, isCompanyWide } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { round2 } from "@/lib/utils";
+import { postExpenseJournalEntry } from "@/lib/ledger";
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
   if (value === null) return undefined;
@@ -170,6 +171,19 @@ export async function recordPurchaseOrderPayment(orderId: string, formData: Form
         expenseId: expense.id,
       },
     });
+
+    await postExpenseJournalEntry(
+      session,
+      {
+        id: expense.id,
+        category: "Purchase order",
+        description: `${order.orderNumber}: payment to ${order.supplier.name}`,
+        amount: roundedAmount,
+        branchId: order.branchId,
+        date: expense.date,
+      },
+      tx,
+    );
 
     await tx.purchaseOrder.update({
       where: { id: order.id },

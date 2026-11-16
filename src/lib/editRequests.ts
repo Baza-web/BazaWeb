@@ -4,6 +4,7 @@ import type { SessionPayload } from "./auth";
 import type { Prisma } from "@prisma/client";
 import { round2 } from "./utils";
 import { notifyStaff } from "./notifications";
+import { repostSaleJournalEntry, repostExpenseJournalEntry } from "./ledger";
 
 export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND" | "EXPENSE" | "BROKER";
 
@@ -18,13 +19,14 @@ async function notifyOwners(title: string, body: string, link: string) {
  * client's proposed `total` directly, or it can drift from the real
  * subtotal and desync from the ledger entry that records its income.
  */
-async function applySaleEdit(id: string, data: Prisma.JsonObject) {
-  const sale = await db.sale.findUniqueOrThrow({ where: { id } });
+async function applySaleEdit(id: string, data: Prisma.JsonObject, session: SessionPayload) {
+  const sale = await db.sale.findUniqueOrThrow({ where: { id }, include: { items: { include: { inventoryItem: true } } } });
   const { discount: rawDiscount, amountPaid: rawAmountPaid, ...rest } = data;
   const discount = typeof rawDiscount === "number" ? rawDiscount : sale.discount;
   const amountPaid = typeof rawAmountPaid === "number" ? rawAmountPaid : sale.amountPaid;
   const total = Math.max(round2(sale.subtotal - discount), 0);
   const paymentStatus = amountPaid >= total ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
+  const costOfGoodsSold = round2(sale.items.reduce((s, it) => s + it.inventoryItem.costPrice * it.quantity, 0));
 
   await db.$transaction(async (tx) => {
     await tx.sale.update({
@@ -32,6 +34,12 @@ async function applySaleEdit(id: string, data: Prisma.JsonObject) {
       data: { ...(rest as Prisma.SaleUpdateInput), discount, amountPaid, total, paymentStatus },
     });
     await tx.ledgerEntry.updateMany({ where: { saleId: id }, data: { amount: total } });
+    await repostSaleJournalEntry(
+      session,
+      { id, invoiceNumber: sale.invoiceNumber, branchId: sale.branchId, total, amountPaid },
+      costOfGoodsSold,
+      tx,
+    );
   });
 }
 
@@ -49,21 +57,25 @@ async function applyBrandEdit(id: string, data: Prisma.JsonObject) {
 }
 
 /** Keeps the linked LedgerEntry's amount in sync, same reasoning as applySaleEdit. Refuses to edit an expense created from a Purchase Order payment — PurchaseOrder.amountPaid isn't recalculated from its linked expenses, so changing one here would silently desync how much is recorded as paid. */
-async function applyExpenseEdit(id: string, data: Prisma.JsonObject) {
+async function applyExpenseEdit(id: string, data: Prisma.JsonObject, session: SessionPayload) {
   const expense = await db.expense.findUniqueOrThrow({ where: { id } });
   if (expense.purchaseOrderId) {
     throw new Error("This expense was created from a Purchase Order payment and can't be edited here.");
   }
   const { amount: rawAmount, ...rest } = data;
   const amount = typeof rawAmount === "number" ? rawAmount : expense.amount;
+  const category = typeof rest.category === "string" ? rest.category : expense.category;
+  const description = typeof rest.description === "string" ? rest.description : expense.description;
+  const date = typeof rest.date === "string" ? new Date(rest.date) : expense.date;
 
   await db.$transaction(async (tx) => {
     await tx.expense.update({ where: { id }, data: { ...(rest as Prisma.ExpenseUpdateInput), amount } });
     await tx.ledgerEntry.updateMany({ where: { expenseId: id }, data: { amount } });
+    await repostExpenseJournalEntry(session, { id, category, description, amount, branchId: expense.branchId, date }, tx);
   });
 }
 
-const PERFORMERS: Record<EditableEntityType, (id: string, data: Prisma.JsonObject) => Promise<void>> = {
+const PERFORMERS: Record<EditableEntityType, (id: string, data: Prisma.JsonObject, session: SessionPayload) => Promise<void>> = {
   STAFF: async (id, data) => {
     await db.staff.update({ where: { id }, data: data as Prisma.StaffUpdateInput });
   },
@@ -104,7 +116,7 @@ export async function initiateEdit(
   await assertNoPendingRequest(entityType, entityId);
 
   if (session.role === "OWNER") {
-    await PERFORMERS[entityType](entityId, proposedData);
+    await PERFORMERS[entityType](entityId, proposedData, session);
     return { status: "applied" };
   }
 
@@ -139,7 +151,11 @@ export async function reviewEditRequest(session: SessionPayload, requestId: stri
   }
 
   if (decision === "APPROVED") {
-    await PERFORMERS[request.entityType as EditableEntityType](request.entityId, request.proposedData as Prisma.JsonObject);
+    await PERFORMERS[request.entityType as EditableEntityType](
+      request.entityId,
+      request.proposedData as Prisma.JsonObject,
+      session,
+    );
   }
   await db.editRequest.update({
     where: { id: requestId },

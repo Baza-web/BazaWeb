@@ -13,6 +13,7 @@ import { detectFileKind } from "@/lib/uploads";
 import { extractOrderFromImage, extractOrderFromText, aiConfigured } from "@/lib/ai";
 import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
+import { postSaleJournalEntry } from "@/lib/ledger";
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -204,13 +205,16 @@ export async function createSale(formData: FormData) {
   });
 
   let subtotal = 0;
+  let costOfGoodsSold = 0;
   for (const line of parsed.items) {
     const inv = inventoryItems.find((i) => i.id === line.inventoryItemId);
     if (!inv) throw new Error("One of the selected items is no longer available in this branch.");
     if (inv.quantity < line.quantity) throw new Error(`Not enough stock for ${inv.name}`);
     subtotal += round2(line.priceEach * line.quantity);
+    costOfGoodsSold += round2(inv.costPrice * line.quantity);
   }
   subtotal = round2(subtotal);
+  costOfGoodsSold = round2(costOfGoodsSold);
 
   const discount = round2(parsed.discount);
   const tax = round2(parsed.tax);
@@ -278,6 +282,13 @@ export async function createSale(formData: FormData) {
         saleId: created.id,
       },
     });
+
+    await postSaleJournalEntry(
+      session,
+      { id: created.id, invoiceNumber: created.invoiceNumber, branchId: parsed.branchId, total, amountPaid },
+      costOfGoodsSold,
+      tx,
+    );
 
     return { created, finalQuantities };
   });
