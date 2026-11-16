@@ -421,6 +421,15 @@ export default async function AccountingPage({
             Open
           </Link>
         </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Import Historical Totals</h2>
+            <p className="text-sm text-stone-500">Bring in old months from a previous system, one entry per month.</p>
+          </div>
+          <Link href="/accounting/import-history" className="btn-primary">
+            Open
+          </Link>
+        </div>
       </div>
 
       <div className="card space-y-4 print:hidden">

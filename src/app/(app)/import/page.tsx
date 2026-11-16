@@ -17,7 +17,7 @@ export default async function ImportPage() {
         </p>
       </div>
       <div className="card">
-        <ImportWizard />
+        <ImportWizard googleClientId={process.env.GOOGLE_CLIENT_ID} googlePickerApiKey={process.env.GOOGLE_PICKER_API_KEY} />
       </div>
     </div>
   );
