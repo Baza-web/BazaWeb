@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageStaffScoped, canViewSalary, isCompanyWide, ROLE_LABELS } from "@/lib/rbac";
+import { canManageStaff, canManageStaffScoped, canViewSalary, isCompanyWide, ROLE_LABELS } from "@/lib/rbac";
 import { formatDate, formatMoney, round2 } from "@/lib/utils";
 import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
+import { StaffPasswordForm } from "@/components/StaffPasswordForm";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
 import { setLeaveEntitlement } from "../../leave/actions";
 import { toggleOnboardingTask, setStaffBrands } from "../actions";
@@ -183,6 +184,16 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         <div className="card">
           <h2 className="mb-3 font-medium">Salary & bank details</h2>
           <StaffPayForm staff={staff} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
+        </div>
+      )}
+
+      {canManageStaff(session.role) && (
+        <div className="card">
+          <h2 className="mb-3 font-medium">Login password</h2>
+          <p className="mb-3 text-xs text-stone-400">
+            Sets a new password for this account — share it with {staff.name} directly, it won&apos;t be emailed.
+          </p>
+          <StaffPasswordForm staffId={staff.id} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
         </div>
       )}
 

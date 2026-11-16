@@ -201,6 +201,24 @@ export async function updateStaffPay(staffId: string, formData: FormData) {
   revalidatePath("/edit-requests");
 }
 
+const passwordSchema = z.object({
+  password: z.string().min(8),
+});
+
+/** Owner/Admin only — resets a staff member's login password. Owner's reset applies immediately; Admin's goes through the usual edit-approval flow, same as salary. */
+export async function setStaffPassword(staffId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+  const { password } = passwordSchema.parse({ password: formData.get("password") });
+  const passwordHash = await hashPassword(password);
+
+  await initiateEdit(session, "STAFF", staffId, staff.name, "Reset login password", { passwordHash });
+  revalidatePath(`/staff/${staffId}`);
+  revalidatePath("/edit-requests");
+}
+
 export async function addStaffDocuments(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
