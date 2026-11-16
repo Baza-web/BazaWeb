@@ -136,6 +136,11 @@ export function canManageBrands(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
 }
 
+/** Owner only — connecting Drive hands the app a live, reusable credential to an external account; tighter than any other integration/structural setting. */
+export function canManageIntegrations(role: Role) {
+  return role === "OWNER";
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`

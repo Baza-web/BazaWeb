@@ -49,6 +49,7 @@ import {
   Money,
   Tag,
   FileXls,
+  GearSix,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -74,6 +75,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   edits: PencilSimple,
   creative: PaintBrush,
   brands: Tag,
+  settings: GearSix,
 };
 
 export {
@@ -127,4 +129,5 @@ export {
   Money,
   Tag,
   FileXls,
+  GearSix,
 };

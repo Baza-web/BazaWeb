@@ -155,6 +155,58 @@ It only works for emails that already have an active Staff account in the
 app — Google doesn't create accounts, it just confirms who someone is, the
 same as password login does today.
 
+## Optional: Google Drive daily backup
+
+Connects one Google account once, so the app can upload daily backups into
+a **"26. Claude Ai"** folder in that account's own Drive automatically —
+using its normal 15GB storage, no re-login ever needed. This is separate
+from "Sign in with Google" above (that one only confirms who someone is; it
+never touches Drive), but it reuses the same Google Cloud project and OAuth
+client if you've already set that up — you just need to add one more scope
+and one more redirect URI to it.
+
+1. In the same Google Cloud project (or a new one, if you skipped "Sign in
+   with Google"): **APIs & Services** → **Library** → search **Google Drive
+   API** → **Enable**.
+2. **APIs & Services** → **OAuth consent screen** → **Data Access** → **Add
+   or remove scopes** → add `.../auth/drive.file` ("See, edit, create, and
+   delete only the specific Google Drive files you use with this app").
+   This narrow scope means the app can only see files *it* creates — never
+   the rest of that Google account's Drive.
+3. **APIs & Services** → **Credentials** → open your existing OAuth client
+   (the one from "Sign in with Google", if you set that up — otherwise
+   create a new **Web application** OAuth client the same way) → under
+   **Authorized redirect URIs**, add a *second* one, exactly:
+   ```
+   https://erp.yourbusiness.com/api/auth/google/drive/callback
+   ```
+4. In your `.env` on the server, add:
+   ```
+   GOOGLE_DRIVE_REDIRECT_URI=https://erp.yourbusiness.com/api/auth/google/drive/callback
+   ```
+   (`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are the same ones from
+   step 4 above — add those too if you haven't already, even if you don't
+   want "Sign in with Google" itself; this feature needs them regardless.)
+5. Redeploy: `docker compose up -d --build app`
+6. While your Google Cloud project is still in **Testing** publishing
+   status (the default), only the test users you listed in step 1 of "Sign
+   in with Google" can complete this connection — add the Google account
+   you intend to connect as a test user if it isn't already, or publish the
+   app once you're ready for that not to matter.
+7. Log in to the app as the **Owner**, go to **Settings** in the sidebar,
+   and click **Connect Google Drive**. Sign in with the Google account you
+   want backups to live in, and approve the permission screen (it will
+   mention this app can see and manage files it creates — that's the
+   `drive.file` scope from step 2, working as intended).
+8. Settings will now show "Connected as ...". This finishes the connection
+   itself — the daily backup job that uses it to actually upload files is
+   tracked separately (see the project status for whether that part has
+   shipped yet).
+
+To switch to a different Google account later, click **Disconnect** in
+Settings first (this also revokes the app's access on Google's side), then
+**Connect Google Drive** again and sign in with the other account.
+
 ## Updating the app later
 
 ```bash
