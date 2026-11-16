@@ -207,6 +207,31 @@ To switch to a different Google account later, click **Disconnect** in
 Settings first (this also revokes the app's access on Google's side), then
 **Connect Google Drive** again and sign in with the other account.
 
+### Daily backup to Google Drive
+
+Once connected (above), add this cron line to run the actual backup every
+night at 2:30 AM — exports every core table (Customers, Sales, Inventory,
+Suppliers & Purchase Orders, the Accounting ledger, Staff) to its own dated
+`.xlsx`, archives the `uploads` folder (inventory photos/documents) into a
+dated `.tar.gz`, and uploads all of it into the connected account's
+**"26. Claude Ai"** folder — all using the same `CRON_TOKEN` as the other
+cron jobs on this page:
+
+```bash
+(crontab -l 2>/dev/null; echo "30 2 * * * curl -s 'https://operation.baza-boutique.com/api/cron/drive-backup?token=YOUR_CRON_TOKEN'") | crontab -
+```
+
+It keeps the last 30 days of backups in that folder and deletes anything
+older automatically (override with `DRIVE_BACKUP_RETENTION_DAYS` in `.env`
+if you want a different window). If nobody has connected Google Drive yet,
+this cron job simply does nothing each night — it's safe to add before or
+after connecting.
+
+This is separate from `scripts/backup.sh` (the local database/uploads
+backup set up earlier in this guide) — that one protects you if something
+goes wrong on the server itself; this one protects you if the whole VPS is
+lost, since the copies live in your own Google account instead.
+
 ## Updating the app later
 
 ```bash

@@ -171,3 +171,22 @@ export async function disconnectDrive() {
   );
   await db.googleDriveConnection.delete({ where: { id: "singleton" } });
 }
+
+/** Deletes backup files in the folder older than `retentionDays`, based on each file's Drive-recorded creation time. */
+export async function deleteOldBackups(accessToken: string, folderId: string, retentionDays: number): Promise<number> {
+  const listRes = await driveFetch(
+    accessToken,
+    `files?q=${encodeURIComponent(`'${folderId}' in parents and trashed=false`)}&fields=files(id,name,createdTime)&pageSize=1000`,
+  );
+  const { files } = (await listRes.json()) as { files: { id: string; name: string; createdTime: string }[] };
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+  let deleted = 0;
+  for (const file of files) {
+    if (new Date(file.createdTime).getTime() < cutoff) {
+      await driveFetch(accessToken, `files/${file.id}`, { method: "DELETE" }).catch(() => {});
+      deleted++;
+    }
+  }
+  return deleted;
+}
