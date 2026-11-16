@@ -322,6 +322,42 @@ export default async function AccountingPage({
             Open Statements
           </Link>
         </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Chart of Accounts</h2>
+            <p className="text-sm text-stone-500">The accounts every journal entry posts to.</p>
+          </div>
+          <Link href="/accounting/chart-of-accounts" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Journal Entries</h2>
+            <p className="text-sm text-stone-500">Manual double-entry postings — debits must equal credits.</p>
+          </div>
+          <Link href="/accounting/journal-entries" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">General Ledger</h2>
+            <p className="text-sm text-stone-500">Every posted journal line — the source of truth for reporting.</p>
+          </div>
+          <Link href="/accounting/general-ledger" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Trial Balance</h2>
+            <p className="text-sm text-stone-500">Every account&apos;s totals — debits and credits must balance.</p>
+          </div>
+          <Link href="/accounting/trial-balance" className="btn-primary">
+            Open
+          </Link>
+        </div>
       </div>
 
       <div className="card space-y-4 print:hidden">

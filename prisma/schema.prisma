@@ -159,6 +159,7 @@ model Branch {
   brokerMemos    BrokerMemo[]
   payrollRuns    PayrollRun[]
   budgets        Budget[]
+  journalEntries JournalEntry[]
 }
 
 // A house brand this business trades under (e.g. "Baza Boutique", "Silver
@@ -247,6 +248,7 @@ model Staff {
   importBatchesMade  ImportBatch[]
   mailConnectionsMade GoogleMailConnection[]
   emailsSent          EmailLog[]
+  journalEntriesMade  JournalEntry[]
 
   @@index([branchId])
 }
@@ -1008,4 +1010,74 @@ model EmailLog {
   sentBy   Staff    @relation(fields: [sentById], references: [id])
 
   @@index([customerId])
+}
+
+// --- Double-entry accounting (Chart of Accounts / General Ledger) ---
+// This is a new, parallel ledger — separate from LedgerEntry (the
+// existing Sale/Expense/Payroll income-expense log). Nothing here
+// changes how Sale/Expense/Payroll are created or displayed; it's an
+// independent foundation for real double-entry bookkeeping, built so
+// it can later be wired to post automatically from those flows without
+// touching their own code paths.
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+model Account {
+  id        String      @id @default(cuid())
+  code      String      @unique
+  name      String
+  type      AccountType
+  // Seeded defaults (see src/lib/ledger.ts DEFAULT_ACCOUNTS) are protected
+  // from deletion; a user-created account can be removed if unused.
+  isSystem  Boolean     @default(true)
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+
+  journalLines JournalLine[]
+}
+
+// One posted, balanced double-entry transaction. Never deleted once
+// posted — see reversalOfId: corrections happen via a new entry that
+// flips the original's debits/credits, not by editing or removing this
+// row (see "ACCOUNTING SECURITY" in the project's operating notes:
+// reversal entries only, never silent deletes).
+model JournalEntry {
+  id           String    @id @default(cuid())
+  entryNumber  String    @unique
+  date         DateTime  @default(now())
+  description  String
+  reference    String?
+  branchId     String?
+  department   String?
+  createdById  String
+  createdAt    DateTime  @default(now())
+  reversalOfId String?   @unique
+
+  lines       JournalLine[]
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  createdBy   Staff         @relation(fields: [createdById], references: [id])
+  reversalOf  JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversedBy  JournalEntry? @relation("Reversal")
+
+  @@index([date])
+  @@index([branchId])
+}
+
+model JournalLine {
+  id             String @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  debit          Float  @default(0)
+  credit         Float  @default(0)
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([journalEntryId])
 }
