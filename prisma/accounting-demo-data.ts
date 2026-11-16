@@ -87,6 +87,32 @@ async function main() {
     throw new Error("No Owner account / branch found. Complete first-boot setup before running this.");
   }
 
+  // Idempotent — same defaults as src/lib/ledger.ts's seedDefaultAccounts, duplicated here since that
+  // module can't be imported outside Next's bundler. Only inserts codes that don't already exist.
+  const DEFAULT_ACCOUNTS: { code: string; name: string; type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE" }[] = [
+    { code: "1000", name: "Cash", type: "ASSET" }, { code: "1010", name: "Bank", type: "ASSET" },
+    { code: "1020", name: "Petty Cash", type: "ASSET" }, { code: "1100", name: "Accounts Receivable", type: "ASSET" },
+    { code: "1200", name: "Inventory", type: "ASSET" }, { code: "1500", name: "Fixed Assets", type: "ASSET" },
+    { code: "1900", name: "Other Assets", type: "ASSET" }, { code: "2000", name: "Accounts Payable", type: "LIABILITY" },
+    { code: "2100", name: "Customer Advances", type: "LIABILITY" }, { code: "2200", name: "Outstanding Salaries", type: "LIABILITY" },
+    { code: "2900", name: "Other Liabilities", type: "LIABILITY" }, { code: "3000", name: "Owner's Capital", type: "EQUITY" },
+    { code: "3100", name: "Retained Earnings", type: "EQUITY" }, { code: "3200", name: "Current Year Earnings", type: "EQUITY" },
+    { code: "4000", name: "Jewelry Sales", type: "INCOME" }, { code: "4010", name: "Gemstone Sales", type: "INCOME" },
+    { code: "4020", name: "Custom Orders", type: "INCOME" }, { code: "4030", name: "Workshop Income", type: "INCOME" },
+    { code: "4900", name: "Other Income", type: "INCOME" }, { code: "5000", name: "Salaries", type: "EXPENSE" },
+    { code: "5005", name: "Cost of Goods Sold", type: "EXPENSE" }, { code: "5010", name: "Rent", type: "EXPENSE" },
+    { code: "5020", name: "Marketing", type: "EXPENSE" }, { code: "5030", name: "Transportation", type: "EXPENSE" },
+    { code: "5040", name: "Utilities", type: "EXPENSE" }, { code: "5050", name: "Packaging", type: "EXPENSE" },
+    { code: "5060", name: "Administration", type: "EXPENSE" }, { code: "5070", name: "Workshop Expenses", type: "EXPENSE" },
+    { code: "5080", name: "Bank Charges", type: "EXPENSE" }, { code: "5900", name: "Other Expenses", type: "EXPENSE" },
+  ];
+  const existingCodes = new Set((await db.account.findMany({ select: { code: true } })).map((a) => a.code));
+  const toSeed = DEFAULT_ACCOUNTS.filter((a) => !existingCodes.has(a.code));
+  if (toSeed.length > 0) {
+    await db.account.createMany({ data: toSeed.map((a) => ({ ...a, isSystem: true })) });
+    console.log(`  Seeded ${toSeed.length} missing Chart of Accounts entries first.`);
+  }
+
   const accounts = await db.account.findMany();
   const acctByCode = new Map(accounts.map((a) => [a.code, a]));
   function accountId(code: string): string {
