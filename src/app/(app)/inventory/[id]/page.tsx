@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canManageInventory, canViewCost } from "@/lib/rbac";
-import { formatMoney, formatDateTime } from "@/lib/utils";
+import { formatMoney, formatDateTime, formatDate } from "@/lib/utils";
 import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink, updateInventoryItem } from "../actions";
 import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
+import { PrintButton } from "@/components/PrintButton";
 
 const CATEGORY_LABELS: Record<string, string> = {
   RING: "Ring",
@@ -54,12 +55,23 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <p className="text-sm text-stone-500">{item.sku}</p>
-        <h1 className="page-title">{item.name}</h1>
+      <div className="flex items-start justify-between print:hidden">
+        <div>
+          <p className="text-sm text-stone-500">{item.sku}</p>
+          <h1 className="page-title">{item.name}</h1>
+          <p className="text-sm text-stone-500">
+            {item.branch.name}
+            {item.brand && <> · {item.brand.name}</>}
+          </p>
+        </div>
+        <PrintButton label="Print" />
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{item.sku} — {item.name}</h2>
         <p className="text-sm text-stone-500">
           {item.branch.name}
-          {item.brand && <> · {item.brand.name}</>}
+          {item.brand && <> · {item.brand.name}</>} · Printed {formatDate(new Date())}
         </p>
       </div>
 
@@ -127,7 +139,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
       {canManageInventory(session.role) && (
         <div className="card">
           <p className="mb-2 text-sm font-medium">Status: {item.status.replace("_", " ")}</p>
-          <form action={updateInventoryStatus.bind(null, item.id)} className="flex gap-2">
+          <form action={updateInventoryStatus.bind(null, item.id)} className="flex gap-2 print:hidden">
             <select className="input max-w-[200px]" name="status" defaultValue={item.status} disabled={!!pendingEdit}>
               <option value="IN_STOCK">In stock</option>
               <option value="RESERVED">Reserved</option>
@@ -140,7 +152,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
             </button>
           </form>
           {session.role !== "OWNER" && (
-            <p className="mt-2 text-xs text-stone-400">
+            <p className="mt-2 text-xs text-stone-400 print:hidden">
               Changing this won&apos;t take effect until an Owner approves it.
             </p>
           )}
@@ -148,7 +160,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
       )}
 
       {canManageInventory(session.role) && (
-        <div className="card">
+        <div className="card print:hidden">
           <p className="mb-3 text-sm font-medium">Edit item details</p>
           <form action={updateInventoryItem.bind(null, item.id)} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

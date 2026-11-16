@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canReviewDeletions } from "@/lib/rbac";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatDate } from "@/lib/utils";
 import { decideEditRequest } from "./actions";
+import { PrintButton } from "@/components/PrintButton";
 
 const TYPE_LABELS: Record<string, string> = {
   STAFF: "Staff account",
@@ -30,13 +31,23 @@ export default async function EditRequestsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="page-title">Edit requests</h1>
-      <p className="text-sm text-stone-500">
-        When anyone other than the Owner edits a staff profile, inventory item, customer, sale, or brand, the
-        change shows up here for an Owner to approve or reject — nothing changes until you decide.
-      </p>
+      <div className="flex items-center justify-between print:hidden">
+        <div>
+          <h1 className="page-title">Edit requests</h1>
+          <p className="text-sm text-stone-500">
+            When anyone other than the Owner edits a staff profile, inventory item, customer, sale, or brand, the
+            change shows up here for an Owner to approve or reject — nothing changes until you decide.
+          </p>
+        </div>
+        <PrintButton selector="#pending-edit-requests" label="Print" />
+      </div>
 
-      <div className="card overflow-x-auto">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Edit requests</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())}</p>
+      </div>
+
+      <div id="pending-edit-requests" className="card overflow-x-auto">
         <h2 className="mb-3 font-medium">Awaiting your review</h2>
         <table className="table-base">
           <thead>
@@ -46,7 +57,7 @@ export default async function EditRequestsPage() {
               <th>Change</th>
               <th>Requested by</th>
               <th>When</th>
-              <th>Decision</th>
+              <th className="print:hidden">Decision</th>
             </tr>
           </thead>
           <tbody>
@@ -57,7 +68,7 @@ export default async function EditRequestsPage() {
                 <td className="max-w-xs">{r.fieldSummary}</td>
                 <td>{r.requestedBy.name}</td>
                 <td>{formatDateTime(r.createdAt)}</td>
-                <td>
+                <td className="print:hidden">
                   <div className="flex gap-2">
                     <form action={decideEditRequest.bind(null, r.id)}>
                       <input type="hidden" name="decision" value="APPROVED" />

@@ -7,6 +7,7 @@ import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
 import { addCustomerNote, updateCustomer, deleteCustomerPermanently } from "../actions";
 import { EnvelopeSimple } from "@/components/icons";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { PrintButton } from "@/components/PrintButton";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
 
@@ -36,7 +37,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between print:hidden">
         <div>
           <h1 className="page-title">{customer.name}</h1>
           <p className="text-sm text-stone-500">
@@ -44,6 +45,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <PrintButton label="Print" />
           {customer.email && (
             <Link href={`/email?customerId=${customer.id}`} className="btn-secondary inline-flex items-center gap-1.5 text-sm">
               <EnvelopeSimple size={16} aria-hidden="true" />
@@ -61,6 +63,14 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             />
           )}
         </div>
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{customer.name} — Customer statement</h2>
+        <p className="text-sm text-stone-500">
+          {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"} · Printed{" "}
+          {formatDate(new Date())}
+        </p>
       </div>
 
       {pendingEdit && (
@@ -91,7 +101,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      <div className="card">
+      <div className="card print:hidden">
         <h2 className="mb-3 font-medium">Edit details</h2>
         <form action={updateCustomer.bind(null, customer.id)} className="space-y-3">
           <fieldset disabled={!!pendingEdit} className="space-y-3">
@@ -168,7 +178,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
 
       <div className="card">
         <h2 className="mb-3 font-medium">Notes & follow-ups</h2>
-        <form action={addCustomerNote.bind(null, customer.id)} className="mb-4 space-y-2">
+        <form action={addCustomerNote.bind(null, customer.id)} className="mb-4 space-y-2 print:hidden">
           <textarea className="input" name="body" rows={2} placeholder="Add a note…" required />
           <div className="flex items-center gap-3">
             <input className="input max-w-[200px]" name="followUpAt" type="date" />

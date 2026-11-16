@@ -7,6 +7,7 @@ import { RecordReturnForm } from "@/components/RecordReturnForm";
 import { reviewMemoEditRequest, resendBrokerStatement, updateBroker, deleteBrokerPermanently } from "../actions";
 import { Handshake, ArrowCounterClockwise, CheckCircle, X } from "@/components/icons";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { PrintButton } from "@/components/PrintButton";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
 
@@ -61,7 +62,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
           <span className="avatar h-12 w-12">{initials(broker.name)}</span>
           <div>
@@ -72,6 +73,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <PrintButton label="Print" />
           {broker.email && (
             <form action={resendBrokerStatement.bind(null, broker.id)}>
               <button type="submit" className="btn-secondary text-sm">
@@ -90,6 +92,14 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{broker.name}</h2>
+        <p className="text-sm text-stone-500">
+          {[broker.company, broker.phone, broker.email].filter(Boolean).join(" · ") || "No contact info"} · Printed{" "}
+          {formatDate(new Date())}
+        </p>
+      </div>
+
       {pendingBrokerEdit && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <p className="font-medium">A contact-detail edit is awaiting Owner approval</p>
@@ -102,7 +112,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
         </div>
       )}
 
-      <div className="card">
+      <div className="card print:hidden">
         <h2 className="mb-3 font-medium">Edit contact details</h2>
         <form action={updateBroker.bind(null, broker.id)} className="space-y-3">
           <fieldset disabled={!!pendingBrokerEdit} className="space-y-3">
