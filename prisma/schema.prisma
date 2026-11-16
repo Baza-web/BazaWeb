@@ -244,6 +244,7 @@ model Staff {
   onboardingTasks     OnboardingTask[]
   brands              Brand[] @relation("StaffBrands")
   socialPostsApproved SocialPost[] @relation("SocialPostApprover")
+  importBatchesMade  ImportBatch[]
 
   @@index([branchId])
 }
@@ -953,4 +954,20 @@ model GoogleDriveConnection {
   updatedAt              DateTime @updatedAt
 
   connectedBy Staff @relation(fields: [connectedByStaffId], references: [id])
+}
+
+// Holds a parsed, already-diffed Excel upload between the "preview" and
+// "apply" steps of bulk import, so the browser doesn't have to re-upload
+// or hold the whole workbook in a form field — see src/lib/xlsxImport.ts.
+// Owner-only for now: applying a batch always takes effect immediately,
+// the same as any other direct Owner edit, so there's no approval status
+// here the way EditRequest has one.
+model ImportBatch {
+  id          String   @id @default(cuid())
+  entityType  String
+  createdById String
+  rowsJson    Json
+  createdAt   DateTime @default(now())
+
+  createdBy Staff @relation(fields: [createdById], references: [id])
 }
