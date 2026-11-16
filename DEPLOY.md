@@ -221,11 +221,12 @@ cron jobs on this page:
 (crontab -l 2>/dev/null; echo "30 2 * * * curl -s 'https://operation.baza-boutique.com/api/cron/drive-backup?token=YOUR_CRON_TOKEN'") | crontab -
 ```
 
-It keeps the last 30 days of backups in that folder and deletes anything
-older automatically (override with `DRIVE_BACKUP_RETENTION_DAYS` in `.env`
-if you want a different window). If nobody has connected Google Drive yet,
-this cron job simply does nothing each night — it's safe to add before or
-after connecting.
+Every day's backups are kept **forever** in that folder by default — nothing
+is ever deleted automatically. If you'd rather only keep a rolling window,
+set `DRIVE_BACKUP_RETENTION_DAYS` (e.g. `30`) in `.env` and anything older
+than that many days will be deleted automatically on each run. If nobody
+has connected Google Drive yet, this cron job simply does nothing each
+night — it's safe to add before or after connecting.
 
 This is separate from `scripts/backup.sh` (the local database/uploads
 backup set up earlier in this guide) — that one protects you if something

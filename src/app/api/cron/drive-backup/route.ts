@@ -5,15 +5,20 @@ import { archiveLocalUploads } from "@/lib/backupFiles";
 import { timestampedFilename } from "@/lib/xlsxExport";
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-const RETENTION_DAYS = Number(process.env.DRIVE_BACKUP_RETENTION_DAYS) || 30;
+// Backups are kept forever by default — every day's files stay in the
+// "26. Claude Ai" folder permanently. Set DRIVE_BACKUP_RETENTION_DAYS in
+// .env only if you'd rather have old backups deleted automatically.
+const RETENTION_DAYS = process.env.DRIVE_BACKUP_RETENTION_DAYS
+  ? Number(process.env.DRIVE_BACKUP_RETENTION_DAYS)
+  : null;
 
 /**
  * Triggered once a day by a cron job on the server (see DEPLOY.md). Exports
  * every core business table to its own dated .xlsx, archives the local
- * uploads folder (self-hosted deployments only), uploads everything into
- * the connected Google account's "26. Claude Ai" folder, then deletes
- * anything in that folder older than DRIVE_BACKUP_RETENTION_DAYS. A no-op,
- * not an error, if nobody has connected Google Drive yet.
+ * uploads folder (self-hosted deployments only), and uploads everything
+ * into the connected Google account's "26. Claude Ai" folder. Backups are
+ * kept forever unless DRIVE_BACKUP_RETENTION_DAYS is set. A no-op, not an
+ * error, if nobody has connected Google Drive yet.
  */
 export async function GET(request: Request) {
   const cronToken = process.env.CRON_TOKEN;
@@ -67,10 +72,12 @@ export async function GET(request: Request) {
   }
 
   let deletedOld = 0;
-  try {
-    deletedOld = await deleteOldBackups(accessToken, folderId, RETENTION_DAYS);
-  } catch (err) {
-    console.error("Drive backup: retention cleanup failed", err);
+  if (RETENTION_DAYS !== null) {
+    try {
+      deletedOld = await deleteOldBackups(accessToken, folderId, RETENTION_DAYS);
+    } catch (err) {
+      console.error("Drive backup: retention cleanup failed", err);
+    }
   }
 
   return NextResponse.json({ ok: failed.length === 0, uploaded, failed, deletedOld });
