@@ -316,7 +316,7 @@ export default async function AccountingPage({
         <div className="card flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-medium">Financial statements</h2>
-            <p className="text-sm text-stone-500">Profit &amp; Loss, Balance Sheet, and cost-cutting insights.</p>
+            <p className="text-sm text-stone-500">Profit &amp; Loss and cost-cutting insights. (Balance Sheet and Cash Flow are below.)</p>
           </div>
           <Link href="/accounting/statements" className="btn-primary">
             Open Statements
@@ -355,6 +355,69 @@ export default async function AccountingPage({
             <p className="text-sm text-stone-500">Every account&apos;s totals — debits and credits must balance.</p>
           </div>
           <Link href="/accounting/trial-balance" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Balance Sheet</h2>
+            <p className="text-sm text-stone-500">What the business owns, owes, and is worth, as of a date.</p>
+          </div>
+          <Link href="/accounting/balance-sheet" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Cash Flow Statement</h2>
+            <p className="text-sm text-stone-500">Where cash actually came from and went, over a period.</p>
+          </div>
+          <Link href="/accounting/cash-flow" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Accounts Receivable Aging</h2>
+            <p className="text-sm text-stone-500">Who owes the business, by customer and how overdue.</p>
+          </div>
+          <Link href="/accounting/ar-aging" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Accounts Payable Aging</h2>
+            <p className="text-sm text-stone-500">What the business owes suppliers, by how overdue.</p>
+          </div>
+          <Link href="/accounting/ap-aging" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Bank Reconciliation</h2>
+            <p className="text-sm text-stone-500">Upload a bank statement and match it against the ledger.</p>
+          </div>
+          <Link href="/accounting/bank-reconciliation" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Accounting Setup</h2>
+            <p className="text-sm text-stone-500">Opening balances and backfilling historic transactions.</p>
+          </div>
+          <Link href="/accounting/setup" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Health Check</h2>
+            <p className="text-sm text-stone-500">Whether the ledger is internally consistent, right now.</p>
+          </div>
+          <Link href="/accounting/health-check" className="btn-primary">
             Open
           </Link>
         </div>

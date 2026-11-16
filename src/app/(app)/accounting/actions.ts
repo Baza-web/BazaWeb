@@ -9,6 +9,7 @@ import { saveUploadedFile, detectFileKind } from "@/lib/uploads";
 import { extractExpenseFromImage, extractExpenseFromText, aiConfigured, type ExtractedExpense } from "@/lib/ai";
 import { initiateEdit } from "@/lib/editRequests";
 import { initiateDeletion } from "@/lib/deletion";
+import { postExpenseJournalEntry } from "@/lib/ledger";
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -124,6 +125,19 @@ export async function createExpense(formData: FormData) {
         expenseId: expense.id,
       },
     });
+
+    await postExpenseJournalEntry(
+      session,
+      {
+        id: expense.id,
+        category: parsed.category,
+        description: `${parsed.category}: ${parsed.description}`,
+        amount: parsed.amount,
+        branchId: parsed.branchId,
+        date: expense.date,
+      },
+      tx,
+    );
   });
 
   revalidatePath("/accounting");

@@ -7,6 +7,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManagePayroll } from "@/lib/rbac";
 import { calculatePayroll } from "@/lib/payroll";
 import { round2 } from "@/lib/utils";
+import { postExpenseJournalEntry } from "@/lib/ledger";
 
 const periodSchema = z.object({
   periodStart: z.coerce.date(),
@@ -163,6 +164,11 @@ export async function markPayrollPaid(runId: string) {
         expenseId: expense.id,
       },
     });
+    await postExpenseJournalEntry(
+      session,
+      { id: expense.id, category: "Payroll", description: expense.description, amount: run.netPay, branchId: run.branchId, date: expense.date },
+      tx,
+    );
     await tx.payrollRun.update({
       where: { id: runId },
       data: { status: "PAID", paidAt: new Date(), expenseId: expense.id },

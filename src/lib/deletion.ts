@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "./db";
 import type { SessionPayload } from "./auth";
 import { notifyStaff } from "./notifications";
+import { reverseSaleJournalEntry, reverseExpenseJournalEntry } from "./ledger";
 
 export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE" | "CUSTOMER" | "EXPENSE" | "BROKER";
 
@@ -60,7 +61,7 @@ async function performInventoryDeletion(entityId: string) {
 }
 
 /** Voiding a sale restores the stock it sold and removes its ledger entry, then deletes the sale itself (its line items cascade). */
-async function performSaleDeletion(entityId: string) {
+async function performSaleDeletion(entityId: string, session: SessionPayload) {
   const sale = await db.sale.findUniqueOrThrow({ where: { id: entityId }, include: { items: true } });
   await db.$transaction(async (tx) => {
     for (const item of sale.items) {
@@ -73,6 +74,7 @@ async function performSaleDeletion(entityId: string) {
       }
     }
     await tx.ledgerEntry.deleteMany({ where: { saleId: entityId } });
+    await reverseSaleJournalEntry(session, entityId, tx);
     await tx.sale.delete({ where: { id: entityId } });
   });
 }
@@ -94,15 +96,16 @@ async function performCustomerDeletion(entityId: string) {
 }
 
 /** Refuses to delete an expense created from a Purchase Order payment — PurchaseOrder.amountPaid is a running total that isn't recalculated from its linked expenses, so removing one here would silently overstate how much is still owed. */
-async function performExpenseDeletion(entityId: string) {
+async function performExpenseDeletion(entityId: string, session: SessionPayload) {
   const expense = await db.expense.findUniqueOrThrow({ where: { id: entityId } });
   if (expense.purchaseOrderId) {
     throw new Error("This expense was created from a Purchase Order payment and can't be deleted here.");
   }
-  await db.$transaction([
-    db.ledgerEntry.deleteMany({ where: { expenseId: entityId } }),
-    db.expense.delete({ where: { id: entityId } }),
-  ]);
+  await db.$transaction(async (tx) => {
+    await tx.ledgerEntry.deleteMany({ where: { expenseId: entityId } });
+    await reverseExpenseJournalEntry(session, entityId, tx);
+    await tx.expense.delete({ where: { id: entityId } });
+  });
 }
 
 /** Refuses to delete a broker with any memo history — consignment stock may still be outstanding against them. */
@@ -114,7 +117,7 @@ async function performBrokerDeletion(entityId: string) {
   await db.broker.delete({ where: { id: entityId } });
 }
 
-const PERFORMERS: Record<DeletableEntityType, (id: string) => Promise<void>> = {
+const PERFORMERS: Record<DeletableEntityType, (id: string, session: SessionPayload) => Promise<void>> = {
   STAFF: performStaffDeletion,
   INVENTORY: performInventoryDeletion,
   SALE: performSaleDeletion,
@@ -139,7 +142,7 @@ export async function initiateDeletion(
   await assertNoPendingRequest(entityType, entityId);
 
   if (session.role === "OWNER") {
-    await PERFORMERS[entityType](entityId);
+    await PERFORMERS[entityType](entityId, session);
     return { status: "deleted" };
   }
 
@@ -178,7 +181,7 @@ export async function reviewDeletionRequest(
   }
 
   if (decision === "APPROVED") {
-    await PERFORMERS[request.entityType as DeletableEntityType](request.entityId);
+    await PERFORMERS[request.entityType as DeletableEntityType](request.entityId, session);
   }
   await db.deletionRequest.update({
     where: { id: requestId },

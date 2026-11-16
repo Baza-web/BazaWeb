@@ -249,6 +249,7 @@ model Staff {
   mailConnectionsMade GoogleMailConnection[]
   emailsSent          EmailLog[]
   journalEntriesMade  JournalEntry[]
+  bankStatementLinesUploaded BankStatementLine[]
 
   @@index([branchId])
 }
@@ -349,6 +350,7 @@ model Sale {
   customer Customer?  @relation(fields: [customerId], references: [id])
   items    SaleItem[]
   ledgerEntry LedgerEntry?
+  journalEntry JournalEntry?
 
   @@index([branchId])
   @@index([brandId])
@@ -387,6 +389,7 @@ model Expense {
   createdBy     Staff          @relation(fields: [createdById], references: [id])
   purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
   ledgerEntry   LedgerEntry?
+  journalEntry  JournalEntry?
 
   @@index([branchId])
   @@index([brandId])
@@ -1039,6 +1042,7 @@ model Account {
   createdAt DateTime    @default(now())
 
   journalLines JournalLine[]
+  bankStatementLines BankStatementLine[]
 }
 
 // One posted, balanced double-entry transaction. Never deleted once
@@ -1057,12 +1061,19 @@ model JournalEntry {
   createdById  String
   createdAt    DateTime  @default(now())
   reversalOfId String?   @unique
+  // Links the live entry to the Sale/Expense it was auto-posted for, so it
+  // can be found again to reverse or repost. Cleared (never cascade-deleted)
+  // if the Sale/Expense itself is deleted — the entry is a permanent record.
+  saleId       String?   @unique
+  expenseId    String?   @unique
 
   lines       JournalLine[]
   branch      Branch?       @relation(fields: [branchId], references: [id])
   createdBy   Staff         @relation(fields: [createdById], references: [id])
   reversalOf  JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id])
   reversedBy  JournalEntry? @relation("Reversal")
+  sale        Sale?         @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  expense     Expense?      @relation(fields: [expenseId], references: [id], onDelete: SetNull)
 
   @@index([date])
   @@index([branchId])
@@ -1077,7 +1088,33 @@ model JournalLine {
 
   journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
   account      Account      @relation(fields: [accountId], references: [id])
+  matchedBankLine BankStatementLine?
 
   @@index([accountId])
   @@index([journalEntryId])
+}
+
+// One row from an uploaded bank statement (CSV/Excel) for a Cash/Bank
+// account. Matched against an existing posted JournalLine on that same
+// account to confirm the books agree with the bank — reconciliation never
+// creates or edits a journal entry itself, only links to one that's
+// already posted.
+model BankStatementLine {
+  id            String   @id @default(cuid())
+  accountId     String
+  date          DateTime
+  description   String
+  // Signed from the bank's own point of view: positive = money in, negative = money out.
+  amount        Float
+  reconciled    Boolean  @default(false)
+  matchedJournalLineId String? @unique
+  uploadedById  String
+  createdAt     DateTime @default(now())
+
+  account            Account      @relation(fields: [accountId], references: [id])
+  matchedJournalLine JournalLine? @relation(fields: [matchedJournalLineId], references: [id])
+  uploadedBy         Staff        @relation(fields: [uploadedById], references: [id])
+
+  @@index([accountId])
+  @@index([reconciled])
 }
