@@ -30,6 +30,7 @@ export const DEFAULT_ACCOUNTS: { code: string; name: string; type: AccountType }
   { code: "3000", name: "Owner's Capital", type: "EQUITY" },
   { code: "3100", name: "Retained Earnings", type: "EQUITY" },
   { code: "3200", name: "Current Year Earnings", type: "EQUITY" },
+  { code: "3300", name: "Historical Data Suspense", type: "EQUITY" },
   // Income
   { code: "4000", name: "Jewelry Sales", type: "INCOME" },
   { code: "4010", name: "Gemstone Sales", type: "INCOME" },

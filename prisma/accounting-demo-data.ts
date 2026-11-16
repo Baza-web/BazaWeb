@@ -97,6 +97,7 @@ async function main() {
     { code: "2100", name: "Customer Advances", type: "LIABILITY" }, { code: "2200", name: "Outstanding Salaries", type: "LIABILITY" },
     { code: "2900", name: "Other Liabilities", type: "LIABILITY" }, { code: "3000", name: "Owner's Capital", type: "EQUITY" },
     { code: "3100", name: "Retained Earnings", type: "EQUITY" }, { code: "3200", name: "Current Year Earnings", type: "EQUITY" },
+    { code: "3300", name: "Historical Data Suspense", type: "EQUITY" },
     { code: "4000", name: "Jewelry Sales", type: "INCOME" }, { code: "4010", name: "Gemstone Sales", type: "INCOME" },
     { code: "4020", name: "Custom Orders", type: "INCOME" }, { code: "4030", name: "Workshop Income", type: "INCOME" },
     { code: "4900", name: "Other Income", type: "INCOME" }, { code: "5000", name: "Salaries", type: "EXPENSE" },
