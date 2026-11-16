@@ -11,8 +11,8 @@ No third-party platform account is required.
   branches; even 1 vCPU / 2 GB works for a smaller team.
 - Use Ubuntu 22.04 or 24.04.
 - In your domain's DNS settings, create an **A record** pointing a
-  subdomain (e.g. `erp.yourbusiness.com`) at the server's public IP address.
-  Wait for it to propagate (`dig erp.yourbusiness.com` should show your IP).
+  subdomain (e.g. `operation.baza-boutique.com`) at the server's public IP address.
+  Wait for it to propagate (`dig operation.baza-boutique.com` should show your IP).
 
 ## 2. Install Docker on the server
 
@@ -65,13 +65,13 @@ order:
 ```bash
 mkdir -p nginx/conf.d
 cp nginx/app.http-only.conf nginx/conf.d/app.conf
-sed -i 's/YOUR_DOMAIN/erp.yourbusiness.com/' nginx/conf.d/app.conf
+sed -i 's/YOUR_DOMAIN/operation.baza-boutique.com/' nginx/conf.d/app.conf
 
 docker compose up -d db app nginx
 ```
 
 Wait ~20 seconds for the app to build and start migrations, then confirm
-`http://erp.yourbusiness.com` loads the login page (it's fine that it's not
+`http://operation.baza-boutique.com` loads the login page (it's fine that it's not
 HTTPS yet).
 
 Now request the certificate:
@@ -79,7 +79,7 @@ Now request the certificate:
 ```bash
 docker compose run --rm --entrypoint certbot certbot certonly --webroot \
   -w /var/www/certbot \
-  -d erp.yourbusiness.com \
+  -d operation.baza-boutique.com \
   --email you@yourbusiness.com --agree-tos --no-eff-email
 ```
 
@@ -91,12 +91,12 @@ If that succeeds, switch Nginx to the HTTPS config:
 
 ```bash
 cp nginx/app.ssl.conf nginx/conf.d/app.conf
-sed -i 's/YOUR_DOMAIN/erp.yourbusiness.com/g' nginx/conf.d/app.conf
+sed -i 's/YOUR_DOMAIN/operation.baza-boutique.com/g' nginx/conf.d/app.conf
 docker compose exec nginx nginx -s reload
 docker compose up -d certbot   # starts the auto-renewal loop
 ```
 
-Your team can now reach the app at `https://erp.yourbusiness.com`.
+Your team can now reach the app at `https://operation.baza-boutique.com`.
 
 Renewing the certificate on disk doesn't make Nginx pick it up — Nginx only
 re-reads certificate files on a reload. Add a weekly cron job to renew (if
@@ -138,7 +138,7 @@ optional and additive — password login keeps working either way.
    **OAuth client ID** → Application type **Web application**.
 3. Under **Authorized redirect URIs**, add exactly:
    ```
-   https://erp.yourbusiness.com/api/auth/google/callback
+   https://operation.baza-boutique.com/api/auth/google/callback
    ```
    (your real domain, must match exactly, including `https://`).
 4. Copy the **Client ID** and **Client secret** it gives you.
@@ -146,7 +146,7 @@ optional and additive — password login keeps working either way.
    ```
    GOOGLE_CLIENT_ID=<the client id>
    GOOGLE_CLIENT_SECRET=<the client secret>
-   GOOGLE_REDIRECT_URI=https://erp.yourbusiness.com/api/auth/google/callback
+   GOOGLE_REDIRECT_URI=https://operation.baza-boutique.com/api/auth/google/callback
    ```
 6. Redeploy: `docker compose up -d --build app`
 
@@ -178,11 +178,11 @@ and one more redirect URI to it.
    create a new **Web application** OAuth client the same way) → under
    **Authorized redirect URIs**, add a *second* one, exactly:
    ```
-   https://erp.yourbusiness.com/api/auth/google/drive/callback
+   https://operation.baza-boutique.com/api/auth/google/drive/callback
    ```
 4. In your `.env` on the server, add:
    ```
-   GOOGLE_DRIVE_REDIRECT_URI=https://erp.yourbusiness.com/api/auth/google/drive/callback
+   GOOGLE_DRIVE_REDIRECT_URI=https://operation.baza-boutique.com/api/auth/google/drive/callback
    ```
    (`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are the same ones from
    step 4 above — add those too if you haven't already, even if you don't
