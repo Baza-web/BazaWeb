@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageIntegrations } from "@/lib/rbac";
+import { absoluteUrl } from "@/lib/requestOrigin";
 import {
   exchangeDriveCode,
   emailFromIdToken,
@@ -10,15 +11,13 @@ import {
 } from "@/lib/googleDrive";
 
 function redirectToSettings(request: Request, params: Record<string, string>) {
-  const url = new URL("/settings", request.url);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(absoluteUrl(request, "/settings", params));
 }
 
 export async function GET(request: Request) {
   const session = await requireSessionOrRedirect();
   if (!canManageIntegrations(session.role)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(absoluteUrl(request, "/dashboard"));
   }
 
   const { searchParams } = new URL(request.url);

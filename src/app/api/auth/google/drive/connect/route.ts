@@ -3,18 +3,19 @@ import { cookies } from "next/headers";
 import crypto from "crypto";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageIntegrations } from "@/lib/rbac";
+import { absoluteUrl } from "@/lib/requestOrigin";
 import { driveConnectConfigured, buildDriveAuthUrl } from "@/lib/googleDrive";
 
 export async function GET(request: Request) {
   const session = await requireSessionOrRedirect();
   if (!canManageIntegrations(session.role)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(absoluteUrl(request, "/dashboard"));
   }
 
   if (!driveConnectConfigured()) {
-    const url = new URL("/settings", request.url);
-    url.searchParams.set("error", "Google Drive isn't set up on this server yet. See DEPLOY.md.");
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(
+      absoluteUrl(request, "/settings", { error: "Google Drive isn't set up on this server yet. See DEPLOY.md." }),
+    );
   }
 
   const state = crypto.randomUUID();

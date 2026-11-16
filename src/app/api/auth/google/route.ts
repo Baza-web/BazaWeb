@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { buildGoogleAuthUrl, googleSignInConfigured } from "@/lib/google-auth";
+import { absoluteUrl } from "@/lib/requestOrigin";
 
 export async function GET(request: Request) {
   if (!googleSignInConfigured()) {
-    const url = new URL("/login", request.url);
-    url.searchParams.set("error", "Google sign-in isn't set up yet.");
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(absoluteUrl(request, "/login", { error: "Google sign-in isn't set up yet." }));
   }
 
   const state = crypto.randomUUID();
