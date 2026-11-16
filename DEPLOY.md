@@ -11,8 +11,8 @@ No third-party platform account is required.
   branches; even 1 vCPU / 2 GB works for a smaller team.
 - Use Ubuntu 22.04 or 24.04.
 - In your domain's DNS settings, create an **A record** pointing a
-  subdomain (e.g. `erp.yourbusiness.com`) at the server's public IP address.
-  Wait for it to propagate (`dig erp.yourbusiness.com` should show your IP).
+  subdomain (e.g. `operation.baza-boutique.com`) at the server's public IP address.
+  Wait for it to propagate (`dig operation.baza-boutique.com` should show your IP).
 
 ## 2. Install Docker on the server
 
@@ -65,13 +65,13 @@ order:
 ```bash
 mkdir -p nginx/conf.d
 cp nginx/app.http-only.conf nginx/conf.d/app.conf
-sed -i 's/YOUR_DOMAIN/erp.yourbusiness.com/' nginx/conf.d/app.conf
+sed -i 's/YOUR_DOMAIN/operation.baza-boutique.com/' nginx/conf.d/app.conf
 
 docker compose up -d db app nginx
 ```
 
 Wait ~20 seconds for the app to build and start migrations, then confirm
-`http://erp.yourbusiness.com` loads the login page (it's fine that it's not
+`http://operation.baza-boutique.com` loads the login page (it's fine that it's not
 HTTPS yet).
 
 Now request the certificate:
@@ -79,7 +79,7 @@ Now request the certificate:
 ```bash
 docker compose run --rm --entrypoint certbot certbot certonly --webroot \
   -w /var/www/certbot \
-  -d erp.yourbusiness.com \
+  -d operation.baza-boutique.com \
   --email you@yourbusiness.com --agree-tos --no-eff-email
 ```
 
@@ -91,12 +91,12 @@ If that succeeds, switch Nginx to the HTTPS config:
 
 ```bash
 cp nginx/app.ssl.conf nginx/conf.d/app.conf
-sed -i 's/YOUR_DOMAIN/erp.yourbusiness.com/g' nginx/conf.d/app.conf
+sed -i 's/YOUR_DOMAIN/operation.baza-boutique.com/g' nginx/conf.d/app.conf
 docker compose exec nginx nginx -s reload
 docker compose up -d certbot   # starts the auto-renewal loop
 ```
 
-Your team can now reach the app at `https://erp.yourbusiness.com`.
+Your team can now reach the app at `https://operation.baza-boutique.com`.
 
 Renewing the certificate on disk doesn't make Nginx pick it up — Nginx only
 re-reads certificate files on a reload. Add a weekly cron job to renew (if
@@ -138,7 +138,7 @@ optional and additive — password login keeps working either way.
    **OAuth client ID** → Application type **Web application**.
 3. Under **Authorized redirect URIs**, add exactly:
    ```
-   https://erp.yourbusiness.com/api/auth/google/callback
+   https://operation.baza-boutique.com/api/auth/google/callback
    ```
    (your real domain, must match exactly, including `https://`).
 4. Copy the **Client ID** and **Client secret** it gives you.
@@ -146,7 +146,7 @@ optional and additive — password login keeps working either way.
    ```
    GOOGLE_CLIENT_ID=<the client id>
    GOOGLE_CLIENT_SECRET=<the client secret>
-   GOOGLE_REDIRECT_URI=https://erp.yourbusiness.com/api/auth/google/callback
+   GOOGLE_REDIRECT_URI=https://operation.baza-boutique.com/api/auth/google/callback
    ```
 6. Redeploy: `docker compose up -d --build app`
 
@@ -154,6 +154,58 @@ A "Sign in with Google" button now appears on the login page automatically.
 It only works for emails that already have an active Staff account in the
 app — Google doesn't create accounts, it just confirms who someone is, the
 same as password login does today.
+
+## Optional: Google Drive daily backup
+
+Connects one Google account once, so the app can upload daily backups into
+a **"26. Claude Ai"** folder in that account's own Drive automatically —
+using its normal 15GB storage, no re-login ever needed. This is separate
+from "Sign in with Google" above (that one only confirms who someone is; it
+never touches Drive), but it reuses the same Google Cloud project and OAuth
+client if you've already set that up — you just need to add one more scope
+and one more redirect URI to it.
+
+1. In the same Google Cloud project (or a new one, if you skipped "Sign in
+   with Google"): **APIs & Services** → **Library** → search **Google Drive
+   API** → **Enable**.
+2. **APIs & Services** → **OAuth consent screen** → **Data Access** → **Add
+   or remove scopes** → add `.../auth/drive.file` ("See, edit, create, and
+   delete only the specific Google Drive files you use with this app").
+   This narrow scope means the app can only see files *it* creates — never
+   the rest of that Google account's Drive.
+3. **APIs & Services** → **Credentials** → open your existing OAuth client
+   (the one from "Sign in with Google", if you set that up — otherwise
+   create a new **Web application** OAuth client the same way) → under
+   **Authorized redirect URIs**, add a *second* one, exactly:
+   ```
+   https://operation.baza-boutique.com/api/auth/google/drive/callback
+   ```
+4. In your `.env` on the server, add:
+   ```
+   GOOGLE_DRIVE_REDIRECT_URI=https://operation.baza-boutique.com/api/auth/google/drive/callback
+   ```
+   (`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are the same ones from
+   step 4 above — add those too if you haven't already, even if you don't
+   want "Sign in with Google" itself; this feature needs them regardless.)
+5. Redeploy: `docker compose up -d --build app`
+6. While your Google Cloud project is still in **Testing** publishing
+   status (the default), only the test users you listed in step 1 of "Sign
+   in with Google" can complete this connection — add the Google account
+   you intend to connect as a test user if it isn't already, or publish the
+   app once you're ready for that not to matter.
+7. Log in to the app as the **Owner**, go to **Settings** in the sidebar,
+   and click **Connect Google Drive**. Sign in with the Google account you
+   want backups to live in, and approve the permission screen (it will
+   mention this app can see and manage files it creates — that's the
+   `drive.file` scope from step 2, working as intended).
+8. Settings will now show "Connected as ...". This finishes the connection
+   itself — the daily backup job that uses it to actually upload files is
+   tracked separately (see the project status for whether that part has
+   shipped yet).
+
+To switch to a different Google account later, click **Disconnect** in
+Settings first (this also revokes the app's access on Google's side), then
+**Connect Google Drive** again and sign in with the other account.
 
 ## Updating the app later
 

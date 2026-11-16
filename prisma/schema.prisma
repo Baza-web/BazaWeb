@@ -236,6 +236,7 @@ model Staff {
   deletionRequestsReviewed DeletionRequest[] @relation("DeletionReviewer")
   editRequestsMade     EditRequest[] @relation("EditRequester")
   editRequestsReviewed EditRequest[] @relation("EditReviewer")
+  driveConnectionsMade GoogleDriveConnection[]
   groupMessagesSent  GroupMessage[]
   socialPostsAssigned SocialPost[] @relation("SocialPostAssignee")
   socialPostsCreated  SocialPost[] @relation("SocialPostCreator")
@@ -937,4 +938,19 @@ model EditRequest {
   reviewedBy  Staff? @relation("EditReviewer", fields: [reviewedById], references: [id])
 
   @@index([entityType, entityId])
+}
+
+// A single shared connection to one Google account's Drive, used for the
+// daily backup and (later) Sheets sync — not a per-staff login. Always
+// upserted at id "singleton" so there is at most one row.
+model GoogleDriveConnection {
+  id                     String   @id @default("singleton")
+  encryptedRefreshToken  String
+  googleEmail            String
+  driveFolderId          String?
+  connectedByStaffId     String
+  connectedAt            DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  connectedBy Staff @relation(fields: [connectedByStaffId], references: [id])
 }
