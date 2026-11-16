@@ -271,6 +271,35 @@ one more redirect URI to it, same as the Drive section did.
 To switch to a different Gmail account later, click **Disconnect** in
 Settings first, then **Connect Gmail** again.
 
+## Optional: "Choose from Google Drive" on every file upload
+
+Every file-upload field in the app (Bulk Import, Bank Reconciliation,
+Import Historical Totals) gets a drag-and-drop zone either way — this only
+adds a **"Choose from Google Drive"** button next to it, so someone can
+pick a spreadsheet straight out of their own Drive instead of downloading
+it first. Uses the same "Sign in with Google" **Client ID** above — no new
+OAuth scope or consent-screen changes needed, just one more API to enable:
+
+1. In the same Google Cloud Console project, go to **APIs & Services** →
+   **Library**, search for **"Google Picker API"**, and click **Enable**.
+2. **APIs & Services** → **Credentials** → **Create credentials** →
+   **API key**. Click the new key, then under **API restrictions** choose
+   **Restrict key** and select **Google Picker API** only (and under
+   **Website restrictions**, add your domain) — this key is visible to
+   anyone using the Picker, so restrict what it can do and where it works.
+3. In your `.env` on the server, add:
+   ```
+   GOOGLE_PICKER_API_KEY=<the API key>
+   ```
+   (`GOOGLE_CLIENT_ID` must already be set from the "Sign in with Google"
+   step — the button stays hidden until both are present.)
+4. Redeploy: `docker compose up -d --build app`
+
+The first time someone uses it, Google's own popup asks them to grant this
+app access to **only the file they pick** (`drive.file` scope) — not their
+whole Drive. Picking a native Google Sheet exports it to .xlsx on the fly
+before handing it to the same import logic as a regular upload.
+
 ## Updating the app later
 
 ```bash

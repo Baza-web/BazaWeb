@@ -61,7 +61,11 @@ export default async function BankReconciliationPage({
         </div>
       </div>
 
-      <BankStatementUploadForm accounts={cashAccounts} />
+      <BankStatementUploadForm
+        accounts={cashAccounts}
+        googleClientId={process.env.GOOGLE_CLIENT_ID}
+        googlePickerApiKey={process.env.GOOGLE_PICKER_API_KEY}
+      />
 
       <form className="card flex flex-wrap items-end gap-3 print:hidden" action="/accounting/bank-reconciliation">
         <div>

@@ -3,12 +3,22 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadBankStatement } from "@/app/(app)/accounting/bank-reconciliation/actions";
+import { FileDropInput } from "@/components/FileDropInput";
 
-export function BankStatementUploadForm({ accounts }: { accounts: { id: string; code: string; name: string }[] }) {
+export function BankStatementUploadForm({
+  accounts,
+  googleClientId,
+  googlePickerApiKey,
+}: {
+  accounts: { id: string; code: string; name: string }[];
+  googleClientId?: string;
+  googlePickerApiKey?: string;
+}) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ imported: number; skipped: number; error?: string } | null>(null);
+  const [resetKey, setResetKey] = useState(0);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -19,6 +29,7 @@ export function BankStatementUploadForm({ accounts }: { accounts: { id: string; 
       setResult(outcome);
       if (!outcome.error) {
         formRef.current?.reset();
+        setResetKey((k) => k + 1);
         router.refresh();
       }
     });
@@ -43,7 +54,14 @@ export function BankStatementUploadForm({ accounts }: { accounts: { id: string; 
         </div>
         <div>
           <label className="label">File</label>
-          <input className="input text-xs" type="file" name="file" accept=".xlsx,.csv" required />
+          <FileDropInput
+            key={resetKey}
+            name="file"
+            accept=".xlsx,.csv"
+            required
+            googleClientId={googleClientId}
+            googlePickerApiKey={googlePickerApiKey}
+          />
         </div>
       </div>
       <button type="submit" disabled={isPending} className="btn-primary">

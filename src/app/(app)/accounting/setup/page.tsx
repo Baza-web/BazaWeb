@@ -54,7 +54,12 @@ export default async function AccountingSetupPage() {
         <h2 className="font-medium">2. Opening balances</h2>
         <p className="text-sm text-stone-500">
           If the business was already running before this ledger existed, enter what it actually had on a given date — what&apos;s
-          already recorded as Sales/Expenses from that point on stays untouched.
+          already recorded as Sales/Expenses from that point on stays untouched. If you have several months of real history from
+          a previous system (not just a single starting point), use{" "}
+          <Link href="/accounting/import-history" className="text-brand-700 hover:underline">
+            Import Historical Totals
+          </Link>{" "}
+          instead — it posts one entry per month.
         </p>
         <OpeningBalancesForm defaultDate={new Date().toISOString().slice(0, 10)} disabled={!!openingAlready} />
       </div>

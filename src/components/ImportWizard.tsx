@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { previewImport, applyImport, discardImportBatch, type ImportEntity } from "@/app/(app)/import/actions";
+import { FileDropInput } from "@/components/FileDropInput";
 
 type DiffRow = {
   id: string;
@@ -10,7 +11,7 @@ type DiffRow = {
   errors: string[];
 };
 
-export function ImportWizard() {
+export function ImportWizard({ googleClientId, googlePickerApiKey }: { googleClientId?: string; googlePickerApiKey?: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [entityType, setEntityType] = useState<ImportEntity>("CUSTOMER");
   const [isPending, startTransition] = useTransition();
@@ -21,6 +22,7 @@ export function ImportWizard() {
   const [matched, setMatched] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [applyResult, setApplyResult] = useState<string | null>(null);
+  const [resetKey, setResetKey] = useState(0);
 
   function reset() {
     setBatchId(null);
@@ -28,6 +30,7 @@ export function ImportWizard() {
     setSelected(new Set());
     setApplyResult(null);
     if (fileRef.current) fileRef.current.value = "";
+    setResetKey((k) => k + 1);
   }
 
   function handlePreview() {
@@ -69,6 +72,7 @@ export function ImportWizard() {
       setRows([]);
       setSelected(new Set());
       if (fileRef.current) fileRef.current.value = "";
+      setResetKey((k) => k + 1);
     });
   }
 
@@ -156,7 +160,14 @@ export function ImportWizard() {
       </div>
       <div>
         <label className="label">Edited .xlsx file</label>
-        <input ref={fileRef} className="input" type="file" accept=".xlsx" />
+        <FileDropInput
+          key={resetKey}
+          ref={fileRef}
+          name="file"
+          accept=".xlsx"
+          googleClientId={googleClientId}
+          googlePickerApiKey={googlePickerApiKey}
+        />
         <p className="mt-1 text-xs text-stone-400">
           Export {entityType === "CUSTOMER" ? "Customers" : "Inventory"} to Excel first, edit the values you want to change,
           then upload the same file here — leave a cell blank to leave that field unchanged.
