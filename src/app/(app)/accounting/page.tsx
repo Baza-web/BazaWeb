@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TrendUp, TrendDown } from "@phosphor-icons/react/ssr";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canManageAccounting, canManagePayroll, isCompanyWide } from "@/lib/rbac";
+import { branchScope, canManageAccounting, canManagePayroll, canDeleteOrRequest, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate, round2 } from "@/lib/utils";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { AccountingTrendChart } from "@/components/AccountingTrendChart";
@@ -10,6 +10,7 @@ import { RankedBarChart } from "@/components/RankedBarChart";
 import { setBudget, deleteBudget } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
 import { ExportButton } from "@/components/ExportButton";
+import { ExpenseActions } from "@/components/ExpenseActions";
 
 function startOfMonth() {
   const d = new Date();
@@ -321,6 +322,42 @@ export default async function AccountingPage({
             Open Statements
           </Link>
         </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Chart of Accounts</h2>
+            <p className="text-sm text-stone-500">The accounts every journal entry posts to.</p>
+          </div>
+          <Link href="/accounting/chart-of-accounts" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Journal Entries</h2>
+            <p className="text-sm text-stone-500">Manual double-entry postings — debits must equal credits.</p>
+          </div>
+          <Link href="/accounting/journal-entries" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">General Ledger</h2>
+            <p className="text-sm text-stone-500">Every posted journal line — the source of truth for reporting.</p>
+          </div>
+          <Link href="/accounting/general-ledger" className="btn-primary">
+            Open
+          </Link>
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Trial Balance</h2>
+            <p className="text-sm text-stone-500">Every account&apos;s totals — debits and credits must balance.</p>
+          </div>
+          <Link href="/accounting/trial-balance" className="btn-primary">
+            Open
+          </Link>
+        </div>
       </div>
 
       <div className="card space-y-4 print:hidden">
@@ -442,6 +479,7 @@ export default async function AccountingPage({
               <th>Type</th>
               <th>Description</th>
               <th>Amount</th>
+              {canManageAccounting(session.role) && <th className="print:hidden">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -478,11 +516,27 @@ export default async function AccountingPage({
                   {entry.type === "INCOME" ? "+" : "-"}
                   {formatMoney(entry.amount)}
                 </td>
+                {canManageAccounting(session.role) && (
+                  <td className="print:hidden">
+                    {entry.expense && (
+                      <ExpenseActions
+                        expenseId={entry.expense.id}
+                        category={entry.expense.category}
+                        description={entry.expense.description}
+                        amount={entry.expense.amount}
+                        date={entry.expense.date.toISOString()}
+                        isOwner={session.role === "OWNER"}
+                        canDelete={canDeleteOrRequest(session.role)}
+                        locked={!!entry.expense.purchaseOrderId}
+                      />
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
             {ledger.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-stone-400">
+                <td colSpan={canManageAccounting(session.role) ? 7 : 6} className="py-6 text-center text-stone-400">
                   No activity in this range.
                 </td>
               </tr>

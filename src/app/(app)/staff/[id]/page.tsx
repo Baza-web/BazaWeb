@@ -1,13 +1,17 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageStaffScoped, canViewSalary, isCompanyWide, ROLE_LABELS } from "@/lib/rbac";
+import { canManageStaff, canManageStaffScoped, canViewSalary, isCompanyWide, ROLE_LABELS } from "@/lib/rbac";
 import { formatDate, formatMoney, round2 } from "@/lib/utils";
 import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
+import { StaffPasswordForm } from "@/components/StaffPasswordForm";
+import { CancelRequestButton } from "@/components/CancelRequestButton";
+import { withdrawEditRequest } from "../../edit-requests/actions";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
 import { setLeaveEntitlement } from "../../leave/actions";
 import { toggleOnboardingTask, setStaffBrands } from "../actions";
+import { PrintButton } from "@/components/PrintButton";
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
   FULL_TIME: "Full-time",
@@ -65,10 +69,20 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <p className="text-sm text-stone-500">{ROLE_LABELS[staff.role]} · {staff.branch?.name ?? "No branch"}</p>
-        <h1 className="page-title">{staff.name}</h1>
-        <p className="text-sm text-stone-500">{staff.email}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-stone-500 print:hidden">{ROLE_LABELS[staff.role]} · {staff.branch?.name ?? "No branch"}</p>
+          <h1 className="page-title">{staff.name}</h1>
+          <p className="text-sm text-stone-500">{staff.email}</p>
+        </div>
+        <PrintButton label="Print profile" />
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{staff.name} — HR profile</h2>
+        <p className="text-sm text-stone-500">
+          {ROLE_LABELS[staff.role]} · {staff.branch?.name ?? "No branch"} · Printed {formatDate(new Date())}
+        </p>
       </div>
 
       {pendingEdit && (
@@ -78,6 +92,9 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
             {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
             further edits can be made to this profile until that request is approved or rejected.
           </p>
+          {pendingEdit.requestedById === session.staffId && (
+            <CancelRequestButton onCancel={withdrawEditRequest.bind(null, pendingEdit.id)} />
+          )}
         </div>
       )}
 
@@ -146,7 +163,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
       )}
 
       {allBrands.length > 0 && (
-        <div className="card">
+        <div className="card print:hidden">
           <h2 className="mb-1 font-medium">Brands</h2>
           <p className="mb-3 text-xs text-stone-400">
             Which brand(s) this person works for — some staff work for two. Shown to Accounting and Admins
@@ -174,19 +191,29 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         </div>
       )}
 
-      <div className="card">
+      <div className="card print:hidden">
         <h2 className="mb-3 font-medium">Edit HR details</h2>
         <StaffProfileForm staff={staff} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
       </div>
 
       {showSalary && (
-        <div className="card">
+        <div className="card print:hidden">
           <h2 className="mb-3 font-medium">Salary & bank details</h2>
           <StaffPayForm staff={staff} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
         </div>
       )}
 
-      <div className="card">
+      {canManageStaff(session.role) && (
+        <div className="card print:hidden">
+          <h2 className="mb-3 font-medium">Login password</h2>
+          <p className="mb-3 text-xs text-stone-400">
+            Sets a new password for this account — share it with {staff.name} directly, it won&apos;t be emailed.
+          </p>
+          <StaffPasswordForm staffId={staff.id} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
+        </div>
+      )}
+
+      <div className="card print:hidden">
         <h2 className="mb-3 font-medium">Documents</h2>
         {staff.documents.length > 0 ? (
           <ul className="mb-3 space-y-1 text-sm">
@@ -204,7 +231,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         <StaffDocumentsForm staffId={staff.id} />
       </div>
 
-      <div className="card overflow-x-auto">
+      <div id="leave-balances-table" className="card overflow-x-auto">
         <h2 className="mb-3 font-medium">Leave balances — {currentYear}</h2>
         <table className="table-base">
           <thead>
@@ -213,7 +240,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
               <th>Allotted</th>
               <th>Used</th>
               <th>Remaining</th>
-              <th>Set allotted days</th>
+              <th className="print:hidden">Set allotted days</th>
             </tr>
           </thead>
           <tbody>
@@ -223,7 +250,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
                 <td>{row.allotted}</td>
                 <td>{row.used}</td>
                 <td className={row.remaining < 0 ? "text-red-700" : undefined}>{row.remaining}</td>
-                <td>
+                <td className="print:hidden">
                   <form action={setLeaveEntitlement.bind(null, staff.id)} className="flex items-center gap-1">
                     <input type="hidden" name="type" value={row.type} />
                     <input type="hidden" name="year" value={currentYear} />
@@ -246,7 +273,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         </table>
       </div>
 
-      <div className="card">
+      <div className="card print:hidden">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-medium">Onboarding checklist</h2>
           <span className="text-xs text-stone-400">

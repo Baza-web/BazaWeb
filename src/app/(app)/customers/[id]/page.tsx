@@ -2,9 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope } from "@/lib/rbac";
+import { branchScope, canDeleteOrRequest } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
-import { addCustomerNote, updateCustomer } from "../actions";
+import { addCustomerNote, updateCustomer, deleteCustomerPermanently } from "../actions";
+import { EnvelopeSimple } from "@/components/icons";
+import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { PrintButton } from "@/components/PrintButton";
+import { CancelRequestButton } from "@/components/CancelRequestButton";
+import { withdrawEditRequest } from "../../edit-requests/actions";
 
 function toDateInput(d: Date | null) {
   return d ? d.toISOString().slice(0, 10) : "";
@@ -19,6 +24,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     include: {
       sales: { orderBy: { createdAt: "desc" } },
       notes: { include: { staff: true }, orderBy: { createdAt: "desc" } },
+      emails: { include: { sentBy: true }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!customer) notFound();
@@ -31,10 +37,39 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="page-title">{customer.name}</h1>
+      <div className="flex items-start justify-between print:hidden">
+        <div>
+          <h1 className="page-title">{customer.name}</h1>
+          <p className="text-sm text-stone-500">
+            {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <PrintButton label="Print" />
+          {customer.email && (
+            <Link href={`/email?customerId=${customer.id}`} className="btn-secondary inline-flex items-center gap-1.5 text-sm">
+              <EnvelopeSimple size={16} aria-hidden="true" />
+              Email
+            </Link>
+          )}
+          {canDeleteOrRequest(session.role) && (
+            <DeleteRecordButton
+              action={deleteCustomerPermanently.bind(null, customer.id)}
+              label="customer"
+              isOwner={session.role === "OWNER"}
+              confirmMessage={`Permanently delete ${customer.name}? This can't be undone.`}
+              requestMessage={`Request permanent deletion of ${customer.name}? An Owner will need to approve it before anything happens.`}
+              redirectTo="/customers"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{customer.name} — Customer statement</h2>
         <p className="text-sm text-stone-500">
-          {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"}
+          {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"} · Printed{" "}
+          {formatDate(new Date())}
         </p>
       </div>
 
@@ -45,6 +80,9 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
             further edits can be made until that request is approved or rejected.
           </p>
+          {pendingEdit.requestedById === session.staffId && (
+            <CancelRequestButton onCancel={withdrawEditRequest.bind(null, pendingEdit.id)} />
+          )}
         </div>
       )}
 
@@ -63,7 +101,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      <div className="card">
+      <div className="card print:hidden">
         <h2 className="mb-3 font-medium">Edit details</h2>
         <form action={updateCustomer.bind(null, customer.id)} className="space-y-3">
           <fieldset disabled={!!pendingEdit} className="space-y-3">
@@ -122,9 +160,25 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {customer.emails.length > 0 && (
+        <div className="card">
+          <h2 className="mb-3 font-medium">Emails sent</h2>
+          <ul className="space-y-3 text-sm">
+            {customer.emails.map((e) => (
+              <li key={e.id} className="border-t border-stone-100 pt-2 first:border-t-0 first:pt-0">
+                <p className="font-medium">{e.subject}</p>
+                <p className="text-xs text-stone-400">
+                  {e.sentBy.name} · {formatDateTime(e.createdAt)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="card">
         <h2 className="mb-3 font-medium">Notes & follow-ups</h2>
-        <form action={addCustomerNote.bind(null, customer.id)} className="mb-4 space-y-2">
+        <form action={addCustomerNote.bind(null, customer.id)} className="mb-4 space-y-2 print:hidden">
           <textarea className="input" name="body" rows={2} placeholder="Add a note…" required />
           <div className="flex items-center gap-3">
             <input className="input max-w-[200px]" name="followUpAt" type="date" />

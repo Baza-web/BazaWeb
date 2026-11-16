@@ -1,13 +1,17 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canReviewDeletions } from "@/lib/rbac";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatDate } from "@/lib/utils";
 import { decideDeletionRequest } from "./actions";
+import { PrintButton } from "@/components/PrintButton";
 
 const TYPE_LABELS: Record<string, string> = {
   STAFF: "Staff account",
   INVENTORY: "Inventory item",
   SALE: "Sale",
+  CUSTOMER: "Customer",
+  EXPENSE: "Expense",
+  BROKER: "Broker",
 };
 
 export default async function DeletionRequestsPage() {
@@ -26,13 +30,23 @@ export default async function DeletionRequestsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="page-title">Deletion requests</h1>
-      <p className="text-sm text-stone-500">
-        When an Admin asks to delete a staff account, inventory item, or sale, it shows up here for an Owner
-        to approve or reject — nothing is deleted until you decide.
-      </p>
+      <div className="flex items-center justify-between print:hidden">
+        <div>
+          <h1 className="page-title">Deletion requests</h1>
+          <p className="text-sm text-stone-500">
+            When an Admin asks to delete a staff account, inventory item, or sale, it shows up here for an Owner
+            to approve or reject — nothing is deleted until you decide.
+          </p>
+        </div>
+        <PrintButton selector="#pending-deletion-requests" label="Print" />
+      </div>
 
-      <div className="card overflow-x-auto">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Deletion requests</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())}</p>
+      </div>
+
+      <div id="pending-deletion-requests" className="card overflow-x-auto">
         <h2 className="mb-3 font-medium">Awaiting your review</h2>
         <table className="table-base">
           <thead>
@@ -42,7 +56,7 @@ export default async function DeletionRequestsPage() {
               <th>Reason</th>
               <th>Requested by</th>
               <th>When</th>
-              <th>Decision</th>
+              <th className="print:hidden">Decision</th>
             </tr>
           </thead>
           <tbody>
@@ -53,7 +67,7 @@ export default async function DeletionRequestsPage() {
                 <td>{r.reason ?? "—"}</td>
                 <td>{r.requestedBy.name}</td>
                 <td>{formatDateTime(r.createdAt)}</td>
-                <td>
+                <td className="print:hidden">
                   <div className="flex gap-2">
                     <form action={decideDeletionRequest.bind(null, r.id)}>
                       <input type="hidden" name="decision" value="APPROVED" />

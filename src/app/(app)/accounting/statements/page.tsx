@@ -2,7 +2,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canManageAccounting, isCompanyWide } from "@/lib/rbac";
-import { formatMoney, round2 } from "@/lib/utils";
+import { formatMoney, round2, formatDate } from "@/lib/utils";
+import { PrintButton } from "@/components/PrintButton";
 
 function startOfMonth() {
   const d = new Date();
@@ -134,17 +135,27 @@ export default async function StatementsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <div>
           <h1 className="page-title">Financial statements</h1>
           <p className="text-sm text-stone-500">Profit &amp; Loss, Balance Sheet, and where to cut cost.</p>
         </div>
-        <Link href="/accounting" className="btn-secondary">
-          Back to Accounting
-        </Link>
+        <div className="flex items-center gap-2">
+          <PrintButton label="Print statements" />
+          <Link href="/accounting" className="btn-secondary">
+            Back to Accounting
+          </Link>
+        </div>
       </div>
 
-      <form className="card flex flex-wrap items-end gap-3" action="/accounting/statements">
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Financial statements</h2>
+        <p className="text-sm text-stone-500">
+          {formatDate(fromDate)} – {formatDate(toDate)} · Printed {formatDate(new Date())}
+        </p>
+      </div>
+
+      <form className="card flex flex-wrap items-end gap-3 print:hidden" action="/accounting/statements">
         <div>
           <label className="label">From</label>
           <input className="input" type="date" name="from" defaultValue={fromDate.toISOString().slice(0, 10)} />

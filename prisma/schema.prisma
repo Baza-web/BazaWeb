@@ -159,6 +159,7 @@ model Branch {
   brokerMemos    BrokerMemo[]
   payrollRuns    PayrollRun[]
   budgets        Budget[]
+  journalEntries JournalEntry[]
 }
 
 // A house brand this business trades under (e.g. "Baza Boutique", "Silver
@@ -244,6 +245,10 @@ model Staff {
   onboardingTasks     OnboardingTask[]
   brands              Brand[] @relation("StaffBrands")
   socialPostsApproved SocialPost[] @relation("SocialPostApprover")
+  importBatchesMade  ImportBatch[]
+  mailConnectionsMade GoogleMailConnection[]
+  emailsSent          EmailLog[]
+  journalEntriesMade  JournalEntry[]
 
   @@index([branchId])
 }
@@ -302,6 +307,7 @@ model Customer {
   sales        Sale[]
   notes        CustomerNote[]
   repairOrders RepairOrder[]
+  emails       EmailLog[]
 
   @@index([branchId])
 }
@@ -953,4 +959,125 @@ model GoogleDriveConnection {
   updatedAt              DateTime @updatedAt
 
   connectedBy Staff @relation(fields: [connectedByStaffId], references: [id])
+}
+
+// Holds a parsed, already-diffed Excel upload between the "preview" and
+// "apply" steps of bulk import, so the browser doesn't have to re-upload
+// or hold the whole workbook in a form field — see src/lib/xlsxImport.ts.
+// Owner-only for now: applying a batch always takes effect immediately,
+// the same as any other direct Owner edit, so there's no approval status
+// here the way EditRequest has one.
+model ImportBatch {
+  id          String   @id @default(cuid())
+  entityType  String
+  createdById String
+  rowsJson    Json
+  createdAt   DateTime @default(now())
+
+  createdBy Staff @relation(fields: [createdById], references: [id])
+}
+
+// A single shared connection to one Google account's Gmail, used to send
+// client emails as that real address (gmail.send scope only — this app
+// never reads the mailbox). Same singleton pattern as GoogleDriveConnection;
+// deliberately a separate connection/scope/redirect URI so Drive and Gmail
+// access can be granted, revoked, or re-authorized independently.
+model GoogleMailConnection {
+  id                    String   @id @default("singleton")
+  encryptedRefreshToken String
+  googleEmail           String
+  connectedByStaffId    String
+  connectedAt           DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  connectedBy Staff @relation(fields: [connectedByStaffId], references: [id])
+}
+
+// One email sent to a customer through the connected Gmail account —
+// kept so staff can see what's already been said to a customer, not just
+// that an email button exists. Not a full inbox: outbound only.
+model EmailLog {
+  id          String   @id @default(cuid())
+  customerId  String
+  toEmail     String
+  subject     String
+  body        String
+  sentById    String
+  gmailMsgId  String?
+  createdAt   DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  sentBy   Staff    @relation(fields: [sentById], references: [id])
+
+  @@index([customerId])
+}
+
+// --- Double-entry accounting (Chart of Accounts / General Ledger) ---
+// This is a new, parallel ledger — separate from LedgerEntry (the
+// existing Sale/Expense/Payroll income-expense log). Nothing here
+// changes how Sale/Expense/Payroll are created or displayed; it's an
+// independent foundation for real double-entry bookkeeping, built so
+// it can later be wired to post automatically from those flows without
+// touching their own code paths.
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+model Account {
+  id        String      @id @default(cuid())
+  code      String      @unique
+  name      String
+  type      AccountType
+  // Seeded defaults (see src/lib/ledger.ts DEFAULT_ACCOUNTS) are protected
+  // from deletion; a user-created account can be removed if unused.
+  isSystem  Boolean     @default(true)
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+
+  journalLines JournalLine[]
+}
+
+// One posted, balanced double-entry transaction. Never deleted once
+// posted — see reversalOfId: corrections happen via a new entry that
+// flips the original's debits/credits, not by editing or removing this
+// row (see "ACCOUNTING SECURITY" in the project's operating notes:
+// reversal entries only, never silent deletes).
+model JournalEntry {
+  id           String    @id @default(cuid())
+  entryNumber  String    @unique
+  date         DateTime  @default(now())
+  description  String
+  reference    String?
+  branchId     String?
+  department   String?
+  createdById  String
+  createdAt    DateTime  @default(now())
+  reversalOfId String?   @unique
+
+  lines       JournalLine[]
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  createdBy   Staff         @relation(fields: [createdById], references: [id])
+  reversalOf  JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversedBy  JournalEntry? @relation("Reversal")
+
+  @@index([date])
+  @@index([branchId])
+}
+
+model JournalLine {
+  id             String @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  debit          Float  @default(0)
+  credit         Float  @default(0)
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([journalEntryId])
 }

@@ -5,6 +5,7 @@ import { canManageBrands } from "@/lib/rbac";
 import { formatDate } from "@/lib/utils";
 import { createBrand, toggleBrandActive } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
+import { BrandRenameForm } from "@/components/BrandRenameForm";
 
 export default async function BrandsPage() {
   const session = await requireSessionOrRedirect();
@@ -93,9 +94,14 @@ export default async function BrandsPage() {
                   <input type="checkbox" data-print-checkbox defaultChecked className="h-4 w-4 rounded border-stone-300" aria-label={`Include ${b.name} in print`} />
                 </td>
                 <td className="font-medium">
-                  <Link href={`/brands/${b.id}`} className="text-brand-700 hover:underline">
-                    {b.name}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/brands/${b.id}`} className="text-brand-700 hover:underline">
+                      {b.name}
+                    </Link>
+                    <span className="print:hidden">
+                      <BrandRenameForm brandId={b.id} name={b.name} />
+                    </span>
+                  </div>
                 </td>
                 <td>{formatDate(b.createdAt)}</td>
                 <td className="text-xs text-stone-500">

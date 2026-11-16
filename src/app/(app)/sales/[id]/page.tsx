@@ -5,6 +5,8 @@ import { branchScope, canDeleteOrRequest } from "@/lib/rbac";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { PrintButton } from "@/components/PrintButton";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { CancelRequestButton } from "@/components/CancelRequestButton";
+import { withdrawEditRequest } from "../../edit-requests/actions";
 import { deleteSalePermanently, updateSale } from "../actions";
 
 const PAYMENT_METHODS = ["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"] as const;
@@ -41,6 +43,9 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             {pendingEdit.fieldSummary} — requested {new Date(pendingEdit.createdAt).toLocaleDateString()}. No
             further edits can be made to this sale until that request is approved or rejected.
           </p>
+          {pendingEdit.requestedById === session.staffId && (
+            <CancelRequestButton onCancel={withdrawEditRequest.bind(null, pendingEdit.id)} />
+          )}
         </div>
       )}
 

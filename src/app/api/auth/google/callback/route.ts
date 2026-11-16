@@ -3,11 +3,10 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { createSessionCookie } from "@/lib/auth";
 import { exchangeGoogleCode, verifyGoogleIdToken } from "@/lib/google-auth";
+import { absoluteUrl } from "@/lib/requestOrigin";
 
 function redirectToLogin(request: Request, message: string) {
-  const url = new URL("/login", request.url);
-  url.searchParams.set("error", message);
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(absoluteUrl(request, "/login", { error: message }));
 }
 
 export async function GET(request: Request) {
@@ -48,5 +47,5 @@ export async function GET(request: Request) {
     branchId: staff.branchId,
   });
 
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  return NextResponse.redirect(absoluteUrl(request, "/dashboard"));
 }

@@ -49,6 +49,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/leave", label: "Leave", iconKey: "leave" },
   { href: "/attendance", label: "Attendance", iconKey: "attendance" },
   { href: "/inbox", label: "Inbox", iconKey: "inbox" },
+  { href: "/email", label: "Email", iconKey: "email" },
   { href: "/staff", label: "Staff", iconKey: "staff", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/groups", label: "Groups", iconKey: "groups", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/branches", label: "Branches", iconKey: "branches", roles: ["OWNER", "ADMIN"] },
@@ -57,6 +58,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/deletion-requests", label: "Deletion requests", iconKey: "deletions", roles: ["OWNER"] },
   { href: "/edit-requests", label: "Edit requests", iconKey: "edits", roles: ["OWNER"] },
   { href: "/creative", label: "Creative Hub", iconKey: "creative", roles: ["OWNER", "ADMIN", "CREATIVE"] },
+  { href: "/import", label: "Bulk import", iconKey: "import", roles: ["OWNER"] },
   { href: "/settings", label: "Settings", iconKey: "settings", roles: ["OWNER"] },
 ];
 

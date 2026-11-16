@@ -4,8 +4,12 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canManageBrokers } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime, initials } from "@/lib/utils";
 import { RecordReturnForm } from "@/components/RecordReturnForm";
-import { reviewMemoEditRequest, resendBrokerStatement } from "../actions";
+import { reviewMemoEditRequest, resendBrokerStatement, updateBroker, deleteBrokerPermanently } from "../actions";
 import { Handshake, ArrowCounterClockwise, CheckCircle, X } from "@/components/icons";
+import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { PrintButton } from "@/components/PrintButton";
+import { CancelRequestButton } from "@/components/CancelRequestButton";
+import { withdrawEditRequest } from "../../edit-requests/actions";
 
 const MEMO_STATUS_STYLES: Record<string, string> = {
   OPEN: "bg-amber-100 text-amber-700",
@@ -38,6 +42,10 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
   });
   if (!broker) notFound();
 
+  const pendingBrokerEdit = await db.editRequest.findFirst({
+    where: { entityType: "BROKER", entityId: broker.id, status: "PENDING" },
+  });
+
   let outstandingCount = 0;
   let outstandingValue = 0;
   for (const memo of broker.memos) {
@@ -54,7 +62,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
           <span className="avatar h-12 w-12">{initials(broker.name)}</span>
           <div>
@@ -64,13 +72,84 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
             </p>
           </div>
         </div>
-        {broker.email && (
-          <form action={resendBrokerStatement.bind(null, broker.id)}>
-            <button type="submit" className="btn-secondary text-sm">
-              Email statement now
+        <div className="flex items-center gap-2">
+          <PrintButton label="Print" />
+          {broker.email && (
+            <form action={resendBrokerStatement.bind(null, broker.id)}>
+              <button type="submit" className="btn-secondary text-sm">
+                Email statement now
+              </button>
+            </form>
+          )}
+          <DeleteRecordButton
+            action={deleteBrokerPermanently.bind(null, broker.id)}
+            label="broker"
+            isOwner={session.role === "OWNER"}
+            confirmMessage={`Permanently delete ${broker.name}? This can't be undone.`}
+            requestMessage={`Request permanent deletion of ${broker.name}? An Owner will need to approve it before anything happens.`}
+            redirectTo="/brokers"
+          />
+        </div>
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{broker.name}</h2>
+        <p className="text-sm text-stone-500">
+          {[broker.company, broker.phone, broker.email].filter(Boolean).join(" · ") || "No contact info"} · Printed{" "}
+          {formatDate(new Date())}
+        </p>
+      </div>
+
+      {pendingBrokerEdit && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-medium">A contact-detail edit is awaiting Owner approval</p>
+          <p className="mt-1 text-amber-700">
+            {pendingBrokerEdit.fieldSummary} — requested {new Date(pendingBrokerEdit.createdAt).toLocaleDateString()}.
+          </p>
+          {pendingBrokerEdit.requestedById === session.staffId && (
+            <CancelRequestButton onCancel={withdrawEditRequest.bind(null, pendingBrokerEdit.id)} />
+          )}
+        </div>
+      )}
+
+      <div className="card print:hidden">
+        <h2 className="mb-3 font-medium">Edit contact details</h2>
+        <form action={updateBroker.bind(null, broker.id)} className="space-y-3">
+          <fieldset disabled={!!pendingBrokerEdit} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label">Name</label>
+                <input className="input" name="name" defaultValue={broker.name} required />
+              </div>
+              <div>
+                <label className="label">Company</label>
+                <input className="input" name="company" defaultValue={broker.company ?? ""} />
+              </div>
+              <div>
+                <label className="label">Phone</label>
+                <input className="input" name="phone" defaultValue={broker.phone ?? ""} />
+              </div>
+              <div>
+                <label className="label">Email</label>
+                <input className="input" type="email" name="email" defaultValue={broker.email ?? ""} />
+              </div>
+            </div>
+            <div>
+              <label className="label">Address</label>
+              <input className="input" name="address" defaultValue={broker.address ?? ""} />
+            </div>
+            <div>
+              <label className="label">Notes</label>
+              <textarea className="input" name="notes" rows={2} defaultValue={broker.notes ?? ""} />
+            </div>
+            <button type="submit" className="btn-primary">
+              Save changes
             </button>
-          </form>
-        )}
+            {session.role !== "OWNER" && (
+              <p className="text-xs text-stone-400">Saving will send this for an Owner to approve — nothing changes until then.</p>
+            )}
+          </fieldset>
+        </form>
       </div>
 
       <div className="card grid grid-cols-2 gap-4 sm:grid-cols-3">

@@ -233,6 +233,44 @@ backup set up earlier in this guide) — that one protects you if something
 goes wrong on the server itself; this one protects you if the whole VPS is
 lost, since the copies live in your own Google account instead.
 
+## Optional: Gmail — email clients from the app
+
+Connects one Gmail account once, so any staff member can email a customer
+straight from their profile in the app — the message is actually sent from
+that real Gmail address (not a generic no-reply sender), and every email
+sent is logged on the customer's page. This reuses the same OAuth client as
+"Sign in with Google" and Drive above — you're adding one more scope and
+one more redirect URI to it, same as the Drive section did.
+
+1. In the same Google Cloud project: **APIs & Services** → **Library** →
+   search **Gmail API** → **Enable**.
+2. **APIs & Services** → **OAuth consent screen** → **Data Access** → **Add
+   or remove scopes** → add `.../auth/gmail.send` ("Send email on your
+   behalf"). This scope can only send — it can never read anything already
+   in that Gmail account's inbox.
+3. **APIs & Services** → **Credentials** → open your existing OAuth client
+   → under **Authorized redirect URIs**, add a *third* one, exactly:
+   ```
+   https://operation.baza-boutique.com/api/auth/google/gmail/callback
+   ```
+4. In your `.env` on the server, add:
+   ```
+   GOOGLE_GMAIL_REDIRECT_URI=https://operation.baza-boutique.com/api/auth/google/gmail/callback
+   ```
+5. Redeploy: `docker compose up -d --build app`
+6. If your project is still in **Testing** publishing status, the Google
+   account you connect must be in the test users list (same as the Drive
+   step).
+7. Log in as the **Owner** or an **Admin**, go to **Settings**, and click
+   **Connect Gmail**. Sign in with the Gmail account you want client emails
+   to be sent from, and approve the permission screen.
+8. Settings will show "Connected as ...". Staff can now click the email
+   icon next to a customer's email address on the Customers page, or the
+   **Email** button on a customer's profile, to compose and send.
+
+To switch to a different Gmail account later, click **Disconnect** in
+Settings first, then **Connect Gmail** again.
+
 ## Updating the app later
 
 ```bash

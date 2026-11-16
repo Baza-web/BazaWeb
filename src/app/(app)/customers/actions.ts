@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, isCompanyWide } from "@/lib/rbac";
+import { branchScope, isCompanyWide, canDeleteOrRequest } from "@/lib/rbac";
 import { initiateEdit } from "@/lib/editRequests";
+import { initiateDeletion } from "@/lib/deletion";
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
   if (value === null) return undefined;
@@ -103,4 +104,19 @@ export async function addCustomerNote(customerId: string, formData: FormData) {
     data: { customerId, staffId: session.staffId, ...parsed },
   });
   revalidatePath(`/customers/${customerId}`);
+}
+
+/** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the customer has any sale/repair history. */
+export async function deleteCustomerPermanently(customerId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+
+  const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
+  if (!customer) throw new Error("Forbidden");
+
+  const reason = String(formData.get("reason") || "").trim() || undefined;
+  const result = await initiateDeletion(session, "CUSTOMER", customerId, customer.name, reason);
+  revalidatePath("/customers");
+  revalidatePath("/deletion-requests");
+  return result;
 }

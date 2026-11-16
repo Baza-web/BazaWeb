@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageBrands } from "@/lib/rbac";
-import { formatMoney, round2 } from "@/lib/utils";
+import { formatMoney, round2, formatDate } from "@/lib/utils";
 import { SalesTrendChart } from "@/components/SalesTrendChart";
+import { PrintButton } from "@/components/PrintButton";
 import { TrendUp, TrendDown } from "@phosphor-icons/react/ssr";
 
 function TrendBadge({ change }: { change: number }) {
@@ -93,12 +94,13 @@ export default async function BrandDashboardPage({ params }: { params: Promise<{
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <div>
           <p className="text-sm text-stone-500">Brand dashboard</p>
           <h1 className="page-title">{brand.name}</h1>
         </div>
         <div className="flex items-center gap-3">
+          <PrintButton label="Print" />
           <form
             action={async (formData: FormData) => {
               "use server";
@@ -123,6 +125,11 @@ export default async function BrandDashboardPage({ params }: { params: Promise<{
             All brands
           </Link>
         </div>
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">{brand.name} — Brand dashboard</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())}</p>
       </div>
 
       {!brand.active && (

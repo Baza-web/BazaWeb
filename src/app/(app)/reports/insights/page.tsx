@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canViewReports, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate, round2 } from "@/lib/utils";
+import { PrintButton } from "@/components/PrintButton";
 
 function daysSince(date: Date) {
   return Math.floor((Date.now() - date.getTime()) / 86_400_000);
@@ -141,14 +142,22 @@ export default async function ReportsInsightsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <div>
           <h1 className="page-title">Deep insights</h1>
           <p className="text-sm text-stone-500">Customer segmentation, inventory turnover, and a simple forecast.</p>
         </div>
-        <Link href="/reports" className="btn-secondary">
-          Back to Reports
-        </Link>
+        <div className="flex items-center gap-2">
+          <PrintButton label="Print" />
+          <Link href="/reports" className="btn-secondary">
+            Back to Reports
+          </Link>
+        </div>
+      </div>
+
+      <div className="print-report-header">
+        <h2 className="font-display text-xl font-semibold">Deep insights</h2>
+        <p className="text-sm text-stone-500">Printed {formatDate(new Date())}</p>
       </div>
 
       {isCompanyWide(session.role) && branches.length > 1 && (

@@ -30,6 +30,22 @@ export async function createBrand(formData: FormData) {
   revalidatePath("/edit-requests");
 }
 
+/** Owner's rename applies immediately; anyone else's is a pending request an Owner must approve first. */
+export async function updateBrand(brandId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+
+  const { name } = createSchema.parse({ name: String(formData.get("name") || "").trim() });
+  const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
+
+  const existing = await db.brand.findFirst({ where: { name: { equals: name, mode: "insensitive" }, id: { not: brandId } } });
+  if (existing) throw new Error(`A brand named "${name}" already exists.`);
+
+  await initiateEdit(session, "BRAND", brandId, brand.name, `Renamed "${brand.name}" to "${name}"`, { name });
+  revalidatePath("/brands");
+  revalidatePath("/edit-requests");
+}
+
 /** Owner's status change applies immediately; anyone else's is a pending request an Owner must approve first. */
 export async function toggleBrandActive(brandId: string) {
   const session = await requireSessionOrRedirect();
