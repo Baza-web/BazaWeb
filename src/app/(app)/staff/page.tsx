@@ -6,6 +6,7 @@ import { toggleStaffActive, deleteStaffPermanently } from "./actions";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { Plus } from "@phosphor-icons/react/ssr";
 import { PrintButton } from "@/components/PrintButton";
+import { ExportButton } from "@/components/ExportButton";
 import { formatDate } from "@/lib/utils";
 
 export default async function StaffPage() {
@@ -27,6 +28,7 @@ export default async function StaffPage() {
       <div className="flex items-center justify-between">
         <h1 className="page-title">Staff accounts</h1>
         <div className="flex items-center gap-2">
+          <ExportButton href="/api/export/staff" />
           <PrintButton selector="#staff-table" />
           <Link href="/staff/new" className="btn-primary print:hidden">
             <Plus size={16} aria-hidden="true" />

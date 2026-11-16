@@ -4,6 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, isCompanyWide } from "@/lib/rbac";
 import { createCustomer } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
+import { ExportButton } from "@/components/ExportButton";
 import { formatDate } from "@/lib/utils";
 
 export default async function CustomersPage({
@@ -39,7 +40,10 @@ export default async function CustomersPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Customers</h1>
-        <PrintButton selector="#customers-table" />
+        <div className="flex items-center gap-2 print:hidden">
+          <ExportButton href={`/api/export/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`} />
+          <PrintButton selector="#customers-table" />
+        </div>
       </div>
 
       <div className="print-report-header">

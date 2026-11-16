@@ -5,6 +5,7 @@ import { branchScope, canRecordSale } from "@/lib/rbac";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { Plus } from "@phosphor-icons/react/ssr";
 import { PrintButton } from "@/components/PrintButton";
+import { ExportButton } from "@/components/ExportButton";
 
 const PAYMENT_COLORS: Record<string, string> = {
   PAID: "bg-green-100 text-green-700",
@@ -30,6 +31,7 @@ export default async function SalesPage() {
       <div className="flex items-center justify-between">
         <h1 className="page-title">Sales</h1>
         <div className="flex items-center gap-2">
+          <ExportButton href="/api/export/sales" />
           <PrintButton selector="#sales-table" />
           {canRecordSale(session.role) && (
             <Link href="/sales/new" className="btn-primary print:hidden">
