@@ -51,6 +51,7 @@ import {
   FileXls,
   GearSix,
   UploadSimple,
+  EnvelopeSimple,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -78,6 +79,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   brands: Tag,
   settings: GearSix,
   import: UploadSimple,
+  email: EnvelopeSimple,
 };
 
 export {
@@ -133,4 +135,5 @@ export {
   FileXls,
   GearSix,
   UploadSimple,
+  EnvelopeSimple,
 };

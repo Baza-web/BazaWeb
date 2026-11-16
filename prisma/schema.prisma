@@ -245,6 +245,8 @@ model Staff {
   brands              Brand[] @relation("StaffBrands")
   socialPostsApproved SocialPost[] @relation("SocialPostApprover")
   importBatchesMade  ImportBatch[]
+  mailConnectionsMade GoogleMailConnection[]
+  emailsSent          EmailLog[]
 
   @@index([branchId])
 }
@@ -303,6 +305,7 @@ model Customer {
   sales        Sale[]
   notes        CustomerNote[]
   repairOrders RepairOrder[]
+  emails       EmailLog[]
 
   @@index([branchId])
 }
@@ -970,4 +973,39 @@ model ImportBatch {
   createdAt   DateTime @default(now())
 
   createdBy Staff @relation(fields: [createdById], references: [id])
+}
+
+// A single shared connection to one Google account's Gmail, used to send
+// client emails as that real address (gmail.send scope only — this app
+// never reads the mailbox). Same singleton pattern as GoogleDriveConnection;
+// deliberately a separate connection/scope/redirect URI so Drive and Gmail
+// access can be granted, revoked, or re-authorized independently.
+model GoogleMailConnection {
+  id                    String   @id @default("singleton")
+  encryptedRefreshToken String
+  googleEmail           String
+  connectedByStaffId    String
+  connectedAt           DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  connectedBy Staff @relation(fields: [connectedByStaffId], references: [id])
+}
+
+// One email sent to a customer through the connected Gmail account —
+// kept so staff can see what's already been said to a customer, not just
+// that an email button exists. Not a full inbox: outbound only.
+model EmailLog {
+  id          String   @id @default(cuid())
+  customerId  String
+  toEmail     String
+  subject     String
+  body        String
+  sentById    String
+  gmailMsgId  String?
+  createdAt   DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  sentBy   Staff    @relation(fields: [sentById], references: [id])
+
+  @@index([customerId])
 }

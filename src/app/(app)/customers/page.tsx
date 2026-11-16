@@ -5,6 +5,7 @@ import { branchScope, isCompanyWide } from "@/lib/rbac";
 import { createCustomer } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
 import { ExportButton } from "@/components/ExportButton";
+import { EnvelopeSimple } from "@/components/icons";
 import { formatDate } from "@/lib/utils";
 
 export default async function CustomersPage({
@@ -85,7 +86,23 @@ export default async function CustomersPage({
                   </Link>
                 </td>
                 <td>{c.phone ?? "—"}</td>
-                <td>{c.email ?? "—"}</td>
+                <td>
+                  {c.email ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      {c.email}
+                      <Link
+                        href={`/email?customerId=${c.id}`}
+                        className="text-stone-400 hover:text-brand-600 print:hidden"
+                        title={`Email ${c.name}`}
+                      >
+                        <EnvelopeSimple size={16} aria-hidden="true" />
+                        <span className="sr-only">Email {c.name}</span>
+                      </Link>
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td>{c._count.sales}</td>
               </tr>
             ))}

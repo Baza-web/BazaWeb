@@ -5,6 +5,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
 import { addCustomerNote, updateCustomer } from "../actions";
+import { EnvelopeSimple } from "@/components/icons";
 
 function toDateInput(d: Date | null) {
   return d ? d.toISOString().slice(0, 10) : "";
@@ -19,6 +20,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     include: {
       sales: { orderBy: { createdAt: "desc" } },
       notes: { include: { staff: true }, orderBy: { createdAt: "desc" } },
+      emails: { include: { sentBy: true }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!customer) notFound();
@@ -31,11 +33,19 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="page-title">{customer.name}</h1>
-        <p className="text-sm text-stone-500">
-          {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="page-title">{customer.name}</h1>
+          <p className="text-sm text-stone-500">
+            {[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact info"}
+          </p>
+        </div>
+        {customer.email && (
+          <Link href={`/email?customerId=${customer.id}`} className="btn-secondary inline-flex items-center gap-1.5 text-sm">
+            <EnvelopeSimple size={16} aria-hidden="true" />
+            Email
+          </Link>
+        )}
       </div>
 
       {pendingEdit && (
@@ -121,6 +131,22 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           </ul>
         )}
       </div>
+
+      {customer.emails.length > 0 && (
+        <div className="card">
+          <h2 className="mb-3 font-medium">Emails sent</h2>
+          <ul className="space-y-3 text-sm">
+            {customer.emails.map((e) => (
+              <li key={e.id} className="border-t border-stone-100 pt-2 first:border-t-0 first:pt-0">
+                <p className="font-medium">{e.subject}</p>
+                <p className="text-xs text-stone-400">
+                  {e.sentBy.name} · {formatDateTime(e.createdAt)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="card">
         <h2 className="mb-3 font-medium">Notes & follow-ups</h2>
