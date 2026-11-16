@@ -1,8 +1,14 @@
 import "server-only";
 import { db } from "./db";
 import type { SessionPayload } from "./auth";
+import { notifyStaff } from "./notifications";
 
 export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE";
+
+async function notifyOwners(title: string, body: string, link: string) {
+  const owners = await db.staff.findMany({ where: { role: "OWNER", active: true } });
+  await Promise.all(owners.map((o) => notifyStaff(o.id, "SYSTEM", title, body, link)));
+}
 
 /**
  * Staff are never hard-deleted from the database — their historical sales,
@@ -100,6 +106,11 @@ export async function initiateDeletion(
   await db.deletionRequest.create({
     data: { entityType, entityId, entityLabel, reason, requestedById: session.staffId },
   });
+  await notifyOwners(
+    "Deletion awaiting approval",
+    `${session.name} wants to permanently delete ${entityLabel}`,
+    "/deletion-requests",
+  );
   return { status: "requested" };
 }
 
@@ -121,4 +132,11 @@ export async function reviewDeletionRequest(
     where: { id: requestId },
     data: { status: decision, reviewedById: session.staffId, reviewedAt: new Date() },
   });
+  await notifyStaff(
+    request.requestedById,
+    "SYSTEM",
+    decision === "APPROVED" ? "Your deletion was approved" : "Your deletion was rejected",
+    `${session.name} ${decision === "APPROVED" ? "approved" : "rejected"} your request to delete ${request.entityLabel}`,
+    "/deletion-requests",
+  );
 }
