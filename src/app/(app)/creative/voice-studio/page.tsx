@@ -4,6 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canAccessCreativeHub } from "@/lib/rbac";
 import { elevenLabsConfigured } from "@/lib/elevenlabs";
 import { formatDateTime } from "@/lib/utils";
+import { SpeakerHigh, GearSix } from "@/components/icons";
 import { CloneVoiceForm, GenerateVoiceOverForm, RemoveVoiceButton, RemoveGenerationButton } from "@/components/VoiceStudioForms";
 
 export default async function VoiceStudioPage() {
@@ -43,11 +44,14 @@ export default async function VoiceStudioPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="page-title">AI Voice Studio</h1>
-          <p className="text-sm text-stone-500">
-            Clone a real, consenting speaker&apos;s voice, then turn any script into a voice-over in that voice.
-          </p>
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+            <SpeakerHigh size={22} weight="fill" aria-hidden="true" />
+          </span>
+          <div>
+            <h1 className="page-title">AI Voice Studio</h1>
+            <p className="text-sm text-stone-500">Pick a voice, add your script, and generate a voice-over.</p>
+          </div>
         </div>
         <Link href="/creative" className="btn-secondary">
           Back to Creative Hub
@@ -60,51 +64,60 @@ export default async function VoiceStudioPage() {
         googlePickerApiKey={googlePickerApiKey}
       />
 
-      <CloneVoiceForm googleClientId={googleClientId} googlePickerApiKey={googlePickerApiKey} />
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm text-stone-500 hover:text-stone-700">
+          <GearSix size={16} aria-hidden="true" className="transition-transform group-open:rotate-45" />
+          Manage voices — clone a new one or remove an old one
+        </summary>
 
-      <div className="card">
-        <h3 className="section-title mb-3">Cloned voices</h3>
-        {voices.length === 0 ? (
-          <p className="text-sm text-stone-400">No voices cloned yet.</p>
-        ) : (
-          <ul className="space-y-3">
-            {voices.map((v) => (
-              <li key={v.id} className="rounded-lg bg-stone-50 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-ink-900">{v.name}</p>
-                    <p className="text-xs text-stone-400">
-                      Cloned by {v.createdBy.name} · {formatDateTime(v.createdAt)}
-                    </p>
-                  </div>
-                  <RemoveVoiceButton voiceProfileId={v.id} />
-                </div>
-                {v.generations.length > 0 && (
-                  <ul className="mt-2 space-y-2 border-t border-stone-200 pt-2">
-                    {v.generations.map((g) => (
-                      <li key={g.id} className="space-y-1">
-                        <div className="flex items-center justify-between gap-2 text-xs text-stone-500">
-                          <span className="truncate" title={g.text}>
-                            {g.text.slice(0, 60)}
-                            {g.text.length > 60 ? "…" : ""}
-                          </span>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <a href={g.audioUrl} download className="text-brand-700 hover:underline">
-                              Download
-                            </a>
-                            <RemoveGenerationButton voiceGenerationId={g.id} />
-                          </div>
-                        </div>
-                        <audio controls src={g.audioUrl} className="h-8 w-full" />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+        <div className="mt-4 space-y-6">
+          <CloneVoiceForm googleClientId={googleClientId} googlePickerApiKey={googlePickerApiKey} />
+
+          <div className="card">
+            <h3 className="section-title mb-3">Cloned voices</h3>
+            {voices.length === 0 ? (
+              <p className="text-sm text-stone-400">No voices cloned yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {voices.map((v) => (
+                  <li key={v.id} className="rounded-lg bg-stone-50 px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-ink-900">{v.name}</p>
+                        <p className="text-xs text-stone-400">
+                          Cloned by {v.createdBy.name} · {formatDateTime(v.createdAt)}
+                        </p>
+                      </div>
+                      <RemoveVoiceButton voiceProfileId={v.id} />
+                    </div>
+                    {v.generations.length > 0 && (
+                      <ul className="mt-2 space-y-2 border-t border-stone-200 pt-2">
+                        {v.generations.map((g) => (
+                          <li key={g.id} className="space-y-1">
+                            <div className="flex items-center justify-between gap-2 text-xs text-stone-500">
+                              <span className="truncate" title={g.text}>
+                                {g.text.slice(0, 60)}
+                                {g.text.length > 60 ? "…" : ""}
+                              </span>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <a href={g.audioUrl} download className="text-brand-700 hover:underline">
+                                  Download
+                                </a>
+                                <RemoveGenerationButton voiceGenerationId={g.id} />
+                              </div>
+                            </div>
+                            <audio controls src={g.audioUrl} className="h-8 w-full" />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

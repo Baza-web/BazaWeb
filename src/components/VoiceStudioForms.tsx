@@ -10,6 +10,7 @@ import {
 } from "@/app/(app)/creative/voice-studio/actions";
 import { FileDropInput } from "@/components/FileDropInput";
 import { SaveToDriveButton } from "@/components/SaveToDriveButton";
+import { Microphone, SpeakerHigh, GearSix, DownloadSimple, Play } from "@/components/icons";
 
 type VoiceProfile = { id: string; name: string; createdAt: string };
 
@@ -44,12 +45,17 @@ export function CloneVoiceForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="card space-y-4">
-      <div>
-        <h2 className="font-medium">Clone a voice</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Upload a short, clean recording (30 seconds or more, one speaker, minimal background noise) of the person whose
-          voice you want to use for voice-overs.
-        </p>
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-500">
+          <Microphone size={18} aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="font-medium">Clone a voice</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Upload a short, clean recording (30 seconds or more, one speaker, minimal background noise) of the person
+            whose voice you want to use for voice-overs.
+          </p>
+        </div>
       </div>
 
       <div>
@@ -144,10 +150,15 @@ export function GenerateVoiceOverForm({
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="card space-y-4">
-      <div>
-        <h2 className="font-medium">Generate a voice-over</h2>
-        <p className="mt-1 text-sm text-stone-500">Type a script, or upload/pick a plain-text (.txt) script file.</p>
+    <form ref={formRef} onSubmit={handleSubmit} className="card space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+          <SpeakerHigh size={18} weight="fill" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="font-medium">Generate a voice-over</h2>
+          <p className="mt-1 text-sm text-stone-500">Pick a voice, add your script, and hit Generate.</p>
+        </div>
       </div>
 
       <div>
@@ -166,23 +177,29 @@ export function GenerateVoiceOverForm({
         <textarea className="input" name="text" rows={5} placeholder="Type the words to speak…" />
       </div>
 
-      <div>
-        <label className="label">Or a script file</label>
-        <FileDropInput
-          key={resetKey}
-          name="scriptFile"
-          accept=".txt"
-          googleClientId={googleClientId}
-          googlePickerApiKey={googlePickerApiKey}
-          driveViewId="DOCS"
-          driveMimeTypes="text/plain,application/vnd.google-apps.document"
-          preview="text"
-        />
+      <div className="flex items-center gap-3 text-xs font-medium text-stone-400">
+        <span className="h-px flex-1 bg-stone-200" />
+        or upload a script file
+        <span className="h-px flex-1 bg-stone-200" />
       </div>
 
-      <details className="rounded-lg border border-stone-200 px-3 py-2">
-        <summary className="cursor-pointer text-sm font-medium text-stone-700">Advanced voice settings</summary>
-        <div className="mt-3 space-y-3">
+      <FileDropInput
+        key={resetKey}
+        name="scriptFile"
+        accept=".txt"
+        googleClientId={googleClientId}
+        googlePickerApiKey={googlePickerApiKey}
+        driveViewId="DOCS"
+        driveMimeTypes="text/plain,application/vnd.google-apps.document"
+        preview="text"
+      />
+
+      <details className="group">
+        <summary className="flex w-fit cursor-pointer list-none items-center gap-1 text-xs text-stone-400 hover:text-stone-600">
+          <GearSix size={14} aria-hidden="true" className="transition-transform group-open:rotate-45" />
+          Advanced voice settings
+        </summary>
+        <div className="mt-3 space-y-3 rounded-lg bg-stone-50 p-3">
           <div>
             <div className="flex items-center justify-between text-xs text-stone-500">
               <span>Stability — steadier vs. more expressive</span>
@@ -234,17 +251,19 @@ export function GenerateVoiceOverForm({
         </div>
       </details>
 
-      <button type="submit" disabled={isPending} className="btn-primary">
+      <button type="submit" disabled={isPending} className="btn-primary flex w-full items-center justify-center gap-2">
+        <Play size={16} weight="fill" aria-hidden="true" />
         {isPending ? "Generating…" : "Generate voice-over"}
       </button>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {take && (
-        <div className="space-y-2 rounded-lg bg-green-50 px-3 py-3">
+        <div className="space-y-3 rounded-xl border border-green-200 bg-green-50/60 p-4">
           <audio controls src={take.audioUrl} className="w-full" />
           <div className="flex flex-wrap items-center gap-3">
-            <a href={take.audioUrl} download className="btn-secondary text-xs">
+            <a href={take.audioUrl} download className="btn-secondary flex items-center gap-1.5 text-xs">
+              <DownloadSimple size={14} aria-hidden="true" />
               Download
             </a>
             <SaveToDriveButton
