@@ -88,24 +88,29 @@ export default async function CreativeHubPage({
             Your creative team&apos;s projects, tasks, and planning — all in one place.
           </p>
         </div>
-        {brands.length > 0 && (
-          <form action="/creative" className="flex items-end gap-2">
-            <input type="hidden" name="month" value={`${year}-${pad2(month + 1)}`} />
-            <div>
-              <label className="label">Brand</label>
-              <select className="input" name="brand" defaultValue={selectedBrand?.id}>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" className="btn-secondary">
-              Switch
-            </button>
-          </form>
-        )}
+        <div className="flex items-end gap-2">
+          <Link href="/creative/voice-studio" className="btn-secondary">
+            AI Voice Studio
+          </Link>
+          {brands.length > 0 && (
+            <form action="/creative" className="flex items-end gap-2">
+              <input type="hidden" name="month" value={`${year}-${pad2(month + 1)}`} />
+              <div>
+                <label className="label">Brand</label>
+                <select className="input" name="brand" defaultValue={selectedBrand?.id}>
+                  {brands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="btn-secondary">
+                Switch
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       {brands.length === 0 && (

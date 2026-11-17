@@ -17,7 +17,7 @@ function useBlobStorage() {
  * uploaded file out with an extension (.html, .svg, .js, …) that a browser
  * would treat as active content when served from our own origin.
  */
-export function detectFileKind(buffer: Buffer): { ext: string; kind: "image" | "pdf" } | null {
+export function detectFileKind(buffer: Buffer): { ext: string; kind: "image" | "pdf" | "audio" } | null {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
     return { ext: ".jpg", kind: "image" };
   }
@@ -46,6 +46,18 @@ export function detectFileKind(buffer: Buffer): { ext: string; kind: "image" | "
   if (buffer.length >= 5 && buffer.toString("ascii", 0, 5) === "%PDF-") {
     return { ext: ".pdf", kind: "pdf" };
   }
+  if (buffer.length >= 3 && buffer.toString("ascii", 0, 3) === "ID3") {
+    return { ext: ".mp3", kind: "audio" };
+  }
+  if (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) {
+    return { ext: ".mp3", kind: "audio" };
+  }
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WAVE") {
+    return { ext: ".wav", kind: "audio" };
+  }
+  if (buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "ftyp") {
+    return { ext: ".m4a", kind: "audio" };
+  }
   return null;
 }
 
@@ -60,10 +72,12 @@ export function detectFileKind(buffer: Buffer): { ext: string; kind: "image" | "
  * `allowPdf` is set, a real PDF) — the extension is always derived from the
  * detected content, never from the uploader-supplied filename.
  */
-export async function saveUploadedFile(file: File, subdir: string, allowPdf = false): Promise<string | null> {
+export async function saveUploadedFile(file: File, subdir: string, allowPdf = false, allowAudio = false): Promise<string | null> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const detected = detectFileKind(buffer);
-  if (!detected || (detected.kind === "pdf" && !allowPdf)) return null;
+  if (!detected) return null;
+  if (detected.kind === "pdf" && !allowPdf) return null;
+  if (detected.kind === "audio" && !allowAudio) return null;
 
   const filename = `${crypto.randomUUID()}${detected.ext}`;
 

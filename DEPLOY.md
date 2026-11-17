@@ -516,6 +516,30 @@ still appear but explain it isn't set up yet — typing things in by hand
 always works either way. Each scan costs a small amount against your
 Anthropic account (a few cents at most); there's no other setup needed.
 
+## AI Voice Studio (optional — Creative Hub voice-overs)
+
+On **Creative Hub > AI Voice Studio**, staff can clone a real, consenting
+speaker's voice from a short recording, then generate a voice-over from
+any typed or uploaded script in that cloned voice — e.g. for social
+video narration. Clips can be downloaded or saved straight back to
+Google Drive (reusing the same Drive connection as the backup/bulk
+import features — no extra setup if Drive is already connected).
+
+**This clones a real person's voice likeness — only clone a voice with
+that person's explicit consent.** The clone form requires a consent
+checkbox before it will call the API; there is no way to generate a
+voice from a recording without it. Anyone with Creative Hub access
+(Owner, Admin, or Creative role) can remove a cloned voice at any time,
+which deletes it from ElevenLabs as well.
+
+To enable it, add `ELEVENLABS_API_KEY` to your `.env` (get one at
+[elevenlabs.io](https://elevenlabs.io) under Profile > API keys), then
+redeploy: `docker compose up -d --build app`. Leave it blank and the
+page explains it isn't set up yet — nothing else in Creative Hub is
+affected. Cloning a voice and generating speech both use your
+ElevenLabs account's character quota; check elevenlabs.io's pricing
+for current limits.
+
 ## Demo data (optional, for testing navigation)
 
 To click through the whole app with realistic sample data instead of
