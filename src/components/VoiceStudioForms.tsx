@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   cloneVoiceAction,
+  fetchYoutubeAudioAction,
   generateSpeechAction,
   removeVoiceProfileAction,
   removeVoiceGenerationAction,
@@ -24,11 +25,31 @@ export function CloneVoiceForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [ytPending, startYtTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
+  const [hasFile, setHasFile] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [youtubeAudioUrl, setYoutubeAudioUrl] = useState<string | null>(null);
+
+  function handleFetchFromYoutube() {
+    setYoutubeError(null);
+    const fd = new FormData();
+    fd.set("youtubeUrl", youtubeUrl);
+    startYtTransition(async () => {
+      const outcome = await fetchYoutubeAudioAction(fd);
+      if (outcome.error) setYoutubeError(outcome.error);
+      else setYoutubeAudioUrl(outcome.audioUrl ?? null);
+    });
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!hasFile && !youtubeAudioUrl) {
+      setError("Attach a recording, or fetch one from a YouTube link, first.");
+      return;
+    }
     const fd = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
@@ -38,6 +59,9 @@ export function CloneVoiceForm({
       } else {
         formRef.current?.reset();
         setResetKey((k) => k + 1);
+        setHasFile(false);
+        setYoutubeUrl("");
+        setYoutubeAudioUrl(null);
         router.refresh();
       }
     });
@@ -53,7 +77,8 @@ export function CloneVoiceForm({
           <h2 className="font-medium">Clone a voice</h2>
           <p className="mt-1 text-sm text-stone-500">
             Upload a short, clean recording (30 seconds or more, one speaker, minimal background noise) of the person
-            whose voice you want to use for voice-overs.
+            whose voice you want to use for voice-overs — or paste a link to one of your own team&apos;s YouTube videos
+            below.
           </p>
         </div>
       </div>
@@ -69,15 +94,50 @@ export function CloneVoiceForm({
           key={resetKey}
           name="sample"
           accept=".mp3,.wav,.m4a"
-          required
           googleClientId={googleClientId}
           googlePickerApiKey={googlePickerApiKey}
           driveViewId="DOCS"
           driveMimeTypes="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a"
           preview="audio"
+          onFileChange={(file) => setHasFile(Boolean(file))}
         />
         <p className="mt-1 text-xs text-stone-400">Listen back above before cloning — a clean, single-speaker clip clones best.</p>
       </div>
+
+      <div className="flex items-center gap-3 text-xs font-medium text-stone-400">
+        <span className="h-px flex-1 bg-stone-200" />
+        or paste a YouTube link (internal/consented footage only)
+        <span className="h-px flex-1 bg-stone-200" />
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          className="input"
+          type="url"
+          placeholder="https://youtube.com/watch?v=…"
+          value={youtubeUrl}
+          onChange={(e) => {
+            setYoutubeUrl(e.target.value);
+            setYoutubeAudioUrl(null);
+          }}
+        />
+        <button
+          type="button"
+          onClick={handleFetchFromYoutube}
+          disabled={ytPending || !youtubeUrl}
+          className="btn-secondary shrink-0 text-sm"
+        >
+          {ytPending ? "Fetching…" : "Fetch audio"}
+        </button>
+      </div>
+      {youtubeError && <p className="text-sm text-red-600">{youtubeError}</p>}
+      {youtubeAudioUrl && (
+        <div className="space-y-1">
+          <audio controls src={youtubeAudioUrl} className="w-full" />
+          <p className="text-xs text-stone-400">First 90 seconds of that video&apos;s audio — listen back before cloning.</p>
+        </div>
+      )}
+      <input type="hidden" name="sampleUrl" value={youtubeAudioUrl ?? ""} />
 
       <label className="flex items-start gap-2 text-sm text-stone-700">
         <input type="checkbox" name="consent" className="mt-0.5" required />

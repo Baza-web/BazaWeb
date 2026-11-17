@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canAccessCreativeHub } from "@/lib/rbac";
 import { cloneVoice, textToSpeech, deleteVoice, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/lib/elevenlabs";
-import { detectFileKind, saveUploadedFile } from "@/lib/uploads";
+import { detectFileKind, saveUploadedFile, readUploadedFile } from "@/lib/uploads";
+import { extractYoutubeAudio } from "@/lib/youtubeAudio";
 
 const MAX_SCRIPT_CHARS = 5000;
 
@@ -30,18 +31,44 @@ async function requireCreativeAccess() {
   return session;
 }
 
+export async function fetchYoutubeAudioAction(formData: FormData): Promise<{ audioUrl?: string; error?: string }> {
+  await requireCreativeAccess();
+
+  const youtubeUrl = String(formData.get("youtubeUrl") || "").trim();
+  if (!youtubeUrl) return { error: "Paste a YouTube link first." };
+
+  const audio = await extractYoutubeAudio(youtubeUrl);
+  if (!Buffer.isBuffer(audio)) return { error: audio.error };
+
+  const audioFile = new File([audio], "youtube-clip.mp3", { type: "audio/mpeg" });
+  const audioUrl = await saveUploadedFile(audioFile, "voice-samples", false, true);
+  if (!audioUrl) return { error: "Downloaded that clip but couldn't save it — try again." };
+
+  return { audioUrl };
+}
+
 export async function cloneVoiceAction(formData: FormData): Promise<{ error?: string }> {
   const session = await requireCreativeAccess();
 
   const name = String(formData.get("name") || "").trim();
   const consent = formData.get("consent") === "on";
   const sample = formData.get("sample");
+  const sampleUrl = String(formData.get("sampleUrl") || "").trim();
 
   if (!name) return { error: "Give this voice a name (e.g. the speaker's name)." };
   if (!consent) return { error: "You must confirm the speaker consented to their voice being cloned." };
-  if (!(sample instanceof File) || sample.size === 0) return { error: "Attach a short voice recording first." };
 
-  const buffer = Buffer.from(await sample.arrayBuffer());
+  let buffer: Buffer;
+  if (sample instanceof File && sample.size > 0) {
+    buffer = Buffer.from(await sample.arrayBuffer());
+  } else if (sampleUrl) {
+    const fetched = await readUploadedFile(sampleUrl);
+    if (!fetched) return { error: "That fetched clip is no longer available — fetch it again." };
+    buffer = fetched;
+  } else {
+    return { error: "Attach a voice recording or fetch one from a YouTube link first." };
+  }
+
   const detected = detectFileKind(buffer);
   if (!detected || detected.kind !== "audio") {
     return { error: "That file isn't a recognizable audio recording (mp3/wav/m4a) — try another file." };

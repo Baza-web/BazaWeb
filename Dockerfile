@@ -30,7 +30,10 @@ RUN NODE_OPTIONS="--max-old-space-size=3072" npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache openssl libc6-compat
+# ffmpeg + yt-dlp power the Creative Hub's "paste a YouTube link" voice-clone
+# reference clip option (src/lib/youtubeAudio.ts) — optional at runtime, the
+# feature just explains itself as unavailable if these aren't present.
+RUN apk add --no-cache openssl libc6-compat ffmpeg yt-dlp
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
