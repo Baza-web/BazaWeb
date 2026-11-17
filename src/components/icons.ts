@@ -52,6 +52,10 @@ import {
   GearSix,
   UploadSimple,
   EnvelopeSimple,
+  Microphone,
+  SpeakerHigh,
+  DownloadSimple,
+  Play,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -136,4 +140,8 @@ export {
   GearSix,
   UploadSimple,
   EnvelopeSimple,
+  Microphone,
+  SpeakerHigh,
+  DownloadSimple,
+  Play,
 };

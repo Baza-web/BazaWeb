@@ -250,6 +250,8 @@ model Staff {
   emailsSent          EmailLog[]
   journalEntriesMade  JournalEntry[]
   bankStatementLinesUploaded BankStatementLine[]
+  voiceProfilesCreated VoiceProfile[]
+  voiceGenerationsCreated VoiceGeneration[]
 
   @@index([branchId])
 }
@@ -1117,4 +1119,35 @@ model BankStatementLine {
 
   @@index([accountId])
   @@index([reconciled])
+}
+
+// A voice cloned (with the speaker's consent) via ElevenLabs — consentNote
+// records who confirmed consent and when, since this clones a real
+// person's voice likeness. Never delete a Staff row just because a
+// VoiceProfile references it; see src/lib/deletion.ts's anonymization
+// pattern for Staff.
+model VoiceProfile {
+  id                String   @id @default(cuid())
+  name              String
+  elevenLabsVoiceId String   @unique
+  consentNote       String
+  createdById       String
+  createdAt         DateTime @default(now())
+
+  createdBy   Staff             @relation(fields: [createdById], references: [id])
+  generations VoiceGeneration[]
+}
+
+model VoiceGeneration {
+  id             String   @id @default(cuid())
+  voiceProfileId String
+  text           String
+  audioUrl       String
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  voiceProfile VoiceProfile @relation(fields: [voiceProfileId], references: [id])
+  createdBy    Staff        @relation(fields: [createdById], references: [id])
+
+  @@index([voiceProfileId])
 }
