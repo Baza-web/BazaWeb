@@ -540,6 +540,17 @@ affected. Cloning a voice and generating speech both use your
 ElevenLabs account's character quota; check elevenlabs.io's pricing
 for current limits.
 
+**Reference clip from a YouTube link.** The clone form also accepts a
+YouTube URL in place of an uploaded file — it fetches the first 90
+seconds of that video's audio (via `yt-dlp`/`ffmpeg`, both baked into
+the Docker image already, no separate setup step) for you to preview
+before cloning. **Use this only for your own team's footage, or a clip
+whose speaker has otherwise consented** — the same consent checkbox
+still gates cloning either way. Downloading audio this way sits in a
+legal gray area under YouTube's own Terms of Service even for internal
+use; it's provided for that narrow case, not as a general "clone any
+voice from the internet" tool.
+
 ## Demo data (optional, for testing navigation)
 
 To click through the whole app with realistic sample data instead of

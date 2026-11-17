@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 
@@ -91,6 +91,20 @@ export async function saveUploadedFile(file: File, subdir: string, allowPdf = fa
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, filename), buffer);
   return `/uploads/${subdir}/${filename}`;
+}
+
+/** Reads back a URL `saveUploadedFile` returned — a local `/uploads/...` path from disk, or an absolute Vercel Blob URL over HTTP. Returns null if the file is gone. */
+export async function readUploadedFile(url: string): Promise<Buffer | null> {
+  try {
+    if (url.startsWith("/uploads/")) {
+      return await readFile(path.join(process.cwd(), "public", url));
+    }
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
 }
 
 export async function saveUploadedImages(files: File[], subdir: string, allowPdf = false): Promise<string[]> {
