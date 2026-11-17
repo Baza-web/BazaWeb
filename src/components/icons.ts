@@ -56,6 +56,7 @@ import {
   SpeakerHigh,
   DownloadSimple,
   Play,
+  Star,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -144,4 +145,5 @@ export {
   SpeakerHigh,
   DownloadSimple,
   Play,
+  Star,
 };

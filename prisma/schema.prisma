@@ -254,8 +254,59 @@ model Staff {
   voiceProfilesCreated VoiceProfile[]
   voiceGenerationsCreated VoiceGeneration[]
   customerActivitiesLogged CustomerActivity[]
+  performanceReviewsReceived PerformanceReview[] @relation("ReviewSubject")
+  performanceReviewsGiven    PerformanceReview[] @relation("ReviewGivenBy")
+  disciplinaryRecordsReceived DisciplinaryRecord[] @relation("DisciplinarySubject")
+  disciplinaryRecordsIssued   DisciplinaryRecord[] @relation("DisciplinaryIssuedBy")
 
   @@index([branchId])
+}
+
+enum PerformanceRating {
+  NEEDS_IMPROVEMENT
+  MEETS_EXPECTATIONS
+  EXCEEDS_EXPECTATIONS
+  OUTSTANDING
+}
+
+model PerformanceReview {
+  id                  String            @id @default(cuid())
+  staffId             String
+  reviewerId          String
+  periodLabel         String
+  rating              PerformanceRating
+  strengths           String?
+  areasForImprovement String?
+  goals               String?
+  createdAt           DateTime          @default(now())
+
+  staff    Staff @relation("ReviewSubject", fields: [staffId], references: [id])
+  reviewer Staff @relation("ReviewGivenBy", fields: [reviewerId], references: [id])
+
+  @@index([staffId])
+}
+
+enum DisciplinarySeverity {
+  VERBAL_WARNING
+  WRITTEN_WARNING
+  FINAL_WARNING
+  SUSPENSION
+}
+
+model DisciplinaryRecord {
+  id          String               @id @default(cuid())
+  staffId     String
+  issuedById  String
+  severity    DisciplinarySeverity
+  description String
+  actionTaken String?
+  occurredAt  DateTime
+  createdAt   DateTime             @default(now())
+
+  staff    Staff @relation("DisciplinarySubject", fields: [staffId], references: [id])
+  issuedBy Staff @relation("DisciplinaryIssuedBy", fields: [issuedById], references: [id])
+
+  @@index([staffId])
 }
 
 model InventoryItem {

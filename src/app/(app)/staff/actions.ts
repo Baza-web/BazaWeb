@@ -248,6 +248,64 @@ export async function toggleOnboardingTask(taskId: string) {
   revalidatePath(`/staff/${task.staffId}`);
 }
 
+const reviewSchema = z.object({
+  periodLabel: z.string().min(1),
+  rating: z.enum(["NEEDS_IMPROVEMENT", "MEETS_EXPECTATIONS", "EXCEEDS_EXPECTATIONS", "OUTSTANDING"]),
+  strengths: z.string().optional(),
+  areasForImprovement: z.string().optional(),
+  goals: z.string().optional(),
+});
+
+/** Owner/Admin manage reviews everywhere; Manager for their own branch's staff — the same tier that already manages the rest of a staff profile. Append-only history, so it applies immediately rather than going through edit-request approval. */
+export async function addPerformanceReview(staffId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+
+  const parsed = reviewSchema.parse({
+    periodLabel: formData.get("periodLabel"),
+    rating: formData.get("rating"),
+    strengths: emptyToUndefined(formData.get("strengths")),
+    areasForImprovement: emptyToUndefined(formData.get("areasForImprovement")),
+    goals: emptyToUndefined(formData.get("goals")),
+  });
+
+  await db.performanceReview.create({
+    data: { staffId, reviewerId: session.staffId, ...parsed },
+  });
+  revalidatePath(`/staff/${staffId}`);
+}
+
+const disciplinarySchema = z.object({
+  severity: z.enum(["VERBAL_WARNING", "WRITTEN_WARNING", "FINAL_WARNING", "SUSPENSION"]),
+  description: z.string().min(1),
+  actionTaken: z.string().optional(),
+  occurredAt: z.coerce.date(),
+});
+
+/** Same tier as addPerformanceReview — Owner/Admin everywhere, Manager for their own branch. */
+export async function addDisciplinaryRecord(staffId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+
+  const parsed = disciplinarySchema.parse({
+    severity: formData.get("severity"),
+    description: formData.get("description"),
+    actionTaken: emptyToUndefined(formData.get("actionTaken")),
+    occurredAt: formData.get("occurredAt"),
+  });
+
+  await db.disciplinaryRecord.create({
+    data: { staffId, issuedById: session.staffId, ...parsed },
+  });
+  revalidatePath(`/staff/${staffId}`);
+}
+
 /** Which brand(s) this staff member works for — most are one, some work two. Surfaced to Accounting and Admins. */
 export async function setStaffBrands(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
