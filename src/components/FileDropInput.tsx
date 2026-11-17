@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 // Narrow, locally-scoped shapes for the Google API Loader (gapi) and Identity
 // Services (google.accounts) + Picker (google.picker) scripts — accessed via
@@ -85,9 +85,21 @@ export const FileDropInput = forwardRef<
     driveViewId?: "SPREADSHEETS" | "DOCS";
     /** Optional Picker MIME-type filter, e.g. "text/plain,application/vnd.google-apps.document". */
     driveMimeTypes?: string;
+    /** Shows an inline preview of the picked file below the drop zone — an "audio" player, or the first ~500 characters for "text". Omit for no preview. */
+    preview?: "audio" | "text";
   }
 >(function FileDropInput(
-  { name, accept, required, onFileChange, googleClientId, googlePickerApiKey, driveViewId = "SPREADSHEETS", driveMimeTypes },
+  {
+    name,
+    accept,
+    required,
+    onFileChange,
+    googleClientId,
+    googlePickerApiKey,
+    driveViewId = "SPREADSHEETS",
+    driveMimeTypes,
+    preview,
+  },
   forwardedRef,
 ) {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +108,9 @@ export const FileDropInput = forwardRef<
     const [dragOver, setDragOver] = useState(false);
     const [driveError, setDriveError] = useState<string | null>(null);
     const [drivePending, setDrivePending] = useState(false);
+    const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+    const [textPreview, setTextPreview] = useState<string | null>(null);
+    const audioPreviewUrlRef = useRef<string | null>(null);
 
     const driveConfigured = Boolean(googleClientId && googlePickerApiKey);
 
@@ -106,7 +121,23 @@ export const FileDropInput = forwardRef<
       inputRef.current.files = dt.files;
       setFileName(file?.name ?? null);
       onFileChange?.(file);
+
+      if (audioPreviewUrlRef.current) URL.revokeObjectURL(audioPreviewUrlRef.current);
+      const nextUrl = preview === "audio" && file ? URL.createObjectURL(file) : null;
+      audioPreviewUrlRef.current = nextUrl;
+      setAudioPreviewUrl(nextUrl);
+
+      if (preview === "text") {
+        if (file) file.text().then(setTextPreview).catch(() => setTextPreview(null));
+        else setTextPreview(null);
+      }
     }
+
+    useEffect(() => {
+      return () => {
+        if (audioPreviewUrlRef.current) URL.revokeObjectURL(audioPreviewUrlRef.current);
+      };
+    }, []);
 
     function handleDrop(e: React.DragEvent) {
       e.preventDefault();
@@ -207,9 +238,7 @@ export const FileDropInput = forwardRef<
             required={required}
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0] ?? null;
-              setFileName(file?.name ?? null);
-              onFileChange?.(file);
+              setFile(e.target.files?.[0] ?? null);
             }}
           />
           {fileName ? (
@@ -221,6 +250,15 @@ export const FileDropInput = forwardRef<
             </>
           )}
         </div>
+        {preview === "audio" && audioPreviewUrl && (
+          <audio controls src={audioPreviewUrl} className="w-full" onClick={(e) => e.stopPropagation()} />
+        )}
+        {preview === "text" && textPreview && (
+          <div className="max-h-40 overflow-y-auto rounded-lg bg-stone-50 p-3 text-xs text-stone-600 whitespace-pre-wrap">
+            {textPreview.slice(0, 1000)}
+            {textPreview.length > 1000 ? "…" : ""}
+          </div>
+        )}
         {driveConfigured && (
           <button
             type="button"

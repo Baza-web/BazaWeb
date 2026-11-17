@@ -4,7 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canAccessCreativeHub } from "@/lib/rbac";
 import { elevenLabsConfigured } from "@/lib/elevenlabs";
 import { formatDateTime } from "@/lib/utils";
-import { CloneVoiceForm, GenerateVoiceOverForm, RemoveVoiceButton } from "@/components/VoiceStudioForms";
+import { CloneVoiceForm, GenerateVoiceOverForm, RemoveVoiceButton, RemoveGenerationButton } from "@/components/VoiceStudioForms";
 
 export default async function VoiceStudioPage() {
   const session = await requireSessionOrRedirect();
@@ -80,13 +80,22 @@ export default async function VoiceStudioPage() {
                   <RemoveVoiceButton voiceProfileId={v.id} />
                 </div>
                 {v.generations.length > 0 && (
-                  <ul className="mt-2 space-y-1 border-t border-stone-200 pt-2">
+                  <ul className="mt-2 space-y-2 border-t border-stone-200 pt-2">
                     {v.generations.map((g) => (
-                      <li key={g.id} className="flex items-center justify-between gap-2 text-xs text-stone-500">
-                        <span className="truncate">{g.text.slice(0, 60)}{g.text.length > 60 ? "…" : ""}</span>
-                        <a href={g.audioUrl} download className="shrink-0 text-brand-700 hover:underline">
-                          Download
-                        </a>
+                      <li key={g.id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-xs text-stone-500">
+                          <span className="truncate" title={g.text}>
+                            {g.text.slice(0, 60)}
+                            {g.text.length > 60 ? "…" : ""}
+                          </span>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <a href={g.audioUrl} download className="text-brand-700 hover:underline">
+                              Download
+                            </a>
+                            <RemoveGenerationButton voiceGenerationId={g.id} />
+                          </div>
+                        </div>
+                        <audio controls src={g.audioUrl} className="h-8 w-full" />
                       </li>
                     ))}
                   </ul>
