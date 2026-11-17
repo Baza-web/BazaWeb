@@ -8,6 +8,9 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, isCompanyWide, canDeleteOrRequest } from "@/lib/rbac";
 import { initiateEdit } from "@/lib/editRequests";
 import { initiateDeletion } from "@/lib/deletion";
+import type { CustomerStage } from "@prisma/client";
+
+const STAGE_LABELS: Record<CustomerStage, string> = { LEAD: "Lead", PROSPECT: "Prospect", CUSTOMER: "Customer" };
 
 function emptyToUndefined(value: FormDataEntryValue | null) {
   if (value === null) return undefined;
@@ -104,6 +107,71 @@ export async function addCustomerNote(customerId: string, formData: FormData) {
     data: { customerId, staffId: session.staffId, ...parsed },
   });
   revalidatePath(`/customers/${customerId}`);
+}
+
+export async function logCustomerActivity(customerId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
+  if (!customer) throw new Error("Forbidden");
+
+  const type = String(formData.get("type") || "");
+  if (type !== "CALL" && type !== "VISIT") throw new Error("Invalid activity type");
+  const note = String(formData.get("note") || "").trim();
+  if (!note) throw new Error("A note is required");
+
+  await db.customerActivity.create({
+    data: { customerId, type, note, staffId: session.staffId },
+  });
+  revalidatePath(`/customers/${customerId}`);
+}
+
+export async function toggleFollowUpDone(customerId: string, noteId: string, done: boolean, formData: FormData) {
+  void formData; // bound params carry the real input; a <form action> still needs this last arg
+  const session = await requireSessionOrRedirect();
+  const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
+  if (!customer) throw new Error("Forbidden");
+
+  await db.customerNote.update({ where: { id: noteId }, data: { followUpDone: done } });
+  revalidatePath(`/customers/${customerId}`);
+}
+
+export async function updateCustomerTags(customerId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
+  if (!customer) throw new Error("Forbidden");
+
+  const tags = String(formData.get("tags") || "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  await db.customer.update({ where: { id: customerId }, data: { tags } });
+  revalidatePath(`/customers/${customerId}`);
+  revalidatePath("/customers");
+}
+
+export async function updateCustomerStage(customerId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
+  if (!customer) throw new Error("Forbidden");
+
+  const stage = String(formData.get("stage") || "") as CustomerStage;
+  if (!["LEAD", "PROSPECT", "CUSTOMER"].includes(stage)) throw new Error("Invalid stage");
+  if (stage === customer.stage) return;
+
+  await db.$transaction([
+    db.customer.update({ where: { id: customerId }, data: { stage } }),
+    db.customerActivity.create({
+      data: {
+        customerId,
+        type: "STAGE_CHANGE",
+        note: `${STAGE_LABELS[customer.stage]} → ${STAGE_LABELS[stage]}`,
+        staffId: session.staffId,
+      },
+    }),
+  ]);
+  revalidatePath(`/customers/${customerId}`);
+  revalidatePath("/customers");
 }
 
 /** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the customer has any sale/repair history. */

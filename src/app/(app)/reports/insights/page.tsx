@@ -4,10 +4,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canViewReports, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDate, round2 } from "@/lib/utils";
 import { PrintButton } from "@/components/PrintButton";
-
-function daysSince(date: Date) {
-  return Math.floor((Date.now() - date.getTime()) / 86_400_000);
-}
+import { computeRfmStats } from "@/lib/rfm";
 
 export default async function ReportsInsightsPage({
   searchParams,
@@ -48,19 +45,12 @@ export default async function ReportsInsightsPage({
   const withHistory: Seg[] = [];
   let neverPurchasedCount = 0;
   for (const c of customers) {
-    if (c.sales.length === 0) {
+    const stats = computeRfmStats(c.sales);
+    if (stats.recencyDays === null) {
       neverPurchasedCount++;
       continue;
     }
-    const lastPurchase = c.sales.reduce((latest, s) => (s.createdAt > latest ? s.createdAt : latest), c.sales[0].createdAt);
-    withHistory.push({
-      id: c.id,
-      name: c.name,
-      phone: c.phone,
-      frequency: c.sales.length,
-      monetary: round2(c.sales.reduce((s, x) => s + x.total, 0)),
-      recencyDays: daysSince(lastPurchase),
-    });
+    withHistory.push({ id: c.id, name: c.name, phone: c.phone, frequency: stats.frequency, monetary: stats.monetary, recencyDays: stats.recencyDays });
   }
 
   const champions = withHistory

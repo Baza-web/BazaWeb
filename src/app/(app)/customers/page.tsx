@@ -7,35 +7,59 @@ import { PrintButton } from "@/components/PrintButton";
 import { ExportButton } from "@/components/ExportButton";
 import { EnvelopeSimple } from "@/components/icons";
 import { formatDate } from "@/lib/utils";
+import { computeRfmStats, classifyRfmSegment, RFM_SEGMENT_LABELS, type RfmSegment } from "@/lib/rfm";
+import type { CustomerStage } from "@prisma/client";
+
+const STAGE_LABELS: Record<CustomerStage, string> = { LEAD: "Lead", PROSPECT: "Prospect", CUSTOMER: "Customer" };
+const STAGE_BADGE_CLASS: Record<CustomerStage, string> = {
+  LEAD: "bg-amber-50 text-amber-700",
+  PROSPECT: "bg-sky-50 text-sky-700",
+  CUSTOMER: "bg-green-50 text-green-700",
+};
+const SEGMENT_BADGE_CLASS: Record<RfmSegment, string> = {
+  CHAMPION: "bg-green-50 text-green-700",
+  AT_RISK: "bg-amber-50 text-amber-700",
+  LOST: "bg-stone-100 text-stone-500",
+  NEW: "bg-sky-50 text-sky-700",
+  NONE: "bg-stone-100 text-stone-400",
+};
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; tag?: string; segment?: string; stage?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  const { q } = await searchParams;
+  const { q, tag, segment: segmentFilter, stage } = await searchParams;
 
-  const [customers, branches] = await Promise.all([
-    db.customer.findMany({
-      where: {
-        ...branchScope(session),
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: "insensitive" } },
-                { phone: { contains: q, mode: "insensitive" } },
-                { email: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      },
-      include: { _count: { select: { sales: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
+  const [allForTags, branches] = await Promise.all([
+    db.customer.findMany({ where: branchScope(session), select: { tags: true } }),
     isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
+  const allTags = Array.from(new Set(allForTags.flatMap((c) => c.tags))).sort();
+
+  const rawCustomers = await db.customer.findMany({
+    where: {
+      ...branchScope(session),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { phone: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+      ...(tag ? { tags: { has: tag } } : {}),
+      ...(stage ? { stage: stage as CustomerStage } : {}),
+    },
+    include: { _count: { select: { sales: true } }, sales: { select: { total: true, createdAt: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  let customers = rawCustomers.map((c) => ({ ...c, segment: classifyRfmSegment(computeRfmStats(c.sales)) }));
+  if (segmentFilter) customers = customers.filter((c) => c.segment === segmentFilter);
 
   return (
     <div className="space-y-6">
@@ -54,10 +78,48 @@ export default async function CustomersPage({
         </p>
       </div>
 
-      <form className="card flex flex-wrap gap-3 print:hidden" action="/customers">
-        <input className="input max-w-xs" name="q" placeholder="Search name, phone, email…" defaultValue={q} />
+      <form className="card flex flex-wrap items-end gap-3 print:hidden" action="/customers">
+        <div>
+          <label className="label">Search</label>
+          <input className="input max-w-xs" name="q" placeholder="Name, phone, email…" defaultValue={q} />
+        </div>
+        <div>
+          <label className="label">Tag</label>
+          <select className="input max-w-[160px]" name="tag" defaultValue={tag ?? ""}>
+            <option value="">Any tag</option>
+            {allTags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">Segment</label>
+          <select className="input max-w-[160px]" name="segment" defaultValue={segmentFilter ?? ""}>
+            <option value="">Any segment</option>
+            {(Object.keys(RFM_SEGMENT_LABELS) as RfmSegment[])
+              .filter((s) => s !== "NONE")
+              .map((s) => (
+                <option key={s} value={s}>
+                  {RFM_SEGMENT_LABELS[s]}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">Stage</label>
+          <select className="input max-w-[140px]" name="stage" defaultValue={stage ?? ""}>
+            <option value="">Any stage</option>
+            {(["LEAD", "PROSPECT", "CUSTOMER"] as const).map((s) => (
+              <option key={s} value={s}>
+                {STAGE_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </div>
         <button type="submit" className="btn-secondary">
-          Search
+          Filter
         </button>
       </form>
 
@@ -72,6 +134,9 @@ export default async function CustomersPage({
               <th>Phone</th>
               <th>Email</th>
               <th>Purchases</th>
+              <th>Stage</th>
+              <th>Segment</th>
+              <th>Tags</th>
             </tr>
           </thead>
           <tbody>
@@ -104,11 +169,18 @@ export default async function CustomersPage({
                   )}
                 </td>
                 <td>{c._count.sales}</td>
+                <td>
+                  <span className={`badge ${STAGE_BADGE_CLASS[c.stage]}`}>{STAGE_LABELS[c.stage]}</span>
+                </td>
+                <td>
+                  <span className={`badge ${SEGMENT_BADGE_CLASS[c.segment]}`}>{RFM_SEGMENT_LABELS[c.segment]}</span>
+                </td>
+                <td className="max-w-[160px] truncate text-xs text-stone-500">{c.tags.join(", ") || "—"}</td>
               </tr>
             ))}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-stone-400">
+                <td colSpan={8} className="py-6 text-center text-stone-400">
                   No customers yet.
                 </td>
               </tr>

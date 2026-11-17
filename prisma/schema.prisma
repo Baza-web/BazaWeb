@@ -93,6 +93,7 @@ enum NotificationType {
   ATTENDANCE
   CALL_INVITE
   CUSTOMER_OCCASION
+  CUSTOMER_FOLLOWUP
   REPAIR_UPDATE
   PURCHASE_ORDER_UPDATE
   MEMO_EDIT_REQUESTED
@@ -252,6 +253,7 @@ model Staff {
   bankStatementLinesUploaded BankStatementLine[]
   voiceProfilesCreated VoiceProfile[]
   voiceGenerationsCreated VoiceGeneration[]
+  customerActivitiesLogged CustomerActivity[]
 
   @@index([branchId])
 }
@@ -295,6 +297,18 @@ model InventoryItem {
   @@index([brandId])
 }
 
+enum CustomerStage {
+  LEAD
+  PROSPECT
+  CUSTOMER
+}
+
+enum CustomerActivityType {
+  CALL
+  VISIT
+  STAGE_CHANGE
+}
+
 model Customer {
   id        String   @id @default(cuid())
   name      String
@@ -303,25 +317,47 @@ model Customer {
   address   String?
   birthday  DateTime?
   anniversary DateTime?
+  tags      String[] @default([])
+  stage     CustomerStage @default(CUSTOMER)
   branchId  String
   createdAt DateTime @default(now())
 
-  branch       Branch         @relation(fields: [branchId], references: [id])
+  branch       Branch             @relation(fields: [branchId], references: [id])
   sales        Sale[]
   notes        CustomerNote[]
   repairOrders RepairOrder[]
   emails       EmailLog[]
+  activities   CustomerActivity[]
 
   @@index([branchId])
 }
 
 model CustomerNote {
-  id         String   @id @default(cuid())
+  id           String   @id @default(cuid())
+  customerId   String
+  staffId      String
+  body         String
+  followUpAt   DateTime?
+  followUpDone Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  staff    Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([customerId])
+}
+
+// The parts of a customer's activity timeline that don't already have a home
+// elsewhere (sales, repairs, emails, and CustomerNote all carry their own
+// timestamp and feed into the same merged timeline — see src/lib/customerTimeline.ts).
+model CustomerActivity {
+  id         String               @id @default(cuid())
   customerId String
+  type       CustomerActivityType
+  note       String
   staffId    String
-  body       String
-  followUpAt DateTime?
-  createdAt  DateTime @default(now())
+  occurredAt DateTime             @default(now())
+  createdAt  DateTime             @default(now())
 
   customer Customer @relation(fields: [customerId], references: [id])
   staff    Staff    @relation(fields: [staffId], references: [id])
