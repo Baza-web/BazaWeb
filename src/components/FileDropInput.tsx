@@ -10,7 +10,10 @@ import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 type PickerDoc = { id: string; name: string; mimeType: string };
 type PickerResponse = { action: string; docs?: PickerDoc[] };
 type GapiGlobal = { load: (api: string, cb: () => void) => void };
-type PickerDocsView = { setIncludeFolders: (v: boolean) => PickerDocsView; setMimeTypes: (v: string) => PickerDocsView };
+type PickerDocsView = {
+  setIncludeFolders: (v: boolean) => PickerDocsView;
+  setMimeTypes: (v: string) => PickerDocsView;
+};
 type GooglePickerBuilder = {
   addView: (view: PickerDocsView) => GooglePickerBuilder;
   setOAuthToken: (token: string) => GooglePickerBuilder;
@@ -21,7 +24,7 @@ type GooglePickerBuilder = {
 type GoogleIdentityGlobal = {
   picker: {
     DocsView: new (viewId: unknown) => PickerDocsView;
-    ViewId: { SPREADSHEETS: unknown };
+    ViewId: { SPREADSHEETS: unknown; DOCS: unknown };
     PickerBuilder: new () => GooglePickerBuilder;
     Action: { PICKED: string };
   };
@@ -44,6 +47,8 @@ function getGoogleIdentity(): GoogleIdentityGlobal | undefined {
 
 const SHEET_MIME = "application/vnd.google-apps.spreadsheet";
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const DOC_MIME = "application/vnd.google-apps.document";
+const TEXT_MIME = "text/plain";
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -76,8 +81,15 @@ export const FileDropInput = forwardRef<
     /** Passed down from a server component reading process.env.GOOGLE_CLIENT_ID / GOOGLE_PICKER_API_KEY — not read directly here, since that would need a NEXT_PUBLIC_-prefixed duplicate of a value the server already has. */
     googleClientId?: string;
     googlePickerApiKey?: string;
+    /** "SPREADSHEETS" (default, existing bulk-import behavior) or "DOCS" for a general file browser — e.g. picking a script/text file. */
+    driveViewId?: "SPREADSHEETS" | "DOCS";
+    /** Optional Picker MIME-type filter, e.g. "text/plain,application/vnd.google-apps.document". */
+    driveMimeTypes?: string;
   }
->(function FileDropInput({ name, accept, required, onFileChange, googleClientId, googlePickerApiKey }, forwardedRef) {
+>(function FileDropInput(
+  { name, accept, required, onFileChange, googleClientId, googlePickerApiKey, driveViewId = "SPREADSHEETS", driveMimeTypes },
+  forwardedRef,
+) {
     const inputRef = useRef<HTMLInputElement>(null);
     useImperativeHandle(forwardedRef, () => inputRef.current!, []);
     const [fileName, setFileName] = useState<string | null>(null);
@@ -137,7 +149,8 @@ export const FileDropInput = forwardRef<
       return new Promise((resolve, reject) => {
         getGapi()!.load("picker", () => {
           const google = getGoogleIdentity()!;
-          const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setIncludeFolders(false);
+          let view = new google.picker.DocsView(google.picker.ViewId[driveViewId]).setIncludeFolders(false);
+          if (driveMimeTypes) view = view.setMimeTypes(driveMimeTypes);
           const picker = new google.picker.PickerBuilder()
             .addView(view)
             .setOAuthToken(accessToken)
@@ -146,14 +159,20 @@ export const FileDropInput = forwardRef<
               if (data.action !== google.picker.Action.PICKED || !data.docs?.[0]) return resolve();
               const doc = data.docs[0];
               try {
-                const url =
-                  doc.mimeType === SHEET_MIME
-                    ? `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=${encodeURIComponent(XLSX_MIME)}`
-                    : `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`;
+                let url: string;
+                let filename = doc.name;
+                if (doc.mimeType === SHEET_MIME) {
+                  url = `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=${encodeURIComponent(XLSX_MIME)}`;
+                  filename = `${doc.name}.xlsx`;
+                } else if (doc.mimeType === DOC_MIME) {
+                  url = `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=${encodeURIComponent(TEXT_MIME)}`;
+                  filename = `${doc.name}.txt`;
+                } else {
+                  url = `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`;
+                }
                 const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
                 if (!res.ok) throw new Error(`Drive returned ${res.status}`);
                 const blob = await res.blob();
-                const filename = doc.mimeType === SHEET_MIME ? `${doc.name}.xlsx` : doc.name;
                 setFile(new File([blob], filename, { type: blob.type }));
                 resolve();
               } catch (err) {
