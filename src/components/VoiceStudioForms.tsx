@@ -2,7 +2,12 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { cloneVoiceAction, generateSpeechAction, removeVoiceProfileAction } from "@/app/(app)/creative/voice-studio/actions";
+import {
+  cloneVoiceAction,
+  generateSpeechAction,
+  removeVoiceProfileAction,
+  removeVoiceGenerationAction,
+} from "@/app/(app)/creative/voice-studio/actions";
 import { FileDropInput } from "@/components/FileDropInput";
 import { SaveToDriveButton } from "@/components/SaveToDriveButton";
 
@@ -63,7 +68,9 @@ export function CloneVoiceForm({
           googlePickerApiKey={googlePickerApiKey}
           driveViewId="DOCS"
           driveMimeTypes="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a"
+          preview="audio"
         />
+        <p className="mt-1 text-xs text-stone-400">Listen back above before cloning — a clean, single-speaker clip clones best.</p>
       </div>
 
       <label className="flex items-start gap-2 text-sm text-stone-700">
@@ -92,20 +99,43 @@ export function GenerateVoiceOverForm({
   googleClientId?: string;
   googlePickerApiKey?: string;
 }) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [take, setTake] = useState<{ id: string; audioUrl: string } | null>(null);
   const [resetKey, setResetKey] = useState(0);
+  const [stability, setStability] = useState(0.5);
+  const [similarityBoost, setSimilarityBoost] = useState(0.75);
+  const [style, setStyle] = useState(0);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+  function generate(fd: FormData) {
     setError(null);
-    setAudioUrl(null);
     startTransition(async () => {
       const outcome = await generateSpeechAction(fd);
       if (outcome.error) setError(outcome.error);
-      else setAudioUrl(outcome.audioUrl ?? null);
+      else if (outcome.id && outcome.audioUrl) setTake({ id: outcome.id, audioUrl: outcome.audioUrl });
+    });
+  }
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setTake(null);
+    generate(new FormData(e.currentTarget));
+  }
+
+  function handleTryAgain() {
+    if (!formRef.current) return;
+    generate(new FormData(formRef.current));
+  }
+
+  function handleDiscard() {
+    if (!take) return;
+    const discarded = take;
+    setTake(null);
+    startTransition(async () => {
+      await removeVoiceGenerationAction(discarded.id);
+      router.refresh();
     });
   }
 
@@ -114,7 +144,7 @@ export function GenerateVoiceOverForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="card space-y-4">
       <div>
         <h2 className="font-medium">Generate a voice-over</h2>
         <p className="mt-1 text-sm text-stone-500">Type a script, or upload/pick a plain-text (.txt) script file.</p>
@@ -146,8 +176,63 @@ export function GenerateVoiceOverForm({
           googlePickerApiKey={googlePickerApiKey}
           driveViewId="DOCS"
           driveMimeTypes="text/plain,application/vnd.google-apps.document"
+          preview="text"
         />
       </div>
+
+      <details className="rounded-lg border border-stone-200 px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium text-stone-700">Advanced voice settings</summary>
+        <div className="mt-3 space-y-3">
+          <div>
+            <div className="flex items-center justify-between text-xs text-stone-500">
+              <span>Stability — steadier vs. more expressive</span>
+              <span>{stability.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              name="stability"
+              min="0"
+              max="1"
+              step="0.05"
+              value={stability}
+              onChange={(e) => setStability(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-xs text-stone-500">
+              <span>Similarity to the cloned voice</span>
+              <span>{similarityBoost.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              name="similarityBoost"
+              min="0"
+              max="1"
+              step="0.05"
+              value={similarityBoost}
+              onChange={(e) => setSimilarityBoost(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-xs text-stone-500">
+              <span>Style exaggeration</span>
+              <span>{style.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              name="style"
+              min="0"
+              max="1"
+              step="0.05"
+              value={style}
+              onChange={(e) => setStyle(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+        </div>
+      </details>
 
       <button type="submit" disabled={isPending} className="btn-primary">
         {isPending ? "Generating…" : "Generate voice-over"}
@@ -155,19 +240,25 @@ export function GenerateVoiceOverForm({
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {audioUrl && (
+      {take && (
         <div className="space-y-2 rounded-lg bg-green-50 px-3 py-3">
-          <audio controls src={audioUrl} className="w-full" />
-          <div className="flex items-center gap-3">
-            <a href={audioUrl} download className="btn-secondary text-xs">
+          <audio controls src={take.audioUrl} className="w-full" />
+          <div className="flex flex-wrap items-center gap-3">
+            <a href={take.audioUrl} download className="btn-secondary text-xs">
               Download
             </a>
             <SaveToDriveButton
-              fileUrl={audioUrl}
+              fileUrl={take.audioUrl}
               filename={`voiceover-${Date.now()}.mp3`}
               mimeType="audio/mpeg"
               googleClientId={googleClientId}
             />
+            <button type="button" onClick={handleTryAgain} disabled={isPending} className="btn-secondary text-xs">
+              {isPending ? "Regenerating…" : "Edit script above & try again"}
+            </button>
+            <button type="button" onClick={handleDiscard} disabled={isPending} className="text-xs text-red-600 hover:underline">
+              Discard this take
+            </button>
           </div>
         </div>
       )}
@@ -190,6 +281,24 @@ export function RemoveVoiceButton({ voiceProfileId }: { voiceProfileId: string }
   return (
     <button type="button" onClick={handleRemove} disabled={isPending} className="text-xs text-red-600 hover:underline">
       {isPending ? "Removing…" : "Remove"}
+    </button>
+  );
+}
+
+export function RemoveGenerationButton({ voiceGenerationId }: { voiceGenerationId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleRemove() {
+    startTransition(async () => {
+      await removeVoiceGenerationAction(voiceGenerationId);
+      router.refresh();
+    });
+  }
+
+  return (
+    <button type="button" onClick={handleRemove} disabled={isPending} className="shrink-0 text-xs text-red-600 hover:underline">
+      {isPending ? "…" : "Delete"}
     </button>
   );
 }

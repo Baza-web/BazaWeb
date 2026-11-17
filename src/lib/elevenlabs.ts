@@ -40,7 +40,15 @@ export async function cloneVoice(
   }
 }
 
-export async function textToSpeech(voiceId: string, text: string): Promise<Buffer | { error: string }> {
+export type VoiceSettings = { stability: number; similarityBoost: number; style: number };
+
+export const DEFAULT_VOICE_SETTINGS: VoiceSettings = { stability: 0.5, similarityBoost: 0.75, style: 0 };
+
+export async function textToSpeech(
+  voiceId: string,
+  text: string,
+  settings: VoiceSettings = DEFAULT_VOICE_SETTINGS,
+): Promise<Buffer | { error: string }> {
   if (!elevenLabsConfigured()) {
     return { error: "AI voice generation isn't set up yet — ask an Admin to add ELEVENLABS_API_KEY." };
   }
@@ -52,7 +60,16 @@ export async function textToSpeech(voiceId: string, text: string): Promise<Buffe
         "Content-Type": "application/json",
         Accept: "audio/mpeg",
       },
-      body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: settings.stability,
+          similarity_boost: settings.similarityBoost,
+          style: settings.style,
+          use_speaker_boost: true,
+        },
+      }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");

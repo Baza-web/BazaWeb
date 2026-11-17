@@ -4,10 +4,25 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canAccessCreativeHub } from "@/lib/rbac";
-import { cloneVoice, textToSpeech, deleteVoice } from "@/lib/elevenlabs";
+import { cloneVoice, textToSpeech, deleteVoice, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/lib/elevenlabs";
 import { detectFileKind, saveUploadedFile } from "@/lib/uploads";
 
 const MAX_SCRIPT_CHARS = 5000;
+
+function clamp01(n: number): number {
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0;
+}
+
+function parseVoiceSettings(formData: FormData): VoiceSettings {
+  const stability = formData.get("stability");
+  const similarityBoost = formData.get("similarityBoost");
+  const style = formData.get("style");
+  return {
+    stability: stability != null ? clamp01(Number(stability)) : DEFAULT_VOICE_SETTINGS.stability,
+    similarityBoost: similarityBoost != null ? clamp01(Number(similarityBoost)) : DEFAULT_VOICE_SETTINGS.similarityBoost,
+    style: style != null ? clamp01(Number(style)) : DEFAULT_VOICE_SETTINGS.style,
+  };
+}
 
 async function requireCreativeAccess() {
   const session = await requireSessionOrRedirect();
@@ -62,7 +77,9 @@ export async function removeVoiceProfileAction(voiceProfileId: string): Promise<
   return {};
 }
 
-export async function generateSpeechAction(formData: FormData): Promise<{ audioUrl?: string; error?: string }> {
+export async function generateSpeechAction(
+  formData: FormData,
+): Promise<{ id?: string; audioUrl?: string; error?: string }> {
   const session = await requireCreativeAccess();
 
   const voiceProfileId = String(formData.get("voiceProfileId") || "");
@@ -79,17 +96,25 @@ export async function generateSpeechAction(formData: FormData): Promise<{ audioU
     return { error: `That script is ${text.length} characters — keep it under ${MAX_SCRIPT_CHARS} per generation.` };
   }
 
-  const audio = await textToSpeech(profile.elevenLabsVoiceId, text);
+  const settings = parseVoiceSettings(formData);
+  const audio = await textToSpeech(profile.elevenLabsVoiceId, text, settings);
   if (!Buffer.isBuffer(audio)) return { error: audio.error };
 
   const audioFile = new File([audio], `voiceover-${Date.now()}.mp3`, { type: "audio/mpeg" });
   const audioUrl = await saveUploadedFile(audioFile, "voice-generations", false, true);
   if (!audioUrl) return { error: "Generated audio but couldn't save it — try again." };
 
-  await db.voiceGeneration.create({
+  const generation = await db.voiceGeneration.create({
     data: { voiceProfileId, text, audioUrl, createdById: session.staffId },
   });
 
   revalidatePath("/creative/voice-studio");
-  return { audioUrl };
+  return { id: generation.id, audioUrl };
+}
+
+export async function removeVoiceGenerationAction(voiceGenerationId: string): Promise<{ error?: string }> {
+  await requireCreativeAccess();
+  await db.voiceGeneration.delete({ where: { id: voiceGenerationId } }).catch(() => {});
+  revalidatePath("/creative/voice-studio");
+  return {};
 }
