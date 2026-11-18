@@ -537,6 +537,41 @@ from their profile's Overview tab (enter the same amount as a manual
 discount on the sale at checkout — the two aren't linked automatically,
 so both steps matter). Voiding a sale reverses the reward it earned.
 
+## Travel & Experiences (Phase 1 — internal tour management)
+
+**Travel & Experiences** is a new department (Owner/Admin only for now)
+for managing Baza Travels and GetYourGuide-style tour products — visible
+in the sidebar as its own entry. Phase 1 covers internal tour management
+only: create/edit tours, a draft → pending approval → approved lifecycle,
+and an internal dashboard. No setup needed; it's on by default after this
+migration is applied (`npx prisma migrate deploy` picks up
+`20261118040000_travel_experiences_tours` like any other migration — see
+"Updating the app later" below).
+
+**What's live in Phase 1:**
+- `/travel` — dashboard with tour counts by status and recently updated tours.
+- `/travel/tours` — create a tour (title, pricing, duration, languages,
+  included/excluded items, photos, etc.) and browse/filter all tours.
+- `/travel/tours/[id]` — edit a tour and move it through its lifecycle:
+  Draft → submit for approval → Approved (or sent back to Draft with a
+  reason) → Archived/restored.
+- 3 tagged development-sample tours are available to seed for Phase 1
+  demoing (Lotus Tower Lunch Experience, Ambuluwawa Tower Private Day
+  Trip, Jewelry Making Workshop in Colombo) — run
+  `docker compose exec app node_modules/.bin/tsx prisma/travel-demo-tours.ts`.
+  Each is created in Draft status, carries a "Dev sample" badge and an
+  internal-notes warning, and attaches to your first Owner account and
+  first branch. **None of them are published on GetYourGuide or any real
+  marketplace.** Running it twice is a no-op (it skips any tour whose
+  title already exists).
+
+**What's explicitly NOT in Phase 1** (future phases, not yet built):
+booking management, the real GetYourGuide API integration, marketplace
+publishing, and Travel-specific finance/BI reporting. The `Tour` status
+enum already reserves `READY_FOR_MARKETPLACE` / `PUBLISHED` / `ACTIVE` /
+`PAUSED` for that later work, but no UI or API wiring exists for them yet
+— don't expect a tour to appear anywhere outside this ERP.
+
 ## AI Voice Studio (optional — Creative Hub voice-overs)
 
 On **Creative Hub > AI Voice Studio**, staff can clone a real, consenting

@@ -94,6 +94,11 @@ export function canManageRewardProgram(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin only for now — Travel & Experiences Phase 1 has no dedicated travel roles yet (Travel Manager, Tour Guide, etc. come in later phases once booking/guide-assignment genuinely needs scoped access). */
+export function canAccessTravel(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
 /** Owner only — clock in/out records are the source of truth for attendance; nobody else may change them after the fact. */
 export function canEditAttendance(role: Role) {
   return role === "OWNER";

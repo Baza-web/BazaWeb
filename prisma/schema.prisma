@@ -161,6 +161,7 @@ model Branch {
   payrollRuns    PayrollRun[]
   budgets        Budget[]
   journalEntries JournalEntry[]
+  tours          Tour[]
 }
 
 // A house brand this business trades under (e.g. "Baza Boutique", "Silver
@@ -259,6 +260,8 @@ model Staff {
   disciplinaryRecordsReceived DisciplinaryRecord[] @relation("DisciplinarySubject")
   disciplinaryRecordsIssued   DisciplinaryRecord[] @relation("DisciplinaryIssuedBy")
   rewardTransactionsProcessed RewardTransaction[]
+  toursCreated  Tour[] @relation("TourCreatedBy")
+  toursApproved Tour[] @relation("TourApprovedBy")
 
   @@index([branchId])
 }
@@ -1275,4 +1278,70 @@ model VoiceGeneration {
   createdBy    Staff        @relation(fields: [createdById], references: [id])
 
   @@index([voiceProfileId])
+}
+
+// ── Travel & Experiences (Phase 1: internal tour management only) ──────────
+// Booking/GetYourGuide/finance integration is Phase 2+; this models a tour
+// as a standalone internal product so it works before any marketplace is
+// wired in. See DEPLOY.md and the Travel dashboard for current scope.
+
+enum TourStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  READY_FOR_MARKETPLACE
+  PUBLISHED
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum TourType {
+  PRIVATE
+  GROUP
+}
+
+model Tour {
+  id                 String     @id @default(cuid())
+  internalCode       String     @unique
+  title              String
+  category           String
+  destination        String?
+  country            String?
+  city               String?
+  durationMinutes    Int?
+  description        String?
+  highlights         String?
+  includedItems      String?
+  excludedItems      String?
+  languages          String[]   @default([])
+  tourType           TourType   @default(GROUP)
+  minParticipants    Int?
+  maxParticipants    Int?
+  meetingPoint       String?
+  pickupInfo         String?
+  cancellationPolicy String?
+  importantInfo      String?
+  images             String[]   @default([])
+  priceAdult         Float?
+  priceChild         Float?
+  currency           String     @default("LKR")
+  operatingDays      String[]   @default([])
+  startingTimes      String[]   @default([])
+  status             TourStatus @default(DRAFT)
+  branchId           String?
+  createdById        String
+  approvedById       String?
+  approvedAt         DateTime?
+  internalNotes      String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  archivedAt         DateTime?
+
+  branch     Branch? @relation(fields: [branchId], references: [id])
+  createdBy  Staff   @relation("TourCreatedBy", fields: [createdById], references: [id])
+  approvedBy Staff?  @relation("TourApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([branchId])
+  @@index([status])
 }
