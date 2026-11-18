@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, isCompanyWide } from "@/lib/rbac";
-import { createCustomer } from "./actions";
+import { branchScope, isCompanyWide, canManageRewardProgram } from "@/lib/rbac";
+import { createCustomer, setRewardRateAction } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
 import { ExportButton } from "@/components/ExportButton";
-import { EnvelopeSimple } from "@/components/icons";
-import { formatDate } from "@/lib/utils";
+import { EnvelopeSimple, Gift } from "@/components/icons";
+import { formatDate, formatMoney } from "@/lib/utils";
 import { computeRfmStats, classifyRfmSegment, RFM_SEGMENT_LABELS, type RfmSegment } from "@/lib/rfm";
+import { getRewardSettings } from "@/lib/rewards";
 import type { CustomerStage } from "@prisma/client";
 
 const STAGE_LABELS: Record<CustomerStage, string> = { LEAD: "Lead", PROSPECT: "Prospect", CUSTOMER: "Customer" };
@@ -32,9 +33,11 @@ export default async function CustomersPage({
   const session = await requireSessionOrRedirect();
   const { q, tag, segment: segmentFilter, stage } = await searchParams;
 
-  const [allForTags, branches] = await Promise.all([
+  const canManageRewards = canManageRewardProgram(session.role);
+  const [allForTags, branches, rewardSettings] = await Promise.all([
     db.customer.findMany({ where: branchScope(session), select: { tags: true } }),
     isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    canManageRewards ? getRewardSettings() : Promise.resolve(null),
   ]);
   const allTags = Array.from(new Set(allForTags.flatMap((c) => c.tags))).sort();
 
@@ -137,6 +140,7 @@ export default async function CustomersPage({
               <th>Stage</th>
               <th>Segment</th>
               <th>Tags</th>
+              <th>Rewards</th>
             </tr>
           </thead>
           <tbody>
@@ -176,11 +180,12 @@ export default async function CustomersPage({
                   <span className={`badge ${SEGMENT_BADGE_CLASS[c.segment]}`}>{RFM_SEGMENT_LABELS[c.segment]}</span>
                 </td>
                 <td className="max-w-[160px] truncate text-xs text-stone-500">{c.tags.join(", ") || "—"}</td>
+                <td className="text-amber-700">{c.rewardBalance > 0 ? formatMoney(c.rewardBalance) : "—"}</td>
               </tr>
             ))}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-6 text-center text-stone-400">
+                <td colSpan={9} className="py-6 text-center text-stone-400">
                   No customers yet.
                 </td>
               </tr>
@@ -188,6 +193,40 @@ export default async function CustomersPage({
           </tbody>
         </table>
       </div>
+
+      {canManageRewards && rewardSettings && (
+        <div className="card max-w-lg print:hidden">
+          <div className="mb-1 flex items-center gap-2">
+            <Gift size={18} className="text-amber-500" aria-hidden="true" />
+            <h2 className="font-medium">Reward program</h2>
+          </div>
+          <p className="mb-3 text-sm text-stone-500">
+            Customers earn this automatically on every purchase — e.g. {formatMoney(rewardSettings.rewardPer100k)} per
+            100,000 spent works out to {formatMoney(rewardSettings.rewardPer100k)} back on a 100,000 sale.
+          </p>
+          <form action={setRewardRateAction} className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="label">Reward per 100,000 spent</label>
+              <input
+                className="input max-w-[160px]"
+                name="rewardPer100k"
+                type="number"
+                min="0"
+                step="1"
+                defaultValue={rewardSettings.rewardPer100k}
+                required
+              />
+            </div>
+            <label className="flex items-center gap-2 pb-2 text-sm text-stone-600">
+              <input type="checkbox" name="active" defaultChecked={rewardSettings.active} />
+              Program active
+            </label>
+            <button type="submit" className="btn-secondary">
+              Save
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="card max-w-lg print:hidden">
         <h2 className="mb-3 font-medium">Add a customer</h2>

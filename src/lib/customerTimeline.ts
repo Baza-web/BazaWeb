@@ -1,22 +1,24 @@
 import "server-only";
 import { db } from "./db";
-import type { CustomerActivityType } from "@prisma/client";
+import type { CustomerActivityType, RewardTransactionType } from "@prisma/client";
 
 export type TimelineEntry =
   | { kind: "NOTE"; id: string; at: Date; staffName: string; body: string; followUpAt: Date | null; followUpDone: boolean }
   | { kind: "EMAIL"; id: string; at: Date; staffName: string; subject: string }
   | { kind: "SALE"; id: string; at: Date; invoiceNumber: string; total: number }
   | { kind: "REPAIR"; id: string; at: Date; type: string; description: string; status: string }
-  | { kind: "ACTIVITY"; id: string; at: Date; staffName: string; type: CustomerActivityType; note: string };
+  | { kind: "ACTIVITY"; id: string; at: Date; staffName: string; type: CustomerActivityType; note: string }
+  | { kind: "REWARD"; id: string; at: Date; type: RewardTransactionType; amount: number; note: string | null };
 
-/** Merges every record that touches this customer — notes, emails, sales, repairs, and logged calls/visits/stage changes — into one chronological feed. Each source keeps its own table (no new "everything" table); this just reads and interleaves them. */
+/** Merges every record that touches this customer — notes, emails, sales, repairs, logged calls/visits/stage changes, and reward earn/redeem activity — into one chronological feed. Each source keeps its own table (no new "everything" table); this just reads and interleaves them. */
 export async function getCustomerTimeline(customerId: string): Promise<TimelineEntry[]> {
-  const [notes, emails, sales, repairs, activities] = await Promise.all([
+  const [notes, emails, sales, repairs, activities, rewardTransactions] = await Promise.all([
     db.customerNote.findMany({ where: { customerId }, include: { staff: true } }),
     db.emailLog.findMany({ where: { customerId }, include: { sentBy: true } }),
     db.sale.findMany({ where: { customerId } }),
     db.repairOrder.findMany({ where: { customerId } }),
     db.customerActivity.findMany({ where: { customerId }, include: { staff: true } }),
+    db.rewardTransaction.findMany({ where: { customerId } }),
   ]);
 
   const entries: TimelineEntry[] = [
@@ -46,6 +48,14 @@ export async function getCustomerTimeline(customerId: string): Promise<TimelineE
       staffName: a.staff.name,
       type: a.type,
       note: a.note,
+    })),
+    ...rewardTransactions.map((r) => ({
+      kind: "REWARD" as const,
+      id: r.id,
+      at: r.createdAt,
+      type: r.type,
+      amount: r.amount,
+      note: r.note,
     })),
   ];
 

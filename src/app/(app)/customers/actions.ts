@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, isCompanyWide, canDeleteOrRequest } from "@/lib/rbac";
+import { branchScope, isCompanyWide, canDeleteOrRequest, canManageRewardProgram } from "@/lib/rbac";
 import { initiateEdit } from "@/lib/editRequests";
 import { initiateDeletion } from "@/lib/deletion";
+import { redeemRewards, setRewardRate } from "@/lib/rewards";
 import type { CustomerStage } from "@prisma/client";
 
 const STAGE_LABELS: Record<CustomerStage, string> = { LEAD: "Lead", PROSPECT: "Prospect", CUSTOMER: "Customer" };
@@ -171,6 +172,38 @@ export async function updateCustomerStage(customerId: string, formData: FormData
     }),
   ]);
   revalidatePath(`/customers/${customerId}`);
+  revalidatePath("/customers");
+}
+
+/** Same branch-scope level as adding a note/tag — redeeming a customer's existing reward balance at checkout is a routine action, not a sensitive one. The amount itself is validated against the live balance inside redeemRewards. */
+export async function redeemRewardsAction(customerId: string, formData: FormData): Promise<{ error?: string }> {
+  const session = await requireSessionOrRedirect();
+  const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
+  if (!customer) return { error: "Forbidden" };
+
+  const amount = Number(formData.get("amount"));
+  const note = String(formData.get("note") || "").trim() || undefined;
+  if (!Number.isFinite(amount)) return { error: "Enter a valid amount." };
+
+  try {
+    await redeemRewards(customerId, amount, session.staffId, note);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't redeem rewards." };
+  }
+
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
+export async function setRewardRateAction(formData: FormData): Promise<void> {
+  const session = await requireSessionOrRedirect();
+  if (!canManageRewardProgram(session.role)) throw new Error("Forbidden");
+
+  const rewardPer100k = Number(formData.get("rewardPer100k"));
+  if (!Number.isFinite(rewardPer100k) || rewardPer100k < 0) throw new Error("Enter a valid, non-negative amount.");
+  const active = formData.get("active") === "on";
+
+  await setRewardRate(rewardPer100k, active);
   revalidatePath("/customers");
 }
 

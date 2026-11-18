@@ -12,10 +12,22 @@ import {
   toggleFollowUpDone,
   updateCustomerTags,
   updateCustomerStage,
+  redeemRewardsAction,
 } from "../actions";
 import { getCustomerTimeline, type TimelineEntry } from "@/lib/customerTimeline";
 import { computeRfmStats, classifyRfmSegment, RFM_SEGMENT_LABELS } from "@/lib/rfm";
-import { EnvelopeSimple, Receipt, ChatCircle, Storefront, Wrench, PhoneCall, ArrowCounterClockwise, Tag } from "@/components/icons";
+import {
+  EnvelopeSimple,
+  Receipt,
+  ChatCircle,
+  Storefront,
+  Wrench,
+  PhoneCall,
+  ArrowCounterClockwise,
+  Tag,
+  Gift,
+} from "@/components/icons";
+import { RedeemRewardsForm } from "@/components/RedeemRewardsForm";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { PrintButton } from "@/components/PrintButton";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
@@ -112,6 +124,20 @@ function TimelineEntryRow({ entry, customerId }: { entry: TimelineEntry; custome
       </li>
     );
   }
+  if (entry.kind === "REWARD") {
+    const label = entry.type === "EARNED" ? "Earned" : entry.type === "REDEEMED" ? "Redeemed" : "Adjusted";
+    return (
+      <li className="flex gap-3 border-t border-stone-100 pt-3 first:border-t-0 first:pt-0">
+        <Gift size={18} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p>
+            {label} {formatMoney(entry.amount)} in rewards{entry.note ? ` — ${entry.note}` : ""}
+          </p>
+          <p className="text-xs text-stone-400">{formatDateTime(entry.at)}</p>
+        </div>
+      </li>
+    );
+  }
   // ACTIVITY
   const Icon = entry.type === "CALL" ? PhoneCall : entry.type === "VISIT" ? Storefront : ArrowCounterClockwise;
   const label = entry.type === "CALL" ? "Call" : entry.type === "VISIT" ? "Visit" : "Stage changed";
@@ -199,7 +225,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      <div className="card grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="card grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div>
           <p className="text-xs text-stone-500">Lifetime value</p>
           <p className="text-lg font-semibold">{formatMoney(lifetimeValue)}</p>
@@ -211,6 +237,13 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         <div>
           <p className="text-xs text-stone-500">Birthday</p>
           <p className="text-lg font-semibold">{customer.birthday ? formatDate(customer.birthday) : "—"}</p>
+        </div>
+        <div>
+          <p className="flex items-center gap-1 text-xs text-stone-500">
+            <Gift size={12} aria-hidden="true" />
+            Reward balance
+          </p>
+          <p className="text-lg font-semibold text-amber-700">{formatMoney(customer.rewardBalance)}</p>
         </div>
       </div>
 
@@ -300,6 +333,17 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                       Save
                     </button>
                   </form>
+                </div>
+
+                <div className="card print:hidden">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Gift size={18} className="text-amber-500" aria-hidden="true" />
+                    <h2 className="font-medium">Reward balance — {formatMoney(customer.rewardBalance)}</h2>
+                  </div>
+                  <p className="mb-3 text-sm text-stone-500">
+                    Earned automatically from purchases. Redeem here when the customer uses their balance at checkout.
+                  </p>
+                  <RedeemRewardsForm customerId={customer.id} balance={customer.rewardBalance} />
                 </div>
               </>
             ),

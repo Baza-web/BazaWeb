@@ -57,6 +57,7 @@ import {
   DownloadSimple,
   Play,
   Star,
+  Gift,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -146,4 +147,5 @@ export {
   DownloadSimple,
   Play,
   Star,
+  Gift,
 };

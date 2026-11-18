@@ -258,6 +258,7 @@ model Staff {
   performanceReviewsGiven    PerformanceReview[] @relation("ReviewGivenBy")
   disciplinaryRecordsReceived DisciplinaryRecord[] @relation("DisciplinarySubject")
   disciplinaryRecordsIssued   DisciplinaryRecord[] @relation("DisciplinaryIssuedBy")
+  rewardTransactionsProcessed RewardTransaction[]
 
   @@index([branchId])
 }
@@ -370,6 +371,7 @@ model Customer {
   anniversary DateTime?
   tags      String[] @default([])
   stage     CustomerStage @default(CUSTOMER)
+  rewardBalance Float @default(0)
   branchId  String
   createdAt DateTime @default(now())
 
@@ -379,6 +381,7 @@ model Customer {
   repairOrders RepairOrder[]
   emails       EmailLog[]
   activities   CustomerActivity[]
+  rewardTransactions RewardTransaction[]
 
   @@index([branchId])
 }
@@ -440,10 +443,45 @@ model Sale {
   items    SaleItem[]
   ledgerEntry LedgerEntry?
   journalEntry JournalEntry?
+  rewardTransactions RewardTransaction[]
 
   @@index([branchId])
   @@index([brandId])
   @@index([customerId])
+}
+
+// Singleton row (fixed id "default") holding the loyalty program's current
+// earn rate — see src/lib/rewards.ts's getRewardSettings, which creates it
+// on first read. Owner/Admin only; a business policy, not a deploy-time config.
+model RewardProgramSettings {
+  id            String   @id @default("default")
+  rewardPer100k Float    @default(1000) // LKR rewarded per 100,000 LKR spent
+  active        Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
+}
+
+enum RewardTransactionType {
+  EARNED
+  REDEEMED
+  ADJUSTED
+}
+
+model RewardTransaction {
+  id          String                @id @default(cuid())
+  customerId  String
+  type        RewardTransactionType
+  amount      Float
+  saleId      String?
+  note        String?
+  createdById String?
+  createdAt   DateTime              @default(now())
+
+  customer  Customer @relation(fields: [customerId], references: [id])
+  sale      Sale?    @relation(fields: [saleId], references: [id])
+  createdBy Staff?   @relation(fields: [createdById], references: [id])
+
+  @@index([customerId])
+  @@index([saleId])
 }
 
 model SaleItem {

@@ -89,6 +89,11 @@ export function canManageBrokers(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin only — the earn rate is a company-wide financial policy, same tier as adding/removing a branch. Redeeming a customer's existing balance at checkout is a routine action anyone with customer access can do (see redeemRewards). */
+export function canManageRewardProgram(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
 /** Owner only — clock in/out records are the source of truth for attendance; nobody else may change them after the fact. */
 export function canEditAttendance(role: Role) {
   return role === "OWNER";

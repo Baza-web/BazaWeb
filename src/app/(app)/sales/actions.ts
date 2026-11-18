@@ -14,6 +14,7 @@ import { extractOrderFromImage, extractOrderFromText, aiConfigured } from "@/lib
 import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
 import { postSaleJournalEntry } from "@/lib/ledger";
+import { earnRewardsForSale } from "@/lib/rewards";
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -289,6 +290,8 @@ export async function createSale(formData: FormData) {
       costOfGoodsSold,
       tx,
     );
+
+    await earnRewardsForSale(parsed.customerId || null, created.id, total, tx);
 
     return { created, finalQuantities };
   });
