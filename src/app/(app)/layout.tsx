@@ -1,9 +1,10 @@
 import type { Role } from "@prisma/client";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ROLE_LABELS } from "@/lib/rbac";
+import { ROLE_LABELS, canEditNavOrder } from "@/lib/rbac";
+import { getNavOrder, applyNavOrder } from "@/lib/navOrder";
 import { AppShell } from "@/components/AppShell";
-import { logout } from "./actions";
+import { logout, updateNavOrder } from "./actions";
 
 const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = [
   { href: "/dashboard", label: "Dashboard", iconKey: "dashboard" },
@@ -67,13 +68,17 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSessionOrRedirect();
 
-  const [unreadNotifications, unreadMessages, openAttendanceLog] = await Promise.all([
+  const [unreadNotifications, unreadMessages, openAttendanceLog, navOrder] = await Promise.all([
     db.notification.count({ where: { staffId: session.staffId, readAt: null } }),
     db.message.count({ where: { recipientId: session.staffId, readAt: null } }),
     db.attendanceLog.findFirst({ where: { staffId: session.staffId, clockOutAt: null } }),
+    getNavOrder(),
   ]);
 
-  const visibleNav = NAV.filter((item) => !item.roles || item.roles.includes(session.role));
+  const visibleNav = applyNavOrder(
+    NAV.filter((item) => !item.roles || item.roles.includes(session.role)),
+    navOrder,
+  );
 
   return (
     <AppShell
@@ -85,6 +90,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       isClockedIn={Boolean(openAttendanceLog)}
       showClockButton={session.role !== "OWNER"}
       logoutAction={logout}
+      canEditNav={canEditNavOrder(session.role)}
+      updateNavOrderAction={updateNavOrder}
     >
       {children}
     </AppShell>

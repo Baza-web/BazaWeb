@@ -1556,3 +1556,14 @@ model OrderPrioritySettings {
   mediumDays    Int      @default(5)
   updatedAt     DateTime @updatedAt
 }
+
+// Owner/Admin-configurable sidebar order — a singleton row storing the
+// NAV array's `href` values in the order every user should see them.
+// Applies company-wide, not per-user. Hrefs not listed here (a nav entry
+// added after this was last saved) simply keep their default position at
+// the end, in the order layout.tsx's NAV array defines them.
+model NavSettings {
+  id        String   @id @default("singleton")
+  order     String[] @default([])
+  updatedAt DateTime @updatedAt
+}
