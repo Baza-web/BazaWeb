@@ -94,6 +94,11 @@ export function canManageRewardProgram(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
 }
 
+/** Owner/Admin only for now — Travel & Experiences Phase 1 has no dedicated travel roles yet (Travel Manager, Tour Guide, etc. come in later phases once booking/guide-assignment genuinely needs scoped access). */
+export function canAccessTravel(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
 /** Owner only — clock in/out records are the source of truth for attendance; nobody else may change them after the fact. */
 export function canEditAttendance(role: Role) {
   return role === "OWNER";
@@ -144,6 +149,28 @@ export function canManageBrands(role: Role) {
 /** Owner only — connecting Drive hands the app a live, reusable credential to an external account; tighter than any other integration/structural setting. */
 export function canManageIntegrations(role: Role) {
   return role === "OWNER";
+}
+
+/** Everyone can open Orders Handling — the module itself scopes what each role actually sees (company-wide board vs. just "My Assigned Orders"). */
+export function canAccessOrders(_role: Role) {
+  return true;
+}
+
+/** Owner/Admin only — the company-wide Order Command Centre, All Orders board, and reports. Same tier as every other company-wide management surface. */
+export function canManageOrdersCompanyWide(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
+/** Owner/Admin/Manager — a Manager's access is scoped to their own branch via branchScope. Covers assignment, approvals, and deadline/priority changes. */
+export function canManageOrdersScoped(role: Role) {
+  return STAFF_SCOPED_MANAGER_ROLES.includes(role);
+}
+
+const ORDER_CREATOR_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER", "SALES"];
+
+/** Same tier as Repairs & Custom Order intake — Sales staff are usually the ones taking a custom order from a customer. */
+export function canCreateOrders(role: Role) {
+  return ORDER_CREATOR_ROLES.includes(role);
 }
 
 /**

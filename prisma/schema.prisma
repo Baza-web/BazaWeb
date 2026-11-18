@@ -98,6 +98,12 @@ enum NotificationType {
   PURCHASE_ORDER_UPDATE
   MEMO_EDIT_REQUESTED
   MEMO_EDIT_DECIDED
+  ORDER_ASSIGNED
+  ORDER_STATUS_CHANGED
+  ORDER_DELAY_REPORTED
+  ORDER_APPROVAL_REQUESTED
+  ORDER_APPROVAL_DECIDED
+  ORDER_DEADLINE_ALERT
 }
 
 enum LeaveType {
@@ -133,6 +139,41 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+enum OrderStatus {
+  NEW_ORDER
+  ORDER_CONFIRMED
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_FOR_MATERIALS
+  IN_PRODUCTION
+  QUALITY_CHECK
+  REVISION_REQUIRED
+  APPROVED
+  READY_FOR_DELIVERY
+  DISPATCHED
+  DELIVERED
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum OrderDelayReason {
+  WAITING_FOR_MATERIALS
+  SUPPLIER_DELAY
+  PRODUCTION_DELAY
+  DESIGN_APPROVAL_PENDING
+  CUSTOMER_CHANGES
+  QUALITY_CONTROL_ISSUE
+  STAFF_AVAILABILITY
+  OTHER
+}
+
+enum OrderApprovalDecision {
+  APPROVED
+  REVISION_REQUESTED
+  REJECTED
+}
+
 model Branch {
   id              String   @id @default(cuid())
   name            String
@@ -161,6 +202,8 @@ model Branch {
   payrollRuns    PayrollRun[]
   budgets        Budget[]
   journalEntries JournalEntry[]
+  tours          Tour[]
+  orders         Order[]
 }
 
 // A house brand this business trades under (e.g. "Baza Boutique", "Silver
@@ -178,6 +221,7 @@ model Brand {
   expenses    Expense[]
   sales       Sale[]
   inventoryItems InventoryItem[]
+  orders      Order[]
 }
 
 model Staff {
@@ -259,6 +303,17 @@ model Staff {
   disciplinaryRecordsReceived DisciplinaryRecord[] @relation("DisciplinarySubject")
   disciplinaryRecordsIssued   DisciplinaryRecord[] @relation("DisciplinaryIssuedBy")
   rewardTransactionsProcessed RewardTransaction[]
+  toursCreated  Tour[] @relation("TourCreatedBy")
+  toursApproved Tour[] @relation("TourApprovedBy")
+  ordersPrimary    Order[] @relation("OrderPrimaryStaff")
+  ordersSupporting Order[] @relation("OrderSupportingStaff")
+  ordersCreated    Order[] @relation("OrderCreatedBy")
+  orderStatusChanges   OrderStatusHistory[]
+  orderDeadlineChanges OrderDeadlineChange[]
+  orderDelaysReported  OrderDelay[]
+  orderApprovalsRequested OrderApproval[] @relation("OrderApprovalRequester")
+  orderApprovalsReviewed  OrderApproval[] @relation("OrderApprovalReviewer")
+  orderComments        OrderComment[]
 
   @@index([branchId])
 }
@@ -382,6 +437,7 @@ model Customer {
   emails       EmailLog[]
   activities   CustomerActivity[]
   rewardTransactions RewardTransaction[]
+  orders       Order[]
 
   @@index([branchId])
 }
@@ -444,6 +500,7 @@ model Sale {
   ledgerEntry LedgerEntry?
   journalEntry JournalEntry?
   rewardTransactions RewardTransaction[]
+  orders       Order[]
 
   @@index([branchId])
   @@index([brandId])
@@ -568,6 +625,7 @@ model Task {
   assignedToId String
   assignedById String
   groupId      String?
+  orderId      String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   completedAt  DateTime?
@@ -576,11 +634,13 @@ model Task {
   assignedTo Staff         @relation("AssignedTo", fields: [assignedToId], references: [id])
   assignedBy Staff         @relation("AssignedBy", fields: [assignedById], references: [id])
   group      StaffGroup?   @relation(fields: [groupId], references: [id])
+  order      Order?        @relation(fields: [orderId], references: [id])
   comments   TaskComment[]
 
   @@index([branchId])
   @@index([assignedToId])
   @@index([groupId])
+  @@index([orderId])
 }
 
 model TaskComment {
@@ -1275,4 +1335,224 @@ model VoiceGeneration {
   createdBy    Staff        @relation(fields: [createdById], references: [id])
 
   @@index([voiceProfileId])
+}
+
+// ── Travel & Experiences (Phase 1: internal tour management only) ──────────
+// Booking/GetYourGuide/finance integration is Phase 2+; this models a tour
+// as a standalone internal product so it works before any marketplace is
+// wired in. See DEPLOY.md and the Travel dashboard for current scope.
+
+enum TourStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  READY_FOR_MARKETPLACE
+  PUBLISHED
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum TourType {
+  PRIVATE
+  GROUP
+}
+
+model Tour {
+  id                 String     @id @default(cuid())
+  internalCode       String     @unique
+  title              String
+  category           String
+  destination        String?
+  country            String?
+  city               String?
+  durationMinutes    Int?
+  description        String?
+  highlights         String?
+  includedItems      String?
+  excludedItems      String?
+  languages          String[]   @default([])
+  tourType           TourType   @default(GROUP)
+  minParticipants    Int?
+  maxParticipants    Int?
+  meetingPoint       String?
+  pickupInfo         String?
+  cancellationPolicy String?
+  importantInfo      String?
+  images             String[]   @default([])
+  priceAdult         Float?
+  priceChild         Float?
+  currency           String     @default("LKR")
+  operatingDays      String[]   @default([])
+  startingTimes      String[]   @default([])
+  status             TourStatus @default(DRAFT)
+  branchId           String?
+  createdById        String
+  approvedById       String?
+  approvedAt         DateTime?
+  internalNotes      String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  archivedAt         DateTime?
+
+  branch     Branch? @relation(fields: [branchId], references: [id])
+  createdBy  Staff   @relation("TourCreatedBy", fields: [createdById], references: [id])
+  approvedBy Staff?  @relation("TourApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([branchId])
+  @@index([status])
+}
+
+// ── Orders Handling ──────────────────────────────────────────────────────
+// A standalone order-fulfillment/production-tracking model, separate from
+// both Sale (point-of-sale invoicing) and RepairOrder (repair/custom-piece
+// intake) — this is for tracking the end-to-end production of any business
+// order (custom jewelry, bespoke commissions, etc.) across multiple staff,
+// departments and a deadline lifecycle. `department` is free text (like
+// Tour.category) rather than its own model — there's no existing department
+// concept anywhere else in this ERP to reuse, and a full org-chart entity
+// isn't needed yet. currentDeadline is indexed so "overdue"/"due soon"
+// buckets can be computed with plain date-range WHERE clauses (see
+// src/lib/orderPriority.ts) instead of a stored, staleness-prone status.
+model Order {
+  id                         String        @id @default(cuid())
+  orderNumber                String        @unique
+  brandId                    String?
+  customerId                 String?
+  customerContact            String?
+  orderType                  String
+  productOrService           String
+  description                String?
+  specifications             String?
+  customizationRequirements  String?
+  quantity                   Int?          @default(1)
+  orderValue                 Float?
+  department                 String?
+  orderDate                  DateTime      @default(now())
+  originalDeadline           DateTime
+  currentDeadline            DateTime
+  manualPriority             TaskPriority?
+  status                     OrderStatus   @default(NEW_ORDER)
+  progressPercent            Int           @default(0)
+  internalInstructions       String?
+  customerInstructions       String?
+  referenceImages            String[]      @default([])
+  supportingDocuments        String[]      @default([])
+  branchId                   String?
+  primaryStaffId             String
+  createdById                String
+  relatedSaleId              String?
+  completedAt                DateTime?
+  cancelledAt                DateTime?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+
+  brand           Brand?    @relation(fields: [brandId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  branch          Branch?   @relation(fields: [branchId], references: [id])
+  primaryStaff    Staff     @relation("OrderPrimaryStaff", fields: [primaryStaffId], references: [id])
+  createdBy       Staff     @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  relatedSale     Sale?     @relation(fields: [relatedSaleId], references: [id])
+  supportingStaff Staff[]   @relation("OrderSupportingStaff")
+
+  statusHistory   OrderStatusHistory[]
+  deadlineHistory OrderDeadlineChange[]
+  delays          OrderDelay[]
+  approvals       OrderApproval[]
+  comments        OrderComment[]
+  tasks           Task[]
+
+  @@index([branchId])
+  @@index([brandId])
+  @@index([primaryStaffId])
+  @@index([status])
+  @@index([currentDeadline])
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(cuid())
+  orderId     String
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  reason      String?
+  changedById String
+  createdAt   DateTime     @default(now())
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy Staff @relation(fields: [changedById], references: [id])
+
+  @@index([orderId])
+}
+
+// Every deadline change is additive — previousDeadline/newDeadline on each
+// row preserves full history; Order.originalDeadline never changes once set.
+model OrderDeadlineChange {
+  id               String   @id @default(cuid())
+  orderId          String
+  previousDeadline DateTime
+  newDeadline      DateTime
+  reason           String
+  changedById      String
+  createdAt        DateTime @default(now())
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy Staff @relation(fields: [changedById], references: [id])
+
+  @@index([orderId])
+}
+
+model OrderDelay {
+  id           String            @id @default(cuid())
+  orderId      String
+  reasonType   OrderDelayReason
+  explanation  String
+  reportedById String
+  createdAt    DateTime          @default(now())
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reportedBy Staff @relation(fields: [reportedById], references: [id])
+
+  @@index([orderId])
+}
+
+model OrderApproval {
+  id            String                  @id @default(cuid())
+  orderId       String
+  decision      OrderApprovalDecision?
+  comments      String?
+  requestedById String
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime                @default(now())
+
+  order       Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  requestedBy Staff  @relation("OrderApprovalRequester", fields: [requestedById], references: [id])
+  reviewedBy  Staff? @relation("OrderApprovalReviewer", fields: [reviewedById], references: [id])
+
+  @@index([orderId])
+}
+
+model OrderComment {
+  id        String   @id @default(cuid())
+  orderId   String
+  staffId   String
+  body      String
+  photos    String[] @default([])
+  documents String[] @default([])
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([orderId])
+}
+
+// Owner/Admin-configurable urgency thresholds — a singleton row, same
+// pattern as GoogleDriveConnection. Defaults match the spec exactly.
+model OrderPrioritySettings {
+  id            String   @id @default("singleton")
+  criticalHours Int      @default(24)
+  highHours     Int      @default(48)
+  mediumDays    Int      @default(5)
+  updatedAt     DateTime @updatedAt
 }

@@ -537,6 +537,89 @@ from their profile's Overview tab (enter the same amount as a manual
 discount on the sale at checkout — the two aren't linked automatically,
 so both steps matter). Voiding a sale reverses the reward it earned.
 
+## Travel & Experiences (Phase 1 — internal tour management)
+
+**Travel & Experiences** is a new department (Owner/Admin only for now)
+for managing Baza Travels and GetYourGuide-style tour products — visible
+in the sidebar as its own entry. Phase 1 covers internal tour management
+only: create/edit tours, a draft → pending approval → approved lifecycle,
+and an internal dashboard. No setup needed; it's on by default after this
+migration is applied (`npx prisma migrate deploy` picks up
+`20261118040000_travel_experiences_tours` like any other migration — see
+"Updating the app later" below).
+
+**What's live in Phase 1:**
+- `/travel` — dashboard with tour counts by status and recently updated tours.
+- `/travel/tours` — create a tour (title, pricing, duration, languages,
+  included/excluded items, photos, etc.) and browse/filter all tours.
+- `/travel/tours/[id]` — edit a tour and move it through its lifecycle:
+  Draft → submit for approval → Approved (or sent back to Draft with a
+  reason) → Archived/restored.
+- 3 tagged development-sample tours are available to seed for Phase 1
+  demoing (Lotus Tower Lunch Experience, Ambuluwawa Tower Private Day
+  Trip, Jewelry Making Workshop in Colombo) — run
+  `docker compose exec app node_modules/.bin/tsx prisma/travel-demo-tours.ts`.
+  Each is created in Draft status, carries a "Dev sample" badge and an
+  internal-notes warning, and attaches to your first Owner account and
+  first branch. **None of them are published on GetYourGuide or any real
+  marketplace.** Running it twice is a no-op (it skips any tour whose
+  title already exists).
+
+**What's explicitly NOT in Phase 1** (future phases, not yet built):
+booking management, the real GetYourGuide API integration, marketplace
+publishing, and Travel-specific finance/BI reporting. The `Tour` status
+enum already reserves `READY_FOR_MARKETPLACE` / `PUBLISHED` / `ACTIVE` /
+`PAUSED` for that later work, but no UI or API wiring exists for them yet
+— don't expect a tour to appear anywhere outside this ERP.
+
+## Orders Handling (production/fulfillment tracking)
+
+**Orders Handling** is its own sidebar tab, separate from Sales (invoicing),
+Repairs & Custom Orders, and Staff Tasks — it tracks the end-to-end
+production lifecycle of any business order (custom jewellery, bespoke
+commissions, etc.) across multiple employees, departments and a deadline
+history. Every staff role can open it; what each role sees differs:
+
+- **Owner/Admin**: the full Order Command Centre and All Orders board,
+  company-wide across every brand and branch.
+- **Manager**: the same views, scoped to their own branch.
+- **Everyone else**: a lighter view scoped to orders they're the primary or
+  a supporting employee on ("My Assigned Orders").
+
+**Pages**: Order Command Centre (`/orders`), All Orders (`/orders/all`,
+table + Kanban), Create New Order (`/orders/new`), My Assigned Orders
+(`/orders/mine`), Delayed Orders (`/orders/delayed`), Upcoming Deadlines
+(`/orders/upcoming`, list + calendar), Pending Approvals (`/orders/approvals`),
+Completed Orders (`/orders/completed`), and Order Reports (`/orders/reports`,
+with Excel/CSV export).
+
+**Automatic priority** (Overdue/Critical/High/Medium/Normal) is calculated
+live from each order's current deadline every time it's viewed — it's never
+stored, so it can't go stale. Owner/Admin can tune the Critical/High/Medium
+thresholds from a panel at the bottom of the Order Command Centre; the
+defaults are 24h / 48h / 5 days.
+
+**Staff Tasks integration**: an order can spawn one or more linked tasks in
+the existing Staff Tasks module (e.g. "Stone setting," "Quality control") —
+completing a linked task never auto-completes its parent order; the order
+is only done when its own status is moved to Completed.
+
+Deadline changes and delay reports are append-only history — the original
+deadline and every prior delay/deadline change stay on the order forever;
+nothing is overwritten.
+
+To get overdue/critical/due-soon notifications without anyone needing to
+open the dashboard, add one more cron line (reuses the same `CRON_TOKEN` as
+the other cron jobs on this page), checking every 30 minutes:
+
+```bash
+(crontab -l 2>/dev/null; echo "*/30 * * * * curl -s 'https://operation.baza-boutique.com/api/cron/order-deadlines?token=YOUR_CRON_TOKEN'") | crontab -
+```
+
+It notifies every assigned employee once per day per order while it stays
+overdue/critical, plus Owner/Admin for overdue and critical orders — never
+more than once per order per day per person.
+
 ## AI Voice Studio (optional — Creative Hub voice-overs)
 
 On **Creative Hub > AI Voice Studio**, staff can clone a real, consenting

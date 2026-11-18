@@ -34,6 +34,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
     roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"],
   },
   { href: "/tasks", label: "Tasks", iconKey: "tasks" },
+  { href: "/orders", label: "Orders Handling", iconKey: "orders" },
   {
     href: "/repairs",
     label: "Repairs & Custom Orders",
@@ -58,6 +59,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/deletion-requests", label: "Deletion requests", iconKey: "deletions", roles: ["OWNER"] },
   { href: "/edit-requests", label: "Edit requests", iconKey: "edits", roles: ["OWNER"] },
   { href: "/creative", label: "Creative Hub", iconKey: "creative", roles: ["OWNER", "ADMIN", "CREATIVE"] },
+  { href: "/travel", label: "Travel & Experiences", iconKey: "travel", roles: ["OWNER", "ADMIN"] },
   { href: "/import", label: "Bulk import", iconKey: "import", roles: ["OWNER"] },
   { href: "/settings", label: "Settings", iconKey: "settings", roles: ["OWNER"] },
 ];
