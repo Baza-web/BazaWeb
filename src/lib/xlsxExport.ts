@@ -93,3 +93,28 @@ export function timestampedFilename(base: string, extension = "xlsx") {
   const d = new Date().toISOString().slice(0, 10);
   return `${base}-${d}.${extension}`;
 }
+
+function csvCell(value: string | number | Date | null | undefined, format?: ExportColumn<unknown>["format"]) {
+  if (value == null) return "";
+  if (value instanceof Date) return format === "datetime" ? value.toISOString() : value.toISOString().slice(0, 10);
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Same column definitions as buildExportSheet, as a plain CSV string — for users who just want to open the numbers in any spreadsheet tool, not a formatted workbook. */
+export function buildCsv<T>(columns: ExportColumn<T>[], rows: T[]) {
+  const lines = [columns.map((c) => csvCell(c.header)).join(",")];
+  for (const row of rows) {
+    lines.push(columns.map((c) => csvCell(c.value(row), c.format)).join(","));
+  }
+  return lines.join("\n");
+}
+
+export function csvResponse(csv: string, filename: string) {
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}

@@ -60,6 +60,16 @@ import {
   Gift,
   Airplane,
   MapTrifold,
+  ClipboardText,
+  Kanban,
+  Funnel,
+  ChartPie,
+  ArrowsClockwise,
+  ListBullets,
+  Table,
+  ThumbsUp,
+  ThumbsDown,
+  ChatText,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -89,6 +99,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   import: UploadSimple,
   email: EnvelopeSimple,
   travel: Airplane,
+  orders: ClipboardText,
 };
 
 export {
@@ -153,4 +164,14 @@ export {
   Gift,
   Airplane,
   MapTrifold,
+  ClipboardText,
+  Kanban,
+  Funnel,
+  ChartPie,
+  ArrowsClockwise,
+  ListBullets,
+  Table,
+  ThumbsUp,
+  ThumbsDown,
+  ChatText,
 };
