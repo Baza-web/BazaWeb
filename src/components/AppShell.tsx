@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { NavLink } from "./NavLink";
+import { SidebarNav } from "./SidebarNav";
 import { ClockButton } from "./ClockButton";
 import { LogoutButton } from "./LogoutButton";
 import { List, X, ChatCircle, Bell } from "./icons";
@@ -19,6 +19,8 @@ export function AppShell({
   isClockedIn,
   showClockButton,
   logoutAction,
+  canEditNav,
+  updateNavOrderAction,
   children,
 }: {
   nav: NavItem[];
@@ -29,6 +31,8 @@ export function AppShell({
   isClockedIn: boolean;
   showClockButton: boolean;
   logoutAction: () => Promise<void>;
+  canEditNav: boolean;
+  updateNavOrderAction: (order: string[]) => Promise<void>;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,17 +67,12 @@ export function AppShell({
             <X size={22} aria-hidden="true" />
           </button>
         </div>
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4">
-          {nav.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              iconKey={item.iconKey}
-              onNavigate={() => setMenuOpen(false)}
-            />
-          ))}
-        </nav>
+        <SidebarNav
+          nav={nav}
+          canEditNav={canEditNav}
+          updateNavOrderAction={updateNavOrderAction}
+          onNavigate={() => setMenuOpen(false)}
+        />
       </aside>
 
       <div className="min-w-0 flex-1">

@@ -151,6 +151,11 @@ export function canManageIntegrations(role: Role) {
   return role === "OWNER";
 }
 
+/** Owner/Admin only — the sidebar order is company-wide (every role sees whatever order Owner/Admin set), so only they can rearrange it. */
+export function canEditNavOrder(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
 /** Everyone can open Orders Handling — the module itself scopes what each role actually sees (company-wide board vs. just "My Assigned Orders"). */
 export function canAccessOrders(_role: Role) {
   return true;

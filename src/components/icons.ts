@@ -70,6 +70,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   ChatText,
+  Check,
+  DotsSixVertical,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -174,4 +176,6 @@ export {
   ThumbsUp,
   ThumbsDown,
   ChatText,
+  Check,
+  DotsSixVertical,
 };
