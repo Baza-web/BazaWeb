@@ -620,6 +620,15 @@ It notifies every assigned employee once per day per order while it stays
 overdue/critical, plus Owner/Admin for overdue and critical orders — never
 more than once per order per day per person.
 
+**Demo orders** (optional, for seeing the Command Centre populated) — run
+`docker compose exec app node_modules/.bin/tsx prisma/orders-demo-data.ts`
+to create 14 sample orders spanning every status, priority bucket, two
+reported delays, two pending approvals, and two completed orders (one on
+time, one late). It reuses your real active staff, branches, brands and
+customers — it creates no fake people or company records, only order rows
+tagged `[DEMO]` in their internal instructions. Running it twice is a
+no-op (it skips if any `[DEMO]` order already exists).
+
 ## AI Voice Studio (optional — Creative Hub voice-overs)
 
 On **Creative Hub > AI Voice Studio**, staff can clone a real, consenting
