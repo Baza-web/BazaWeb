@@ -368,6 +368,17 @@ then add one more cron line so it checks every day at 7 AM:
 That's it — Sales staff and the Branch Manager get notified 3 days
 before any of their branch's customers' birthdays or anniversaries.
 
+## Customer follow-up reminders
+
+Customers > a customer > Timeline lets staff add a note with a follow-up
+date. Add one more cron line (reuses the same `CRON_TOKEN` as above) so
+an open follow-up actually notifies whoever set it, once a day, from its
+due date until it's marked done:
+
+```bash
+(crontab -l 2>/dev/null; echo "0 8 * * * curl -s 'https://operation.baza-boutique.com/api/cron/customer-followups?token=YOUR_CRON_TOKEN'") | crontab -
+```
+
 ## Creative Hub: auto-publishing approved posts to Instagram
 
 The Creative Hub's content calendar can automatically post to Instagram once
@@ -515,6 +526,16 @@ To enable both, add `ANTHROPIC_API_KEY` to your `.env` (get one at
 still appear but explain it isn't set up yet — typing things in by hand
 always works either way. Each scan costs a small amount against your
 Anthropic account (a few cents at most); there's no other setup needed.
+
+## Customer reward program (Customers > CRM)
+
+Customers automatically earn a reward balance on every purchase — the
+default is 1,000 LKR per 100,000 LKR spent (1%), editable by Owner/Admin
+from a "Reward program" card at the bottom of the **Customers** list page.
+No setup needed; it's on by default. Staff redeem a customer's balance
+from their profile's Overview tab (enter the same amount as a manual
+discount on the sale at checkout — the two aren't linked automatically,
+so both steps matter). Voiding a sale reverses the reward it earned.
 
 ## AI Voice Studio (optional — Creative Hub voice-overs)
 

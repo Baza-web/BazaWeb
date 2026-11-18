@@ -3,6 +3,7 @@ import { db } from "./db";
 import type { SessionPayload } from "./auth";
 import { notifyStaff } from "./notifications";
 import { reverseSaleJournalEntry, reverseExpenseJournalEntry } from "./ledger";
+import { reverseRewardsForSale } from "./rewards";
 
 export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE" | "CUSTOMER" | "EXPENSE" | "BROKER";
 
@@ -75,6 +76,7 @@ async function performSaleDeletion(entityId: string, session: SessionPayload) {
     }
     await tx.ledgerEntry.deleteMany({ where: { saleId: entityId } });
     await reverseSaleJournalEntry(session, entityId, tx);
+    await reverseRewardsForSale(entityId, tx);
     await tx.sale.delete({ where: { id: entityId } });
   });
 }

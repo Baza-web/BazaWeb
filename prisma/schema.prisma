@@ -93,6 +93,7 @@ enum NotificationType {
   ATTENDANCE
   CALL_INVITE
   CUSTOMER_OCCASION
+  CUSTOMER_FOLLOWUP
   REPAIR_UPDATE
   PURCHASE_ORDER_UPDATE
   MEMO_EDIT_REQUESTED
@@ -252,8 +253,61 @@ model Staff {
   bankStatementLinesUploaded BankStatementLine[]
   voiceProfilesCreated VoiceProfile[]
   voiceGenerationsCreated VoiceGeneration[]
+  customerActivitiesLogged CustomerActivity[]
+  performanceReviewsReceived PerformanceReview[] @relation("ReviewSubject")
+  performanceReviewsGiven    PerformanceReview[] @relation("ReviewGivenBy")
+  disciplinaryRecordsReceived DisciplinaryRecord[] @relation("DisciplinarySubject")
+  disciplinaryRecordsIssued   DisciplinaryRecord[] @relation("DisciplinaryIssuedBy")
+  rewardTransactionsProcessed RewardTransaction[]
 
   @@index([branchId])
+}
+
+enum PerformanceRating {
+  NEEDS_IMPROVEMENT
+  MEETS_EXPECTATIONS
+  EXCEEDS_EXPECTATIONS
+  OUTSTANDING
+}
+
+model PerformanceReview {
+  id                  String            @id @default(cuid())
+  staffId             String
+  reviewerId          String
+  periodLabel         String
+  rating              PerformanceRating
+  strengths           String?
+  areasForImprovement String?
+  goals               String?
+  createdAt           DateTime          @default(now())
+
+  staff    Staff @relation("ReviewSubject", fields: [staffId], references: [id])
+  reviewer Staff @relation("ReviewGivenBy", fields: [reviewerId], references: [id])
+
+  @@index([staffId])
+}
+
+enum DisciplinarySeverity {
+  VERBAL_WARNING
+  WRITTEN_WARNING
+  FINAL_WARNING
+  SUSPENSION
+}
+
+model DisciplinaryRecord {
+  id          String               @id @default(cuid())
+  staffId     String
+  issuedById  String
+  severity    DisciplinarySeverity
+  description String
+  actionTaken String?
+  occurredAt  DateTime
+  createdAt   DateTime             @default(now())
+
+  staff    Staff @relation("DisciplinarySubject", fields: [staffId], references: [id])
+  issuedBy Staff @relation("DisciplinaryIssuedBy", fields: [issuedById], references: [id])
+
+  @@index([staffId])
 }
 
 model InventoryItem {
@@ -295,6 +349,18 @@ model InventoryItem {
   @@index([brandId])
 }
 
+enum CustomerStage {
+  LEAD
+  PROSPECT
+  CUSTOMER
+}
+
+enum CustomerActivityType {
+  CALL
+  VISIT
+  STAGE_CHANGE
+}
+
 model Customer {
   id        String   @id @default(cuid())
   name      String
@@ -303,25 +369,49 @@ model Customer {
   address   String?
   birthday  DateTime?
   anniversary DateTime?
+  tags      String[] @default([])
+  stage     CustomerStage @default(CUSTOMER)
+  rewardBalance Float @default(0)
   branchId  String
   createdAt DateTime @default(now())
 
-  branch       Branch         @relation(fields: [branchId], references: [id])
+  branch       Branch             @relation(fields: [branchId], references: [id])
   sales        Sale[]
   notes        CustomerNote[]
   repairOrders RepairOrder[]
   emails       EmailLog[]
+  activities   CustomerActivity[]
+  rewardTransactions RewardTransaction[]
 
   @@index([branchId])
 }
 
 model CustomerNote {
-  id         String   @id @default(cuid())
+  id           String   @id @default(cuid())
+  customerId   String
+  staffId      String
+  body         String
+  followUpAt   DateTime?
+  followUpDone Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  staff    Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([customerId])
+}
+
+// The parts of a customer's activity timeline that don't already have a home
+// elsewhere (sales, repairs, emails, and CustomerNote all carry their own
+// timestamp and feed into the same merged timeline — see src/lib/customerTimeline.ts).
+model CustomerActivity {
+  id         String               @id @default(cuid())
   customerId String
+  type       CustomerActivityType
+  note       String
   staffId    String
-  body       String
-  followUpAt DateTime?
-  createdAt  DateTime @default(now())
+  occurredAt DateTime             @default(now())
+  createdAt  DateTime             @default(now())
 
   customer Customer @relation(fields: [customerId], references: [id])
   staff    Staff    @relation(fields: [staffId], references: [id])
@@ -353,10 +443,45 @@ model Sale {
   items    SaleItem[]
   ledgerEntry LedgerEntry?
   journalEntry JournalEntry?
+  rewardTransactions RewardTransaction[]
 
   @@index([branchId])
   @@index([brandId])
   @@index([customerId])
+}
+
+// Singleton row (fixed id "default") holding the loyalty program's current
+// earn rate — see src/lib/rewards.ts's getRewardSettings, which creates it
+// on first read. Owner/Admin only; a business policy, not a deploy-time config.
+model RewardProgramSettings {
+  id            String   @id @default("default")
+  rewardPer100k Float    @default(1000) // LKR rewarded per 100,000 LKR spent
+  active        Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
+}
+
+enum RewardTransactionType {
+  EARNED
+  REDEEMED
+  ADJUSTED
+}
+
+model RewardTransaction {
+  id          String                @id @default(cuid())
+  customerId  String
+  type        RewardTransactionType
+  amount      Float
+  saleId      String?
+  note        String?
+  createdById String?
+  createdAt   DateTime              @default(now())
+
+  customer  Customer @relation(fields: [customerId], references: [id])
+  sale      Sale?    @relation(fields: [saleId], references: [id])
+  createdBy Staff?   @relation(fields: [createdById], references: [id])
+
+  @@index([customerId])
+  @@index([saleId])
 }
 
 model SaleItem {
