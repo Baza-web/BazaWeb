@@ -342,32 +342,34 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <div>
           <h3 className="mb-2 text-sm font-semibold text-ink-900">Metal</h3>
           {order.metalSpecs.length > 0 && (
-            <table className="table-base mb-2">
-              <thead>
-                <tr>
-                  <th>Type</th><th>Purity</th><th>Est. (g)</th><th>Actual (g)</th><th>Wastage (g)</th><th>Scrap recovered (g)</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.metalSpecs.map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.metalType}</td>
-                    <td>{m.purity ?? "—"}</td>
-                    <td>{m.estimatedWeightGrams ?? "—"}</td>
-                    <td>{m.actualWeightGrams ?? "—"}</td>
-                    <td>{m.wastageGrams ?? "—"}</td>
-                    <td>{m.scrapRecoveredGrams ?? "—"}</td>
-                    <td>
-                      <form action={deleteOrderMetalSpec.bind(null, m.id)}>
-                        <button type="submit" className="text-red-600 hover:underline" aria-label="Remove">
-                          <Trash size={14} />
-                        </button>
-                      </form>
-                    </td>
+            <div className="mb-2 overflow-x-auto">
+              <table className="table-base">
+                <thead>
+                  <tr>
+                    <th>Type</th><th>Purity</th><th>Est. (g)</th><th>Actual (g)</th><th>Wastage (g)</th><th>Scrap recovered (g)</th><th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {order.metalSpecs.map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.metalType}</td>
+                      <td>{m.purity ?? "—"}</td>
+                      <td>{m.estimatedWeightGrams ?? "—"}</td>
+                      <td>{m.actualWeightGrams ?? "—"}</td>
+                      <td>{m.wastageGrams ?? "—"}</td>
+                      <td>{m.scrapRecoveredGrams ?? "—"}</td>
+                      <td>
+                        <form action={deleteOrderMetalSpec.bind(null, m.id)}>
+                          <button type="submit" className="text-red-600 hover:underline" aria-label="Remove">
+                            <Trash size={14} />
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <form action={addOrderMetalSpec.bind(null, order.id)} className="flex flex-wrap items-end gap-2">
             <select className="input text-sm" name="metalType" required defaultValue="GOLD">
