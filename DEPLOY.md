@@ -629,6 +629,61 @@ customers — it creates no fake people or company records, only order rows
 tagged `[DEMO]` in their internal instructions. Running it twice is a
 no-op (it skips if any `[DEMO]` order already exists).
 
+## Jewellery Operations (production BOM, QC, Maison D'or compliance, Workshop & Supplies)
+
+No new env vars or cron jobs — this is all on by default once the
+migration is applied (`20261124080000_production_qc_maison_dor`, picked
+up automatically by `npx prisma migrate deploy` on redeploy, same as any
+other migration).
+
+**What's new on the Order detail page** (`/orders/[id]`): a Materials &
+Bill of Materials card (metal specs, gemstone specs, components), a QC
+Inspection panel, a Gold Certificate panel, and a Work Handovers card.
+
+**QC checklist**: before staff can log inspections against a template,
+an Owner/Admin should visit `/orders/qc-settings` once and click "Load
+suggested checklist (14 items)" — it's editable afterward.
+
+**Maison D'or gold-certificate dispatch gate**: per brand (toggle on the
+**Brands** page), once "Requires gold certificates" is turned on, any
+order under that brand can't move to **Dispatched** until it has (a) at
+least one QC inspection with a PASS decision from an inspector who is
+not the person who worked the order, and (b) at least one verified Gold
+Certificate. There is deliberately no override button — a genuine
+exception goes through correcting the underlying record (add the
+missing certificate, log the missing inspection), so the exception
+itself stays on the audit trail instead of bypassing it silently.
+
+**Workshop & Supplies** — a new sidebar tab (`/workshop`, visible to
+Owner/Admin/Manager/Craftsman) for tracking tools (condition, who has
+one checked out, maintenance log) and consumable supplies (stock level,
+low-stock alerts, checkout against an order).
+
+## QR Code Management
+
+A new sidebar tab, **QR Management** (`/qr`, Owner/Admin/Manager), for
+generating printable QR codes that link to a product, a gemstone, a
+gold certificate, a boutique location, or an external URL (e.g. a
+marketing campaign). Scanning one opens a public, unauthenticated page
+at `/q/<code>` — no login needed — showing only a deliberately
+safe subset of fields (never cost price, never customer data). Because
+the destination is looked up by the code at scan time, not baked into
+the printed image, you can repoint or deactivate a code anytime without
+reprinting it.
+
+This needs `NEXT_PUBLIC_APP_URL` set to your real domain so generated
+scan links point at `https://operation.baza-boutique.com` instead of
+`localhost`. If you already set this for Instagram auto-publishing
+above, there's nothing more to do; otherwise add to your `.env`:
+
+```bash
+NEXT_PUBLIC_APP_URL=https://operation.baza-boutique.com
+```
+
+then redeploy (`docker compose up -d --build app`). Migration
+`20261124090000_qr_management` is applied automatically the same way as
+any other.
+
 ## AI Voice Studio (optional — Creative Hub voice-overs)
 
 On **Creative Hub > AI Voice Studio**, staff can clone a real, consenting
@@ -682,9 +737,9 @@ account, is safe to run on a live system, and running it twice is a
 no-op (it checks for `admin.demo@example.com` first). Everything it
 creates is tagged "Demo" — staff emails end in `@example.com`, inventory
 SKUs start with `DEMO-` — so it's easy to tell apart from real data.
-There's no one-click removal once it's there (the records reference each
-other), so only run it if you're fine leaving it in for a while, or ask
-for a cleanup script when you want it gone.
+There's no one-click removal built into this script (the records
+reference each other) — see "Removing all demo data before going live"
+below for the cleanup script.
 
 ## Accounting cross-check demo data (for QA / accounts-team handover)
 
@@ -720,6 +775,33 @@ This hard-deletes everything the seed script created (restocking the
 demo inventory first) — safe because none of it was ever a real
 financial record. It only ever matches by the `[ACCT-DEMO]` tag, never
 by date or id range, so it can't touch anything else.
+
+## Removing all demo data before going live
+
+Once your real staff and data are ready, use this to wipe every demo
+record created by `prisma/demo-data.ts`, `prisma/orders-demo-data.ts`,
+and `prisma/travel-demo-tours.ts` in one pass, so the app starts clean
+for real use. It's dry-run by default — it prints what it would delete
+without touching anything until you pass `--confirm`:
+
+```bash
+docker compose exec app node_modules/.bin/tsx prisma/delete-all-demo-data.ts
+# read the dry-run output, then:
+docker compose exec app node_modules/.bin/tsx prisma/delete-all-demo-data.ts --confirm
+```
+
+It identifies demo records the same way the rest of this guide tags
+them — staff with `@example.com` emails, orders tagged `[DEMO]`, sales
+that reference a `DEMO-` SKU item (regardless of which staff recorded
+them), inventory with a `DEMO-` SKU, and tours tagged "Dev sample" —
+then cascades through every table that references them (restocking
+inventory from voided demo sales first) inside a single transaction, so
+a failure partway through leaves nothing partially deleted. It does
+**not** touch the separate Accounting cross-check demo data (clean that
+up with `prisma/accounting-demo-cleanup.ts`, documented above) or
+shared Staff Groups. Any `Customer` left with zero sales, orders, or
+repairs after cleanup is left in place and listed for you to review by
+hand, rather than guessed at and auto-deleted.
 
 ## Where things live
 
