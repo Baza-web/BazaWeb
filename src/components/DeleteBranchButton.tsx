@@ -14,7 +14,11 @@ export function DeleteBranchButton({ branchId, branchName }: { branchId: string;
     setError(null);
     startTransition(async () => {
       try {
-        await deleteBranch(branchId);
+        const result = await deleteBranch(branchId);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Couldn't delete that branch.");

@@ -31,12 +31,20 @@ export async function createBranch(formData: FormData) {
   revalidatePath("/branches");
 }
 
-/** Owner-only. Refuses to delete a branch that still has any real data attached — that's for the Owner to move or clear out first, never silently cascaded away. */
-export async function deleteBranch(branchId: string) {
+/**
+ * Owner-only. Refuses to delete a branch that still has any real data attached — that's for the
+ * Owner to move or clear out first, never silently cascaded away.
+ *
+ * Returns { error } instead of throwing for this expected, user-facing case: Next.js redacts a
+ * thrown Error's message in production builds (replacing it with a generic "Server Components
+ * render" notice), so a thrown Error here would silently lose the actual reason to the Owner on
+ * the live site even though it works fine in local dev.
+ */
+export async function deleteBranch(branchId: string): Promise<{ error: string } | { success: true }> {
   const session = await requireSessionOrRedirect();
   if (!canAddOrDeleteBranches(session.role)) throw new Error("Forbidden");
 
-  const branch = await db.branch.findUniqueOrThrow({
+  const branch = await db.branch.findUnique({
     where: { id: branchId },
     include: {
       _count: {
@@ -59,16 +67,45 @@ export async function deleteBranch(branchId: string) {
       },
     },
   });
+  if (!branch) return { error: "That branch no longer exists." };
 
   const totalRecords = Object.values(branch._count).reduce((sum, n) => sum + n, 0);
   if (totalRecords > 0) {
-    throw new Error(
-      `${branch.name} still has data attached (staff, inventory, sales, etc.) — move or remove that first before deleting the branch.`,
-    );
+    return {
+      error: `${branch.name} still has data attached (staff, inventory, sales, etc.) — move or remove that first before deleting the branch.`,
+    };
   }
 
   await db.branch.delete({ where: { id: branchId } });
   revalidatePath("/branches");
+  return { success: true };
+}
+
+/**
+ * Owner/Admin — same tier as the geofence settings below, since renaming or correcting a
+ * branch's address/phone is "editing one's details," not the bigger structural change of
+ * adding or removing a branch outright (Owner-only, see canAddOrDeleteBranches).
+ *
+ * Returns { error } rather than throwing, for the same production-redaction reason as
+ * deleteBranch above.
+ */
+export async function updateBranchDetails(
+  branchId: string,
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+
+  const parsed = schema.safeParse({
+    name: formData.get("name"),
+    address: formData.get("address") || undefined,
+    phone: formData.get("phone") || undefined,
+  });
+  if (!parsed.success) return { error: "Name must be at least 2 characters." };
+
+  await db.branch.update({ where: { id: branchId }, data: parsed.data });
+  revalidatePath("/branches");
+  return { success: true };
 }
 
 export async function setMainBranch(branchId: string) {

@@ -3,6 +3,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageStaff, canAddOrDeleteBranches } from "@/lib/rbac";
 import { GeofenceForm } from "@/components/GeofenceForm";
 import { DeleteBranchButton } from "@/components/DeleteBranchButton";
+import { EditBranchButton } from "@/components/EditBranchButton";
 import { createBranch, setMainBranch } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
 import { formatDate } from "@/lib/utils";
@@ -44,7 +45,7 @@ export default async function BranchesPage() {
               <th>Staff</th>
               <th>Inventory items</th>
               <th>Main location</th>
-              {canAddOrDelete && <th className="print:hidden">Actions</th>}
+              {canManageStaff(session.role) && <th className="print:hidden">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -69,16 +70,19 @@ export default async function BranchesPage() {
                     </form>
                   )}
                 </td>
-                {canAddOrDelete && (
+                {canManageStaff(session.role) && (
                   <td className="print:hidden">
-                    <DeleteBranchButton branchId={b.id} branchName={b.name} />
+                    <div className="flex items-start gap-3">
+                      <EditBranchButton branchId={b.id} name={b.name} address={b.address} phone={b.phone} />
+                      {canAddOrDelete && <DeleteBranchButton branchId={b.id} branchName={b.name} />}
+                    </div>
                   </td>
                 )}
               </tr>
             ))}
             {branches.length === 0 && (
               <tr>
-                <td colSpan={canAddOrDelete ? 8 : 7} className="py-6 text-center text-stone-400">
+                <td colSpan={canManageStaff(session.role) ? 8 : 7} className="py-6 text-center text-stone-400">
                   No branches yet.
                 </td>
               </tr>
