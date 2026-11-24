@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { isCompanyWide, canManageOrdersScoped } from "@/lib/rbac";
+import { isCompanyWide, canManageOrdersScoped, canManageOrdersCompanyWide } from "@/lib/rbac";
 import { overdueWhere, openOrderWhere } from "@/lib/orderPriority";
 import { ORDER_STATUS_LABELS } from "../shared";
 import { ChartPie, DownloadSimple } from "@/components/icons";
 import { RankedBarChart } from "@/components/RankedBarChart";
 import { OrderVolumeChart } from "@/components/OrderVolumeChart";
+import { BackfillSalesOrdersButton } from "./BackfillSalesOrdersButton";
 import type { Prisma } from "@prisma/client";
 
 export default async function OrderReportsPage({
@@ -33,6 +34,7 @@ export default async function OrderReportsPage({
         brand: { select: { name: true } },
         department: true,
         primaryStaff: { select: { name: true } },
+        originalSalesperson: { select: { name: true } },
         status: true,
         completedAt: true,
         currentDeadline: true,
@@ -51,6 +53,7 @@ export default async function OrderReportsPage({
   const byDepartment = new Map<string, number>();
   const byStatus = new Map<string, number>();
   const monthly = new Map<string, number>();
+  const bySalesperson = new Map<string, { total: number; pending: number; dispatched: number; completed: number }>();
   let onTime = 0;
   let delayedCompletions = 0;
   let totalCompletionDays = 0;
@@ -69,6 +72,15 @@ export default async function OrderReportsPage({
       else delayedCompletions++;
       totalCompletionDays += (o.completedAt.getTime() - o.orderDate.getTime()) / 86_400_000;
       completionSamples++;
+    }
+
+    if (o.originalSalesperson) {
+      const row = bySalesperson.get(o.originalSalesperson.name) ?? { total: 0, pending: 0, dispatched: 0, completed: 0 };
+      row.total++;
+      if (o.status === "COMPLETED") row.completed++;
+      else if (o.status === "DISPATCHED" || o.status === "DELIVERED") row.dispatched++;
+      else row.pending++;
+      bySalesperson.set(o.originalSalesperson.name, row);
     }
   }
 
@@ -170,6 +182,53 @@ export default async function OrderReportsPage({
           <OrderVolumeChart data={monthlyRows} />
         </div>
       </div>
+
+      {bySalesperson.size > 0 && (
+        <div className="card">
+          <h2 className="section-title mb-3">Sales Orders by Original Salesperson</h2>
+          <p className="mb-3 text-xs text-stone-500">
+            Orders automatically created from a Sale, broken down by who made the original sale — not who is currently fulfilling it.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead>
+                <tr>
+                  <th>Salesperson</th>
+                  <th>Total Sales Orders</th>
+                  <th>Pending</th>
+                  <th>Dispatched</th>
+                  <th>Completed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from(bySalesperson.entries())
+                  .sort((a, b) => b[1].total - a[1].total)
+                  .map(([name, row]) => (
+                    <tr key={name}>
+                      <td>{name}</td>
+                      <td>{row.total}</td>
+                      <td>{row.pending}</td>
+                      <td>{row.dispatched}</td>
+                      <td>{row.completed}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {canManageOrdersCompanyWide(session.role) && (
+        <div className="card">
+          <h2 className="section-title mb-1">Sales ↔ Orders Sync</h2>
+          <p className="mb-3 text-xs text-stone-500">
+            Finds every Sale with no linked Order yet and creates one — covers the one-time historical backfill and
+            doubles as a safe retry if a sale is ever somehow missing its order. Safe to run repeatedly; an already-synced
+            sale is skipped.
+          </p>
+          <BackfillSalesOrdersButton />
+        </div>
+      )}
     </div>
   );
 }

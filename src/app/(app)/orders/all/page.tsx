@@ -76,7 +76,7 @@ export default async function AllOrdersPage({
     db.order.count({ where }),
     db.order.findMany({
       where,
-      include: { brand: true, customer: true, primaryStaff: true, supportingStaff: true, branch: true, delays: true },
+      include: { brand: true, customer: true, primaryStaff: true, supportingStaff: true, branch: true, delays: true, originalSalesperson: true },
       orderBy: { currentDeadline: "asc" },
       skip: view === "table" ? (page - 1) * PAGE_SIZE : 0,
       take: view === "table" ? PAGE_SIZE : 500,
@@ -190,6 +190,7 @@ export default async function AllOrdersPage({
                 <th>Order</th>
                 <th>Brand</th>
                 <th>Customer</th>
+                <th>Salesperson</th>
                 <th>Assigned</th>
                 <th>Department</th>
                 <th>Current Deadline</th>
@@ -258,7 +259,7 @@ function OrderRow({
   o,
   settings,
 }: {
-  o: Prisma.OrderGetPayload<{ include: { brand: true; customer: true; primaryStaff: true; supportingStaff: true; branch: true; delays: true } }>;
+  o: Prisma.OrderGetPayload<{ include: { brand: true; customer: true; primaryStaff: true; supportingStaff: true; branch: true; delays: true; originalSalesperson: true } }>;
   settings: { criticalHours: number; highHours: number; mediumDays: number };
 }) {
   const priority = computeAutoPriority(o.currentDeadline, o.status, settings);
@@ -275,6 +276,7 @@ function OrderRow({
       </td>
       <td>{o.brand?.name ?? "—"}</td>
       <td>{o.customer?.name ?? o.customerContact ?? "—"}</td>
+      <td>{o.originalSalesperson?.name ?? "—"}</td>
       <td>
         {o.primaryStaff.name}
         {o.supportingStaff.length > 0 && <span className="text-xs text-stone-400"> +{o.supportingStaff.length}</span>}

@@ -15,6 +15,7 @@ import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
 import { postSaleJournalEntry } from "@/lib/ledger";
 import { earnRewardsForSale } from "@/lib/rewards";
+import { syncOrderFromSale } from "@/lib/salesOrderSync";
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -157,6 +158,13 @@ const saleSchema = z.object({
   paymentMethod: z.enum(["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"]),
   notes: z.string().optional(),
   items: z.array(lineSchema).min(1),
+  urgency: z.enum(["NORMAL", "MEDIUM", "HIGH", "URGENT", "CRITICAL"]).default("NORMAL"),
+  requiredDispatchDate: z.coerce.date().optional(),
+  expectedDeliveryDate: z.coerce.date().optional(),
+  fulfilmentInstructions: z.string().optional(),
+  customerDeliveryInstructions: z.string().optional(),
+  customizationRequirements: z.string().optional(),
+  responsibleDepartment: z.string().optional(),
 });
 
 function invoiceNumber() {
@@ -184,7 +192,17 @@ export async function createSale(formData: FormData) {
     paymentMethod: formData.get("paymentMethod"),
     notes: formData.get("notes") || undefined,
     items: rawItems,
+    urgency: formData.get("urgency") || "NORMAL",
+    requiredDispatchDate: formData.get("requiredDispatchDate") || undefined,
+    expectedDeliveryDate: formData.get("expectedDeliveryDate") || undefined,
+    fulfilmentInstructions: formData.get("fulfilmentInstructions") || undefined,
+    customerDeliveryInstructions: formData.get("customerDeliveryInstructions") || undefined,
+    customizationRequirements: formData.get("customizationRequirements") || undefined,
+    responsibleDepartment: formData.get("responsibleDepartment") || undefined,
   });
+
+  const initialPrimaryStaffId = String(formData.get("primaryFulfilmentStaffId") || "") || undefined;
+  const initialSupportingStaffIds = formData.getAll("supportingFulfilmentStaffIds").map(String).filter(Boolean);
 
   const itemIds = parsed.items.map((i) => i.inventoryItemId);
   if (new Set(itemIds).size !== itemIds.length) {
@@ -196,6 +214,11 @@ export async function createSale(formData: FormData) {
       where: { id: parsed.customerId, branchId: parsed.branchId },
     });
     if (!customer) throw new Error("That customer does not belong to this branch.");
+  }
+
+  if (initialPrimaryStaffId) {
+    const fulfilmentStaff = await db.staff.findFirst({ where: { id: initialPrimaryStaffId, active: true } });
+    if (!fulfilmentStaff) throw new Error("That fulfilment employee doesn't exist.");
   }
 
   // Re-fetch authoritative prices/stock from the DB; never trust client totals.
@@ -239,6 +262,13 @@ export async function createSale(formData: FormData) {
         paymentStatus,
         paymentMethod: parsed.paymentMethod,
         notes: parsed.notes,
+        urgency: parsed.urgency,
+        requiredDispatchDate: parsed.requiredDispatchDate,
+        expectedDeliveryDate: parsed.expectedDeliveryDate,
+        fulfilmentInstructions: parsed.fulfilmentInstructions,
+        customerDeliveryInstructions: parsed.customerDeliveryInstructions,
+        customizationRequirements: parsed.customizationRequirements,
+        responsibleDepartment: parsed.responsibleDepartment,
         items: {
           create: parsed.items.map((line) => ({
             inventoryItemId: line.inventoryItemId,
@@ -247,6 +277,12 @@ export async function createSale(formData: FormData) {
           })),
         },
       },
+      include: { items: { include: { inventoryItem: true } } },
+    });
+
+    const orderSync = await syncOrderFromSale(tx, created, {
+      initialPrimaryStaffId,
+      initialSupportingStaffIds,
     });
 
     const finalQuantities: Record<string, number> = {};
@@ -293,7 +329,7 @@ export async function createSale(formData: FormData) {
 
     await earnRewardsForSale(parsed.customerId || null, created.id, total, tx);
 
-    return { created, finalQuantities };
+    return { created, finalQuantities, orderSync };
   });
 
   const toNotify = await db.staff.findMany({
@@ -315,6 +351,16 @@ export async function createSale(formData: FormData) {
         ),
       ),
   );
+
+  if (sale.orderSync.created && initialPrimaryStaffId && initialPrimaryStaffId !== session.staffId) {
+    await notifyStaff(
+      initialPrimaryStaffId,
+      "ORDER_ASSIGNED",
+      "New sales order assigned",
+      `${sale.created.invoiceNumber} needs fulfilment.`,
+      `/orders/${sale.orderSync.orderId}`,
+    );
+  }
 
   for (const line of parsed.items) {
     const inv = inventoryItems.find((i) => i.id === line.inventoryItemId)!;
@@ -365,6 +411,13 @@ const saleEditSchema = z.object({
   amountPaid: z.coerce.number().min(0),
   paymentMethod: z.enum(["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"]),
   notes: z.string().optional(),
+  urgency: z.enum(["NORMAL", "MEDIUM", "HIGH", "URGENT", "CRITICAL"]).default("NORMAL"),
+  requiredDispatchDate: z.coerce.date().optional(),
+  expectedDeliveryDate: z.coerce.date().optional(),
+  fulfilmentInstructions: z.string().optional(),
+  customerDeliveryInstructions: z.string().optional(),
+  customizationRequirements: z.string().optional(),
+  responsibleDepartment: z.string().optional(),
 });
 
 /**
@@ -387,12 +440,23 @@ export async function updateSale(saleId: string, formData: FormData) {
     amountPaid: formData.get("amountPaid") || 0,
     paymentMethod: formData.get("paymentMethod"),
     notes: formData.get("notes") || undefined,
+    urgency: formData.get("urgency") || sale.urgency,
+    requiredDispatchDate: formData.get("requiredDispatchDate") || undefined,
+    expectedDeliveryDate: formData.get("expectedDeliveryDate") || undefined,
+    fulfilmentInstructions: formData.get("fulfilmentInstructions") || undefined,
+    customerDeliveryInstructions: formData.get("customerDeliveryInstructions") || undefined,
+    customizationRequirements: formData.get("customizationRequirements") || undefined,
+    responsibleDepartment: formData.get("responsibleDepartment") || undefined,
   });
 
   const changeNotes: string[] = [];
   if (parsed.discount !== sale.discount) changeNotes.push(`Discount: ${formatMoney(sale.discount)} → ${formatMoney(parsed.discount)}`);
   if (parsed.amountPaid !== sale.amountPaid) changeNotes.push(`Amount paid: ${formatMoney(sale.amountPaid)} → ${formatMoney(parsed.amountPaid)}`);
   if (parsed.paymentMethod !== sale.paymentMethod) changeNotes.push(`Payment method: ${sale.paymentMethod} → ${parsed.paymentMethod}`);
+  if (parsed.urgency !== sale.urgency) changeNotes.push(`Urgency: ${sale.urgency} → ${parsed.urgency}`);
+  if (parsed.requiredDispatchDate?.getTime() !== sale.requiredDispatchDate?.getTime()) {
+    changeNotes.push("Required dispatch date changed");
+  }
   const fieldSummary = changeNotes.length > 0 ? changeNotes.join("; ") : "Updated sale details";
 
   await initiateEdit(session, "SALE", saleId, sale.invoiceNumber, fieldSummary, {
@@ -402,6 +466,13 @@ export async function updateSale(saleId: string, formData: FormData) {
     amountPaid: parsed.amountPaid,
     paymentMethod: parsed.paymentMethod,
     notes: parsed.notes ?? null,
+    urgency: parsed.urgency,
+    requiredDispatchDate: parsed.requiredDispatchDate ? parsed.requiredDispatchDate.toISOString() : null,
+    expectedDeliveryDate: parsed.expectedDeliveryDate ? parsed.expectedDeliveryDate.toISOString() : null,
+    fulfilmentInstructions: parsed.fulfilmentInstructions ?? null,
+    customerDeliveryInstructions: parsed.customerDeliveryInstructions ?? null,
+    customizationRequirements: parsed.customizationRequirements ?? null,
+    responsibleDepartment: parsed.responsibleDepartment ?? null,
   });
   revalidatePath(`/sales/${saleId}`);
   revalidatePath("/sales");

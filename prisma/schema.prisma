@@ -141,6 +141,7 @@ enum PurchaseOrderStatus {
 
 enum OrderStatus {
   NEW_ORDER
+  PENDING_ASSIGNMENT
   ORDER_CONFIRMED
   ASSIGNED
   IN_PROGRESS
@@ -166,6 +167,29 @@ enum OrderDelayReason {
   QUALITY_CONTROL_ISSUE
   STAFF_AVAILABILITY
   OTHER
+}
+
+// Salesperson-selected urgency on a Sale — distinct from the automatically
+// computed deadline urgency in orderPriority.ts (Overdue/Critical/High/
+// Medium/Normal). A salesperson can pick "Normal" while the system still
+// flags the linked order Critical because the dispatch date is tomorrow.
+enum SaleUrgency {
+  NORMAL
+  MEDIUM
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+// Observability for the Sale → Order sync, not a retry queue: the sync
+// runs inline in the same transaction as the Sale write, so FAILED only
+// happens if that whole transaction failed (meaning the Sale itself wasn't
+// saved either). PENDING exists for the brief window during that
+// transaction; a row should never be visibly stuck there.
+enum OrderSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
 }
 
 enum OrderApprovalDecision {
@@ -308,6 +332,8 @@ model Staff {
   ordersPrimary    Order[] @relation("OrderPrimaryStaff")
   ordersSupporting Order[] @relation("OrderSupportingStaff")
   ordersCreated    Order[] @relation("OrderCreatedBy")
+  ordersAsSalesperson Order[] @relation("OrderOriginalSalesperson")
+  ordersDispatched Order[] @relation("OrderDispatchedBy")
   orderStatusChanges   OrderStatusHistory[]
   orderDeadlineChanges OrderDeadlineChange[]
   orderDelaysReported  OrderDelay[]
@@ -492,6 +518,17 @@ model Sale {
   notes         String?
   createdAt     DateTime      @default(now())
 
+  // Fulfilment fields, synced one-way into the linked Order (see
+  // src/lib/salesOrderSync.ts) — Sales stays the source of truth for these;
+  // Orders Handling never writes back to the Sale row.
+  urgency                       SaleUrgency @default(NORMAL)
+  requiredDispatchDate          DateTime?
+  expectedDeliveryDate          DateTime?
+  fulfilmentInstructions        String?
+  customerDeliveryInstructions  String?
+  customizationRequirements    String?
+  responsibleDepartment        String?
+
   branch   Branch     @relation(fields: [branchId], references: [id])
   brand    Brand?     @relation(fields: [brandId], references: [id])
   staff    Staff      @relation(fields: [staffId], references: [id])
@@ -500,7 +537,7 @@ model Sale {
   ledgerEntry LedgerEntry?
   journalEntry JournalEntry?
   rewardTransactions RewardTransaction[]
-  orders       Order[]
+  order        Order?
 
   @@index([branchId])
   @@index([brandId])
@@ -1441,19 +1478,38 @@ model Order {
   branchId                   String?
   primaryStaffId             String
   createdById                String
-  relatedSaleId              String?
+  // Set only for a Sale-synced order: the employee who made the sale,
+  // distinct from createdById (a manually-created order's creator) and from
+  // primaryStaffId (whoever is responsible for fulfilment right now, which
+  // can be reassigned freely without ever touching this field).
+  originalSalespersonId      String?
+  relatedSaleId              String?       @unique
+  deadlineNotSet             Boolean       @default(false)
+  syncStatus                 OrderSyncStatus @default(SYNCED)
+  syncError                  String?
+  // Dispatch/delivery logistics — orthogonal to `status` (which already
+  // carries DISPATCHED/DELIVERED as lifecycle states); these just record
+  // the operational detail once that transition happens.
+  actualDispatchDate         DateTime?
+  courierService             String?
+  trackingNumber             String?
+  dispatchNotes              String?
+  dispatchedById             String?
+  actualDeliveryDate         DateTime?
   completedAt                DateTime?
   cancelledAt                DateTime?
   createdAt                  DateTime      @default(now())
   updatedAt                  DateTime      @updatedAt
 
-  brand           Brand?    @relation(fields: [brandId], references: [id])
-  customer        Customer? @relation(fields: [customerId], references: [id])
-  branch          Branch?   @relation(fields: [branchId], references: [id])
-  primaryStaff    Staff     @relation("OrderPrimaryStaff", fields: [primaryStaffId], references: [id])
-  createdBy       Staff     @relation("OrderCreatedBy", fields: [createdById], references: [id])
-  relatedSale     Sale?     @relation(fields: [relatedSaleId], references: [id])
-  supportingStaff Staff[]   @relation("OrderSupportingStaff")
+  brand              Brand?    @relation(fields: [brandId], references: [id])
+  customer           Customer? @relation(fields: [customerId], references: [id])
+  branch             Branch?   @relation(fields: [branchId], references: [id])
+  primaryStaff       Staff     @relation("OrderPrimaryStaff", fields: [primaryStaffId], references: [id])
+  createdBy          Staff     @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  originalSalesperson Staff?   @relation("OrderOriginalSalesperson", fields: [originalSalespersonId], references: [id])
+  dispatchedBy        Staff?   @relation("OrderDispatchedBy", fields: [dispatchedById], references: [id])
+  relatedSale        Sale?     @relation(fields: [relatedSaleId], references: [id])
+  supportingStaff    Staff[]   @relation("OrderSupportingStaff")
 
   statusHistory   OrderStatusHistory[]
   deadlineHistory OrderDeadlineChange[]

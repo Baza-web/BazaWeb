@@ -12,7 +12,7 @@ export default async function NewSalePage() {
   const scope = branchScope(session);
   const defaultBranchId = session.branchId ?? "";
 
-  const [inventory, customers, branches, brands] = await Promise.all([
+  const [inventory, customers, branches, brands, staffList] = await Promise.all([
     db.inventoryItem.findMany({
       where: { ...scope, status: "IN_STOCK", quantity: { gt: 0 } },
       orderBy: { name: "asc" },
@@ -20,6 +20,7 @@ export default async function NewSalePage() {
     db.customer.findMany({ where: scope, orderBy: { name: "asc" }, select: { id: true, name: true, branchId: true } }),
     isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    db.staff.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, branchId: true } }),
   ]);
 
   return (
@@ -39,6 +40,7 @@ export default async function NewSalePage() {
         showBranchSelect={isCompanyWide(session.role)}
         defaultBranchId={defaultBranchId}
         brands={brands}
+        staffList={staffList}
       />
     </div>
   );

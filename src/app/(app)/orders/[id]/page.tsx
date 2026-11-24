@@ -22,6 +22,8 @@ import {
   addOrderComment,
   submitForApproval,
   createLinkedTask,
+  recordDispatch,
+  recordDelivery,
 } from "../actions";
 import { WarningCircle, Trash, ChatText, ClipboardText } from "@/components/icons";
 
@@ -44,6 +46,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       primaryStaff: true,
       supportingStaff: true,
       createdBy: true,
+      originalSalesperson: true,
+      dispatchedBy: true,
       relatedSale: true,
       statusHistory: { include: { changedBy: true }, orderBy: { createdAt: "desc" } },
       deadlineHistory: { include: { changedBy: true }, orderBy: { createdAt: "desc" } },
@@ -142,6 +146,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           {order.orderNumber} · {order.orderType}
           {order.brand ? ` · ${order.brand.name}` : ""}
           {order.branch ? ` · ${order.branch.name}` : " · Company-wide"}
+          {order.relatedSale && (
+            <>
+              {" · from "}
+              <Link href={`/sales/${order.relatedSale.id}`} className="text-brand-600 hover:underline">
+                {order.relatedSale.invoiceNumber}
+              </Link>
+            </>
+          )}
         </p>
       </div>
 
@@ -153,15 +165,27 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <InfoTile label="Original deadline" value={formatDate(order.originalDeadline)} />
-        <InfoTile label="Current deadline" value={formatDate(order.currentDeadline)} />
+        <InfoTile label="Original deadline" value={order.deadlineNotSet ? "Not set" : formatDate(order.originalDeadline)} />
+        <InfoTile label="Current deadline" value={order.deadlineNotSet ? "Not set" : formatDate(order.currentDeadline)} />
         <InfoTile
           label="Days remaining"
-          value={remaining < 0 ? `${overdue}d overdue` : `${remaining}d`}
-          tone={remaining < 0 ? "red" : undefined}
+          value={order.deadlineNotSet ? "—" : remaining < 0 ? `${overdue}d overdue` : `${remaining}d`}
+          tone={!order.deadlineNotSet && remaining < 0 ? "red" : undefined}
         />
         <InfoTile label="Progress" value={`${order.progressPercent}%`} />
       </div>
+
+      {order.originalSalesperson && (
+        <div className="card">
+          <h2 className="section-title mb-2">Sales origin</h2>
+          <p className="text-sm text-ink-900">
+            <span className="font-medium">Original salesperson:</span> {order.originalSalesperson.name}
+          </p>
+          <p className="text-xs text-stone-500">
+            Reassigning fulfilment below never changes who originally made this sale.
+          </p>
+        </div>
+      )}
 
       <div className="card">
         <h2 className="section-title mb-3">Actions</h2>
@@ -215,6 +239,41 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
             <button type="submit" className="btn-secondary text-sm">Change deadline</button>
           </form>
+        </div>
+      )}
+
+      {(canManage || isAssigned) && order.status !== "DISPATCHED" && order.status !== "DELIVERED" && order.status !== "COMPLETED" && (
+        <div className="card">
+          <h2 className="section-title mb-3">Record dispatch</h2>
+          <form action={recordDispatch.bind(null, order.id)} className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+            <input className="input text-sm" name="courierService" placeholder="Courier / transport service" />
+            <input className="input text-sm" name="trackingNumber" placeholder="Tracking number" />
+            <input className="input text-sm sm:col-span-2" name="dispatchNotes" placeholder="Dispatch notes" />
+            <button type="submit" className="btn-secondary text-sm sm:col-span-4">Mark as dispatched</button>
+          </form>
+        </div>
+      )}
+
+      {(canManage || isAssigned) && order.status === "DISPATCHED" && (
+        <div className="card">
+          <h2 className="section-title mb-3">Record delivery</h2>
+          <p className="mb-2 text-xs text-stone-500">
+            Dispatched via {order.courierService ?? "—"} {order.trackingNumber ? `· tracking ${order.trackingNumber}` : ""}
+            {order.actualDispatchDate ? ` on ${formatDate(order.actualDispatchDate)}` : ""}
+          </p>
+          <form action={recordDelivery.bind(null, order.id)} className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="label">Actual delivery date</label>
+              <input className="input text-sm" type="datetime-local" name="actualDeliveryDate" />
+            </div>
+            <button type="submit" className="btn-secondary text-sm">Mark as delivered</button>
+          </form>
+        </div>
+      )}
+
+      {order.actualDeliveryDate && (
+        <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+          Delivered {formatDate(order.actualDeliveryDate)}.
         </div>
       )}
 

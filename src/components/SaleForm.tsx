@@ -15,6 +15,7 @@ type InventoryOption = {
 type CustomerOption = { id: string; name: string; branchId: string };
 type BranchOption = { id: string; name: string };
 type BrandOption = { id: string; name: string };
+type StaffOption = { id: string; name: string; branchId: string | null };
 
 type Line = { inventoryItemId: string; quantity: number; priceEach: number };
 
@@ -25,6 +26,7 @@ export function SaleForm({
   showBranchSelect,
   defaultBranchId,
   brands,
+  staffList,
 }: {
   inventory: InventoryOption[];
   customers: CustomerOption[];
@@ -32,6 +34,7 @@ export function SaleForm({
   showBranchSelect: boolean;
   defaultBranchId: string;
   brands: BrandOption[];
+  staffList: StaffOption[];
 }) {
   const [branchId, setBranchId] = useState(defaultBranchId);
   const [lines, setLines] = useState<Line[]>([]);
@@ -41,6 +44,8 @@ export function SaleForm({
   const [amountPaid, setAmountPaid] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER">("CASH");
   const [notes, setNotes] = useState("");
+
+  const branchStaff = useMemo(() => staffList.filter((s) => !s.branchId || s.branchId === branchId), [staffList, branchId]);
 
   const scanFileRef = useRef<HTMLInputElement>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -332,6 +337,79 @@ export function SaleForm({
       <div>
         <label className="label">Notes</label>
         <textarea className="input" name="notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+
+      <div className="rounded-lg border border-stone-200 bg-stone-50/60 p-4">
+        <p className="mb-3 text-sm font-medium text-ink-900">Fulfilment (for Orders Handling)</p>
+        <p className="mb-3 text-xs text-stone-500">
+          This sale will automatically create a matching order in Orders Handling. Fill in what you know — a
+          fulfilment employee can be assigned later if you leave it blank.
+        </p>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Urgency</label>
+            <select className="input" name="urgency" defaultValue="NORMAL">
+              <option value="NORMAL">Normal</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+              <option value="URGENT">Urgent</option>
+              <option value="CRITICAL">Critical</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Department</label>
+            <input className="input" name="responsibleDepartment" placeholder="Design, Manufacturing, Dispatch…" />
+          </div>
+          <div>
+            <label className="label">Required dispatch date</label>
+            <input className="input" type="datetime-local" name="requiredDispatchDate" />
+            <p className="mt-1 text-xs text-stone-400">Leave blank if not yet known — never guessed automatically.</p>
+          </div>
+          <div>
+            <label className="label">Expected delivery date (optional)</label>
+            <input className="input" type="datetime-local" name="expectedDeliveryDate" />
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Customization requirements</label>
+            <textarea className="input" name="customizationRequirements" rows={2} />
+          </div>
+          <div>
+            <label className="label">Fulfilment instructions (staff only)</label>
+            <textarea className="input" name="fulfilmentInstructions" rows={2} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Customer delivery instructions</label>
+            <textarea className="input" name="customerDeliveryInstructions" rows={2} />
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Primary fulfilment employee (optional)</label>
+            <select className="input" name="primaryFulfilmentStaffId" defaultValue="">
+              <option value="">Not yet known — assign later</option>
+              {branchStaff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Supporting employees (optional)</label>
+            <select className="input" name="supportingFulfilmentStaffIds" multiple size={3}>
+              {branchStaff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-stone-100 pt-4">

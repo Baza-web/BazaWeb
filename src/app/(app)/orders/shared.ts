@@ -1,7 +1,8 @@
-import type { OrderStatus, OrderDelayReason } from "@prisma/client";
+import type { OrderStatus, OrderDelayReason, SaleUrgency } from "@prisma/client";
 
 export const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
   NEW_ORDER: "bg-stone-100 text-stone-600",
+  PENDING_ASSIGNMENT: "bg-stone-100 text-stone-600",
   ORDER_CONFIRMED: "bg-blue-100 text-blue-700",
   ASSIGNED: "bg-blue-100 text-blue-700",
   IN_PROGRESS: "bg-amber-100 text-amber-700",
@@ -20,6 +21,7 @@ export const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   NEW_ORDER: "New Order",
+  PENDING_ASSIGNMENT: "Pending Assignment",
   ORDER_CONFIRMED: "Order Confirmed",
   ASSIGNED: "Assigned",
   IN_PROGRESS: "In Progress",
@@ -37,10 +39,28 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_OPTIONS: OrderStatus[] = [
-  "NEW_ORDER", "ORDER_CONFIRMED", "ASSIGNED", "IN_PROGRESS", "WAITING_FOR_MATERIALS",
+  "NEW_ORDER", "PENDING_ASSIGNMENT", "ORDER_CONFIRMED", "ASSIGNED", "IN_PROGRESS", "WAITING_FOR_MATERIALS",
   "IN_PRODUCTION", "QUALITY_CHECK", "REVISION_REQUIRED", "APPROVED", "READY_FOR_DELIVERY",
   "DISPATCHED", "DELIVERED", "COMPLETED", "ON_HOLD", "CANCELLED",
 ];
+
+export const SALE_URGENCY_LABELS: Record<SaleUrgency, string> = {
+  NORMAL: "Normal",
+  MEDIUM: "Medium",
+  HIGH: "High",
+  URGENT: "Urgent",
+  CRITICAL: "Critical",
+};
+
+export const SALE_URGENCY_STYLES: Record<SaleUrgency, string> = {
+  NORMAL: "bg-stone-100 text-stone-600",
+  MEDIUM: "bg-blue-100 text-blue-700",
+  HIGH: "bg-amber-100 text-amber-700",
+  URGENT: "bg-orange-100 text-orange-700",
+  CRITICAL: "bg-red-100 text-red-700",
+};
+
+export const SALE_URGENCY_OPTIONS: SaleUrgency[] = ["NORMAL", "MEDIUM", "HIGH", "URGENT", "CRITICAL"];
 
 export const DELAY_REASON_LABELS: Record<OrderDelayReason, string> = {
   WAITING_FOR_MATERIALS: "Waiting for Materials",

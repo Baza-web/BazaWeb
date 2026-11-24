@@ -61,9 +61,17 @@ async function performInventoryDeletion(entityId: string) {
   await db.inventoryItem.delete({ where: { id: entityId } });
 }
 
-/** Voiding a sale restores the stock it sold and removes its ledger entry, then deletes the sale itself (its line items cascade). */
+/**
+ * Voiding a sale restores the stock it sold and removes its ledger entry,
+ * then deletes the sale itself (its line items cascade). If a Sales Order
+ * was auto-created for it, that order is moved to CANCELLED first (with
+ * its own audit entry) so its fulfilment history is preserved — the Sale
+ * row's deletion then simply unlinks it via relatedSaleId's ON DELETE
+ * SET NULL, rather than leaving it stuck showing as still-pending work
+ * for a sale that no longer exists.
+ */
 async function performSaleDeletion(entityId: string, session: SessionPayload) {
-  const sale = await db.sale.findUniqueOrThrow({ where: { id: entityId }, include: { items: true } });
+  const sale = await db.sale.findUniqueOrThrow({ where: { id: entityId }, include: { items: true, order: true } });
   await db.$transaction(async (tx) => {
     for (const item of sale.items) {
       const updated = await tx.inventoryItem.update({
@@ -77,6 +85,20 @@ async function performSaleDeletion(entityId: string, session: SessionPayload) {
     await tx.ledgerEntry.deleteMany({ where: { saleId: entityId } });
     await reverseSaleJournalEntry(session, entityId, tx);
     await reverseRewardsForSale(entityId, tx);
+
+    if (sale.order && !["COMPLETED", "CANCELLED"].includes(sale.order.status)) {
+      await tx.order.update({
+        where: { id: sale.order.id },
+        data: {
+          status: "CANCELLED",
+          cancelledAt: new Date(),
+          statusHistory: {
+            create: { fromStatus: sale.order.status, toStatus: "CANCELLED", reason: "Linked sale was voided", changedById: session.staffId },
+          },
+        },
+      });
+    }
+
     await tx.sale.delete({ where: { id: entityId } });
   });
 }

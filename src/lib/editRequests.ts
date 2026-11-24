@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { round2 } from "./utils";
 import { notifyStaff } from "./notifications";
 import { repostSaleJournalEntry, repostExpenseJournalEntry } from "./ledger";
+import { syncOrderFromSale } from "./salesOrderSync";
 
 export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND" | "EXPENSE" | "BROKER";
 
@@ -21,17 +22,26 @@ async function notifyOwners(title: string, body: string, link: string) {
  */
 async function applySaleEdit(id: string, data: Prisma.JsonObject, session: SessionPayload) {
   const sale = await db.sale.findUniqueOrThrow({ where: { id }, include: { items: { include: { inventoryItem: true } } } });
-  const { discount: rawDiscount, amountPaid: rawAmountPaid, ...rest } = data;
+  const { discount: rawDiscount, amountPaid: rawAmountPaid, requiredDispatchDate, expectedDeliveryDate, ...rest } = data;
   const discount = typeof rawDiscount === "number" ? rawDiscount : sale.discount;
   const amountPaid = typeof rawAmountPaid === "number" ? rawAmountPaid : sale.amountPaid;
   const total = Math.max(round2(sale.subtotal - discount), 0);
   const paymentStatus = amountPaid >= total ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
   const costOfGoodsSold = round2(sale.items.reduce((s, it) => s + it.inventoryItem.costPrice * it.quantity, 0));
 
-  await db.$transaction(async (tx) => {
-    await tx.sale.update({
+  const sync = await db.$transaction(async (tx) => {
+    const updated = await tx.sale.update({
       where: { id },
-      data: { ...(rest as Prisma.SaleUpdateInput), discount, amountPaid, total, paymentStatus },
+      data: {
+        ...(rest as Prisma.SaleUpdateInput),
+        discount,
+        amountPaid,
+        total,
+        paymentStatus,
+        requiredDispatchDate: typeof requiredDispatchDate === "string" ? new Date(requiredDispatchDate) : null,
+        expectedDeliveryDate: typeof expectedDeliveryDate === "string" ? new Date(expectedDeliveryDate) : null,
+      },
+      include: { items: { include: { inventoryItem: true } } },
     });
     await tx.ledgerEntry.updateMany({ where: { saleId: id }, data: { amount: total } });
     await repostSaleJournalEntry(
@@ -40,7 +50,24 @@ async function applySaleEdit(id: string, data: Prisma.JsonObject, session: Sessi
       costOfGoodsSold,
       tx,
     );
+    return syncOrderFromSale(tx, updated);
   });
+
+  if (sync.deadlineChanged) {
+    await Promise.all(
+      sync.notifyTargets
+        .filter((staffId) => staffId !== session.staffId)
+        .map((staffId) =>
+          notifyStaff(
+            staffId,
+            "ORDER_DEADLINE_ALERT",
+            "Deadline changed",
+            `Sale's required dispatch date was updated, moving the linked order's deadline.`,
+            `/orders/${sync.orderId}`,
+          ),
+        ),
+    );
+  }
 }
 
 /** A BRAND request with no real record yet (`__create`) creates one on approval; otherwise it updates the existing brand. */

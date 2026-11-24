@@ -9,6 +9,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageOrdersScoped, canManageOrdersCompanyWide, canCreateOrders, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedImages } from "@/lib/uploads";
 import { notifyStaff } from "@/lib/notifications";
+import { backfillUnsyncedSales } from "@/lib/salesOrderSync";
 import type { OrderStatus, OrderApprovalDecision } from "@prisma/client";
 
 function orderNumber() {
@@ -195,7 +196,7 @@ export async function changeOrderStatus(orderId: string, formData: FormData) {
 
   const status = z
     .enum([
-      "NEW_ORDER", "ORDER_CONFIRMED", "ASSIGNED", "IN_PROGRESS", "WAITING_FOR_MATERIALS",
+      "NEW_ORDER", "PENDING_ASSIGNMENT", "ORDER_CONFIRMED", "ASSIGNED", "IN_PROGRESS", "WAITING_FOR_MATERIALS",
       "IN_PRODUCTION", "QUALITY_CHECK", "REVISION_REQUIRED", "APPROVED", "READY_FOR_DELIVERY",
       "DISPATCHED", "DELIVERED", "COMPLETED", "ON_HOLD", "CANCELLED",
     ])
@@ -249,16 +250,102 @@ export async function changeDeadline(orderId: string, formData: FormData) {
     where: { id: orderId },
     data: {
       currentDeadline: newDeadline,
+      deadlineNotSet: false,
       deadlineHistory: {
         create: { previousDeadline: order.currentDeadline, newDeadline, reason, changedById: session.staffId },
       },
     },
   });
 
+  const notifyTargets = new Set([order.primaryStaffId]);
+  await Promise.all(
+    Array.from(notifyTargets)
+      .filter((id) => id !== session.staffId)
+      .map((id) => notifyStaff(id, "ORDER_DEADLINE_ALERT", "Deadline changed", `${order.orderNumber}: deadline moved to ${newDeadline.toLocaleDateString()} — ${reason}`, `/orders/${orderId}`)),
+  );
+
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders/all");
   revalidatePath("/orders/delayed");
   revalidatePath("/orders/upcoming");
+}
+
+const DISPATCHABLE_STATUSES: OrderStatus[] = ["APPROVED", "READY_FOR_DELIVERY"];
+
+/** Records dispatch logistics and moves the order to DISPATCHED in one step — it leaves the pending-dispatch queue (any view filtered to open, non-dispatched orders) while staying in order history. */
+export async function recordDispatch(orderId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  const { order } = await requireOrderAccess(orderId, session);
+  if (!DISPATCHABLE_STATUSES.includes(order.status)) {
+    throw new Error("This order needs to be Approved or Ready for Delivery before it can be dispatched.");
+  }
+
+  const courierService = emptyToUndefined(formData.get("courierService"));
+  const trackingNumber = emptyToUndefined(formData.get("trackingNumber"));
+  const dispatchNotes = emptyToUndefined(formData.get("dispatchNotes"));
+
+  await db.order.update({
+    where: { id: orderId },
+    data: {
+      status: "DISPATCHED",
+      actualDispatchDate: new Date(),
+      courierService,
+      trackingNumber,
+      dispatchNotes,
+      dispatchedById: session.staffId,
+      statusHistory: {
+        create: { fromStatus: order.status, toStatus: "DISPATCHED", reason: "Dispatched", changedById: session.staffId },
+      },
+    },
+  });
+
+  await notifyStaff(order.createdById, "ORDER_STATUS_CHANGED", "Order dispatched", `${order.orderNumber} has been dispatched.`, `/orders/${orderId}`);
+
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath("/orders/all");
+}
+
+/** Never implied by dispatch alone — delivery is recorded as its own explicit step, preserving the full dispatch → delivery history. */
+export async function recordDelivery(orderId: string, formData: FormData) {
+  const session = await requireSessionOrRedirect();
+  const { order } = await requireOrderAccess(orderId, session);
+  if (order.status !== "DISPATCHED") throw new Error("Only a dispatched order can be marked delivered.");
+
+  const deliveryDate = formData.get("actualDeliveryDate");
+  const actualDeliveryDate = deliveryDate ? new Date(String(deliveryDate)) : new Date();
+
+  await db.order.update({
+    where: { id: orderId },
+    data: {
+      status: "DELIVERED",
+      actualDeliveryDate,
+      statusHistory: {
+        create: { fromStatus: order.status, toStatus: "DELIVERED", reason: "Delivery confirmed", changedById: session.staffId },
+      },
+    },
+  });
+
+  await notifyStaff(order.createdById, "ORDER_STATUS_CHANGED", "Order delivered", `${order.orderNumber} has been delivered.`, `/orders/${orderId}`);
+
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath("/orders/all");
+}
+
+/**
+ * One-time historical backfill AND the ad-hoc retry mechanism for the
+ * Sales → Orders Handling sync (same idempotent scan either way — see
+ * backfillUnsyncedSales's doc comment). Owner/Admin-triggered from Order
+ * Reports; safe to run repeatedly since an already-synced sale is skipped.
+ */
+export async function runSalesOrderBackfill() {
+  const session = await requireSessionOrRedirect();
+  if (!canManageOrdersCompanyWide(session.role)) throw new Error("Forbidden");
+
+  const result = await db.$transaction((tx) => backfillUnsyncedSales(tx));
+
+  revalidatePath("/orders/all");
+  revalidatePath("/orders/reports");
+  return result;
 }
 
 const delayReasonSchema = z.enum([

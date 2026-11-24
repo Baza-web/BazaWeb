@@ -1,13 +1,15 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canDeleteOrRequest } from "@/lib/rbac";
-import { formatMoney, formatDateTime } from "@/lib/utils";
+import { formatMoney, formatDateTime, formatDate } from "@/lib/utils";
 import { PrintButton } from "@/components/PrintButton";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
 import { deleteSalePermanently, updateSale } from "../actions";
+import { ORDER_STATUS_STYLES, ORDER_STATUS_LABELS, SALE_URGENCY_LABELS, SALE_URGENCY_STYLES, SALE_URGENCY_OPTIONS } from "../../orders/shared";
 
 const PAYMENT_METHODS = ["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"] as const;
 
@@ -22,6 +24,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       branch: true,
       staff: true,
       items: { include: { inventoryItem: true } },
+      order: { include: { primaryStaff: true } },
     },
   });
   if (!sale) notFound();
@@ -124,6 +127,27 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         )}
       </div>
 
+      {sale.order && (
+        <div className="card print:hidden">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-medium">Fulfilment</h2>
+            <Link href={`/orders/${sale.order.id}`} className="text-sm font-medium text-brand-600 hover:underline">
+              View in Orders Handling →
+            </Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className={`badge ${ORDER_STATUS_STYLES[sale.order.status]}`}>{ORDER_STATUS_LABELS[sale.order.status]}</span>
+            <span className={`badge ${SALE_URGENCY_STYLES[sale.urgency]}`}>{SALE_URGENCY_LABELS[sale.urgency]} urgency</span>
+            <span className="text-stone-500">
+              {sale.order.deadlineNotSet
+                ? "Dispatch deadline not set"
+                : `Dispatch by ${formatDate(sale.order.currentDeadline)}`}
+            </span>
+            <span className="text-stone-500">· {sale.order.primaryStaff.name}</span>
+          </div>
+        </div>
+      )}
+
       {canDeleteOrRequest(session.role) && (
         <div className="card print:hidden">
           <h2 className="mb-3 font-medium">Edit sale</h2>
@@ -175,6 +199,61 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 <label className="label">Notes</label>
                 <textarea className="input" name="notes" defaultValue={sale.notes ?? ""} rows={2} />
               </div>
+
+              <div className="border-t border-stone-100 pt-3">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500">
+                  Fulfilment (syncs to Orders Handling)
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label">Urgency</label>
+                    <select className="input" name="urgency" defaultValue={sale.urgency}>
+                      {SALE_URGENCY_OPTIONS.map((u) => (
+                        <option key={u} value={u}>
+                          {SALE_URGENCY_LABELS[u]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Department</label>
+                    <input className="input" name="responsibleDepartment" defaultValue={sale.responsibleDepartment ?? ""} />
+                  </div>
+                  <div>
+                    <label className="label">Required dispatch date</label>
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      name="requiredDispatchDate"
+                      defaultValue={sale.requiredDispatchDate ? sale.requiredDispatchDate.toISOString().slice(0, 16) : ""}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Expected delivery date</label>
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      name="expectedDeliveryDate"
+                      defaultValue={sale.expectedDeliveryDate ? sale.expectedDeliveryDate.toISOString().slice(0, 16) : ""}
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label">Customization requirements</label>
+                    <textarea className="input" name="customizationRequirements" rows={2} defaultValue={sale.customizationRequirements ?? ""} />
+                  </div>
+                  <div>
+                    <label className="label">Fulfilment instructions</label>
+                    <textarea className="input" name="fulfilmentInstructions" rows={2} defaultValue={sale.fulfilmentInstructions ?? ""} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label">Customer delivery instructions</label>
+                    <textarea className="input" name="customerDeliveryInstructions" rows={2} defaultValue={sale.customerDeliveryInstructions ?? ""} />
+                  </div>
+                </div>
+              </div>
+
               <button type="submit" className="btn-primary">
                 Save changes
               </button>
