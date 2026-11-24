@@ -20,19 +20,19 @@ import {
   ChartLineUp,
   ChartLineDown,
   Sparkle,
-  Package,
   ListChecks,
   Storefront,
   Diamond,
   Crown,
   UsersThree,
   Wallet,
-  Target,
   Wrench,
   CalendarCheck,
   ClockCountdown,
   Truck,
   Handshake,
+  CaretUp,
+  CaretDown,
 } from "@/components/icons";
 
 function startOfDay(d = new Date()) {
@@ -76,6 +76,21 @@ function rankedBreakdown<T>(
   return [...top, other];
 }
 
+/** A small up/down-arrow + percent pill for "vs last month" comparisons. Hidden when there's no prior-period baseline to compare against (avoids a misleading 0%/∞% on day one of a new branch). */
+function TrendBadge({ current, previous, goodDirection = "up" }: { current: number; previous: number; goodDirection?: "up" | "down" }) {
+  if (previous === 0) return null;
+  const percent = Math.round(((current - previous) / previous) * 100);
+  if (percent === 0) return null;
+  const up = percent > 0;
+  const isGood = goodDirection === "up" ? up : !up;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isGood ? "text-green-600" : "text-red-600"}`}>
+      {up ? <CaretUp size={11} weight="bold" aria-hidden="true" /> : <CaretDown size={11} weight="bold" aria-hidden="true" />}
+      {Math.abs(percent)}%
+    </span>
+  );
+}
+
 /**
  * Sales staff get a stripped-down dashboard: their own sales figures and
  * tasks, plus the whole branch's combined target progress (a "team target"
@@ -88,9 +103,12 @@ async function SalesStaffDashboard({ session }: { session: SessionPayload }) {
   const thirtyDaysAgo = startOfDay(new Date(today.getTime() - 29 * 86_400_000));
   const mine = { staffId: session.staffId };
 
-  const [todaySales, monthSales, recentSales, trendSales, myOpenTasks, branchTargets] = await Promise.all([
+  const lastMonthStart = startOfMonth(new Date(today.getFullYear(), today.getMonth() - 1, 1));
+
+  const [todaySales, monthSales, lastMonthSales, recentSales, trendSales, myOpenTasks, branchTargets] = await Promise.all([
     db.sale.aggregate({ where: { ...mine, createdAt: { gte: today } }, _sum: { total: true }, _count: true }),
     db.sale.aggregate({ where: { ...mine, createdAt: { gte: monthStart } }, _sum: { total: true }, _count: true }),
+    db.sale.aggregate({ where: { ...mine, createdAt: { gte: lastMonthStart, lt: monthStart } }, _sum: { total: true } }),
     db.sale.findMany({ where: mine, include: { customer: true }, orderBy: { createdAt: "desc" }, take: 8 }),
     db.sale.findMany({ where: { ...mine, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, total: true } }),
     db.task.count({ where: { assignedToId: session.staffId, status: { not: "DONE" } } }),
@@ -128,39 +146,43 @@ async function SalesStaffDashboard({ session }: { session: SessionPayload }) {
       <h1 className="page-title">Dashboard</h1>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="stat-tile">
+        <div className="stat-tile-highlight col-span-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Today&apos;s sales</p>
-            <Receipt size={18} className="text-brand-500" aria-hidden="true" />
+            <p className="text-xs font-medium uppercase tracking-wide text-white/70">Your sales · this month</p>
+            <Receipt size={18} className="text-white/70" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{formatMoney(todaySales._sum.total ?? 0)}</p>
-          <p className="text-xs text-stone-400">{todaySales._count} transaction(s)</p>
+          <p className="mt-1 text-2xl font-semibold sm:text-3xl">{formatMoney(monthSales._sum.total ?? 0)}</p>
+          <div className="mt-1 flex items-center gap-2 text-xs text-white/70">
+            <span>{monthSales._count} sale(s)</span>
+            <TrendBadge current={monthSales._sum.total ?? 0} previous={lastMonthSales._sum.total ?? 0} />
+          </div>
         </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">This month</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Today&apos;s sales</p>
             <ChartLineUp size={18} className="text-green-600" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-green-700">{formatMoney(monthSales._sum.total ?? 0)}</p>
-          <p className="text-xs text-stone-400">{monthSales._count} sale(s)</p>
+          <p className="mt-1 text-lg sm:text-2xl font-semibold text-ink-900">{formatMoney(todaySales._sum.total ?? 0)}</p>
+          <p className="text-xs text-stone-400">{todaySales._count} transaction(s)</p>
         </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Avg. sale (month)</p>
             <Wallet size={18} className="text-brand-500" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{formatMoney(avgSaleThisMonth)}</p>
+          <p className="mt-1 text-lg sm:text-2xl font-semibold text-ink-900">{formatMoney(avgSaleThisMonth)}</p>
         </div>
         {teamTargetPercent !== null && (
-          <Link href="/targets" className="stat-tile transition-shadow hover:shadow-card-hover">
-            <div className="flex items-center justify-between">
+          <Link href="/targets" className="card-interactive block">
+            <div className="mb-1 flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Team target</p>
-              <Target size={18} className="text-brand-500" aria-hidden="true" />
+              <span className={`badge ${teamTargetPercent >= 100 ? "bg-green-100 text-green-700" : "bg-brand-100 text-brand-700"}`}>
+                {teamTargetPercent}%
+              </span>
             </div>
-            <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{teamTargetPercent}%</p>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-stone-100">
               <div
-                className={`h-full rounded-full ${teamTargetPercent >= 100 ? "bg-green-600" : "bg-brand-500"}`}
+                className={`h-full rounded-full transition-all ${teamTargetPercent >= 100 ? "bg-green-600" : "bg-brand-500"}`}
                 style={{ width: `${Math.min(teamTargetPercent, 100)}%` }}
               />
             </div>
@@ -235,7 +257,9 @@ export default async function DashboardPage() {
   const [
     todaySales,
     monthSales,
+    lastMonthSales,
     monthLedger,
+    lastMonthLedger,
     lowStockCandidates,
     myOpenTasks,
     recentSales,
@@ -257,7 +281,12 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     db.sale.aggregate({ where: { ...scope, createdAt: { gte: today } }, _sum: { total: true }, _count: true }),
     db.sale.aggregate({ where: { ...scope, createdAt: { gte: monthStart } }, _sum: { total: true }, _count: true }),
+    db.sale.aggregate({
+      where: { ...scope, createdAt: { gte: lastMonthStart, lt: monthStart } },
+      _sum: { total: true },
+    }),
     db.ledgerEntry.findMany({ where: { ...scope, date: { gte: monthStart } } }),
+    db.ledgerEntry.findMany({ where: { ...scope, date: { gte: lastMonthStart, lt: monthStart } } }),
     db.inventoryItem.findMany({
       where: { ...scope, status: "IN_STOCK" },
       select: { quantity: true, lowStockAt: true },
@@ -332,8 +361,11 @@ export default async function DashboardPage() {
   ]);
 
   const lowStockItems = lowStockCandidates.filter((i) => i.quantity <= i.lowStockAt).length;
+  const highStockItems = lowStockCandidates.length - lowStockItems;
   const monthIncome = monthLedger.filter((l) => l.type === "INCOME").reduce((s, l) => s + l.amount, 0);
   const monthExpense = monthLedger.filter((l) => l.type === "EXPENSE").reduce((s, l) => s + l.amount, 0);
+  const lastMonthIncome = lastMonthLedger.filter((l) => l.type === "INCOME").reduce((s, l) => s + l.amount, 0);
+  const lastMonthExpense = lastMonthLedger.filter((l) => l.type === "EXPENSE").reduce((s, l) => s + l.amount, 0);
   const avgSaleThisMonth = monthSales._count > 0 ? round2((monthSales._sum.total ?? 0) / monthSales._count) : 0;
   const outstandingAmount = round2((outstanding._sum.total ?? 0) - (outstanding._sum.amountPaid ?? 0));
   const customerDelta = newCustomersThisMonth - newCustomersLastMonth;
@@ -412,27 +444,50 @@ export default async function DashboardPage() {
       <h1 className="page-title">Dashboard</h1>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="stat-tile-highlight col-span-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-white/70">Total sales · this month</p>
+            <Receipt size={18} className="text-white/70" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-2xl font-semibold sm:text-3xl">{formatMoney(monthSales._sum.total ?? 0)}</p>
+          <div className="mt-1 flex items-center gap-2 text-xs text-white/70">
+            <span>{monthSales._count} sale(s)</span>
+            <TrendBadge current={monthSales._sum.total ?? 0} previous={lastMonthSales._sum.total ?? 0} />
+          </div>
+        </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Today&apos;s sales</p>
-            <Receipt size={18} className="text-brand-500" aria-hidden="true" />
+            <Sparkle size={18} className="text-brand-500" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{formatMoney(todaySales._sum.total ?? 0)}</p>
+          <p className="mt-1 text-lg sm:text-2xl font-semibold text-ink-900">{formatMoney(todaySales._sum.total ?? 0)}</p>
           <p className="text-xs text-stone-400">{todaySales._count} transaction(s)</p>
         </div>
+        <div className="stat-tile">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Avg. sale (month)</p>
+            <Wallet size={18} className="text-brand-500" aria-hidden="true" />
+          </div>
+          <p className="mt-1 text-lg sm:text-2xl font-semibold text-ink-900">{formatMoney(avgSaleThisMonth)}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="stat-tile">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Month income</p>
             <ChartLineUp size={18} className="text-green-600" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-green-700">{formatMoney(monthIncome)}</p>
+          <p className="mt-1 text-lg sm:text-2xl font-semibold text-green-700">{formatMoney(monthIncome)}</p>
+          <TrendBadge current={monthIncome} previous={lastMonthIncome} goodDirection="up" />
         </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Month expenses</p>
             <ChartLineDown size={18} className="text-red-500" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-red-700">{formatMoney(monthExpense)}</p>
+          <p className="mt-1 text-lg sm:text-2xl font-semibold text-red-700">{formatMoney(monthExpense)}</p>
+          <TrendBadge current={monthExpense} previous={lastMonthExpense} goodDirection="down" />
         </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
@@ -440,37 +495,31 @@ export default async function DashboardPage() {
             <Sparkle size={18} className="text-brand-500" aria-hidden="true" />
           </div>
           <p
-            className={`mt-1 text-xl sm:text-2xl font-semibold ${
+            className={`mt-1 text-lg sm:text-2xl font-semibold ${
               monthIncome - monthExpense >= 0 ? "text-green-700" : "text-red-700"
             }`}
           >
             {formatMoney(monthIncome - monthExpense)}
           </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="stat-tile">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Avg. sale (month)</p>
-            <Wallet size={18} className="text-brand-500" aria-hidden="true" />
-          </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{formatMoney(avgSaleThisMonth)}</p>
+          <TrendBadge current={monthIncome - monthExpense} previous={lastMonthIncome - lastMonthExpense} goodDirection="up" />
         </div>
         <div className="stat-tile">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Outstanding</p>
             <Receipt size={18} className="text-amber-600" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-amber-700">{formatMoney(outstandingAmount)}</p>
+          <p className="mt-1 text-lg sm:text-2xl font-semibold text-amber-700">{formatMoney(outstandingAmount)}</p>
           <p className="text-xs text-stone-400">unpaid / partial invoices</p>
         </div>
-        <div className="stat-tile">
-          <div className="flex items-center justify-between">
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="card">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-stone-500">New customers</p>
             <UsersThree size={18} className="text-brand-500" aria-hidden="true" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">
+          <p className="text-xl font-semibold text-ink-900 sm:text-2xl">
             {newCustomersThisMonth}
             {customerDelta !== 0 && (
               <span className={`ml-2 text-sm font-medium ${customerDelta > 0 ? "text-green-600" : "text-red-600"}`}>
@@ -481,21 +530,59 @@ export default async function DashboardPage() {
           </p>
         </div>
         {targetPercent !== null && (
-          <Link href="/targets" className="stat-tile transition-shadow hover:shadow-card-hover">
-            <div className="flex items-center justify-between">
+          <Link href="/targets" className="card-interactive block">
+            <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
                 {canManageSalesTargets(session.role) ? "Team target" : "Your target"}
               </p>
-              <Target size={18} className="text-brand-500" aria-hidden="true" />
+              <span className={`badge ${targetPercent >= 100 ? "bg-green-100 text-green-700" : "bg-brand-100 text-brand-700"}`}>
+                {targetPercent}%
+              </span>
             </div>
-            <p className="mt-1 text-xl sm:text-2xl font-semibold text-ink-900">{targetPercent}%</p>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-stone-100">
               <div
-                className={`h-full rounded-full ${targetPercent >= 100 ? "bg-green-600" : "bg-brand-500"}`}
+                className={`h-full rounded-full transition-all ${targetPercent >= 100 ? "bg-green-600" : "bg-brand-500"}`}
                 style={{ width: `${Math.min(targetPercent, 100)}%` }}
               />
             </div>
           </Link>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-title">Stock info</h2>
+          <Link href="/inventory?status=IN_STOCK" className="text-xs font-medium text-brand-700 hover:underline">
+            View inventory →
+          </Link>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div>
+            <p className="text-xl font-semibold text-ink-900 sm:text-2xl">{lowStockCandidates.length}</p>
+            <p className="text-xs text-stone-500">Active products</p>
+          </div>
+          <div>
+            <p className="text-xl font-semibold text-green-700 sm:text-2xl">{highStockItems}</p>
+            <p className="text-xs text-stone-500">High stock</p>
+          </div>
+          <div>
+            <p className="text-xl font-semibold text-amber-700 sm:text-2xl">{lowStockItems}</p>
+            <p className="text-xs text-stone-500">Near-low stock</p>
+          </div>
+        </div>
+        {lowStockCandidates.length > 0 && (
+          <div className="mt-4 flex h-3 w-full overflow-hidden rounded-full bg-stone-100">
+            <div
+              className="h-full bg-green-500"
+              style={{ width: `${(highStockItems / lowStockCandidates.length) * 100}%` }}
+              title={`${highStockItems} high stock`}
+            />
+            <div
+              className="h-full bg-amber-500"
+              style={{ width: `${(lowStockItems / lowStockCandidates.length) * 100}%` }}
+              title={`${lowStockItems} near-low stock`}
+            />
+          </div>
         )}
       </div>
 
@@ -598,15 +685,6 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Link href="/inventory?status=IN_STOCK" className="card-interactive flex items-center gap-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-50">
-            <Package size={22} className="text-amber-600" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs text-stone-500">Low stock items</p>
-            <p className="text-xl font-semibold text-ink-900">{lowStockItems}</p>
-          </div>
-        </Link>
         <Link href="/tasks?view=mine" className="card-interactive flex items-center gap-4">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50">
             <ListChecks size={22} className="text-brand-600" aria-hidden="true" />

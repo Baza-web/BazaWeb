@@ -113,6 +113,12 @@ body {
   @apply absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-400 via-brand-600 to-brand-400;
 }
 
+/* The one "hero" stat per dashboard — solid brand fill instead of the gold
+   top-bar treatment, so it doesn't compete with it for the same accent. */
+.stat-tile-highlight {
+  @apply card relative overflow-hidden border-transparent bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-gold;
+}
+
 @media print {
   html,
   body {
