@@ -33,9 +33,14 @@ async function main() {
   const ownerName = process.env.SEED_OWNER_NAME ?? "Business Owner";
   const branchName = process.env.SEED_BRANCH_NAME ?? "Main Branch";
 
-  const existingOwner = await db.staff.findUnique({ where: { email: ownerEmail.toLowerCase() } });
-  if (existingOwner) {
-    console.log(`Owner account already exists for ${ownerEmail}, skipping seed.`);
+  // Skip if ANY staff account already exists — not just one matching SEED_OWNER_EMAIL exactly.
+  // This runs on every container (re)build, and the placeholder email it's keyed on is meant to
+  // be changed after first login (see DEPLOY.md); once it no longer matches any real account
+  // (renamed, or removed as demo data), an email-only check would re-seed a brand-new branch +
+  // owner account on every single redeploy instead of recognizing the app is already set up.
+  const anyStaffExists = (await db.staff.count()) > 0;
+  if (anyStaffExists) {
+    console.log("Staff accounts already exist — skipping first-boot seed.");
     return;
   }
 
