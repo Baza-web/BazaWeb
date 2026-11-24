@@ -54,9 +54,9 @@ export default async function InventoryPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h1 className="page-title">Inventory</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ExportButton
             href={`/api/export/inventory?${new URLSearchParams({
               ...(q ? { q } : {}),
