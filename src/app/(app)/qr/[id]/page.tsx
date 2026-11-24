@@ -5,9 +5,11 @@ import { canManageQRCodes } from "@/lib/rbac";
 import { db } from "@/lib/db";
 import { formatDateTime } from "@/lib/utils";
 import { generateQRImageDataUrl, qrScanUrl, resolveQRTarget } from "@/lib/qr";
-import { updateQRCodeTarget, toggleQRCodeActive, deleteQRCode } from "../actions";
+import { TARGET_LABELS } from "@/lib/qrTargets";
+import { toggleQRCodeActive } from "../actions";
 import { PrintButton } from "@/components/PrintButton";
-import { Trash } from "@/components/icons";
+import { EditQRTargetForm } from "@/components/EditQRTargetForm";
+import { DeleteQRCodeButton } from "@/components/DeleteQRCodeButton";
 
 function safeHostname(url: string | null) {
   if (!url) return "Direct scan";
@@ -17,15 +19,6 @@ function safeHostname(url: string | null) {
     return "Direct scan";
   }
 }
-
-const TARGET_LABELS: Record<string, string> = {
-  PRODUCT: "Product",
-  GEMSTONE: "Gemstone",
-  CERTIFICATE: "Gold certificate",
-  BOUTIQUE: "Boutique",
-  TRAVEL_EXPERIENCE: "Travel experience",
-  CAMPAIGN: "Campaign (external link)",
-};
 
 export default async function QRCodeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
@@ -44,12 +37,25 @@ export default async function QRCodeDetailPage({ params }: { params: Promise<{ i
   });
   if (!qr) notFound();
 
-  const [imageDataUrl, target] = await Promise.all([
+  const [imageDataUrl, target, products, branches, tours, gemstones, certificates] = await Promise.all([
     generateQRImageDataUrl(qr.code),
     resolveQRTarget(qr.targetType, qr.targetId, qr.externalUrl),
+    db.inventoryItem.findMany({ select: { id: true, name: true, sku: true }, orderBy: { name: "asc" }, take: 300 }),
+    db.branch.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.tour.findMany({ select: { id: true, title: true }, orderBy: { title: "asc" }, take: 300 }),
+    db.orderGemstoneSpec.findMany({
+      select: { id: true, gemstoneType: true, caratWeight: true, order: { select: { orderNumber: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    }),
+    db.goldCertificate.findMany({
+      select: { id: true, certificateNumber: true, order: { select: { orderNumber: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    }),
   ]);
 
-  const scanUrl = qrScanUrl(qr.code);
+  const scanUrl = await qrScanUrl(qr.code);
   const scansLast7Days = qr.scans.filter((s) => s.scannedAt.getTime() > Date.now() - 7 * 86_400_000).length;
 
   return (
@@ -113,15 +119,21 @@ export default async function QRCodeDetailPage({ params }: { params: Promise<{ i
           This is the whole point of a dynamic QR — change the destination anytime without reprinting the
           physical code.
         </p>
-        <form action={updateQRCodeTarget.bind(null, qr.id)} className="space-y-3">
-          <input className="input" name="label" defaultValue={qr.label} required />
-          <select className="input" name="targetType" defaultValue={qr.targetType}>
-            {Object.entries(TARGET_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-          <input className="input" name="targetId" placeholder="Target ID (leave blank for Campaign)" defaultValue={qr.targetId ?? ""} />
-          <input className="input" name="externalUrl" type="url" placeholder="External URL (Campaign only)" defaultValue={qr.externalUrl ?? ""} />
-          <button type="submit" className="btn-primary text-sm">Save</button>
-        </form>
+        <EditQRTargetForm
+          qrCodeId={qr.id}
+          label={qr.label}
+          targetType={qr.targetType}
+          targetId={qr.targetId}
+          externalUrl={qr.externalUrl}
+          products={products.map((p) => ({ id: p.id, label: `${p.name} (${p.sku})` }))}
+          gemstones={gemstones.map((g) => ({
+            id: g.id,
+            label: `${g.gemstoneType}${g.caratWeight ? ` ${g.caratWeight}ct` : ""} — ${g.order.orderNumber}`,
+          }))}
+          certificates={certificates.map((c) => ({ id: c.id, label: `#${c.certificateNumber} — ${c.order.orderNumber}` }))}
+          branches={branches.map((b) => ({ id: b.id, label: b.name }))}
+          tours={tours.map((t) => ({ id: t.id, label: t.title }))}
+        />
       </div>
 
       <div className="card print:hidden">
@@ -144,18 +156,7 @@ export default async function QRCodeDetailPage({ params }: { params: Promise<{ i
         <form action={toggleQRCodeActive.bind(null, qr.id)}>
           <button type="submit" className="btn-secondary text-sm">{qr.active ? "Deactivate" : "Reactivate"}</button>
         </form>
-        <form
-          action={async () => {
-            "use server";
-            await deleteQRCode(qr.id);
-            const { redirect } = await import("next/navigation");
-            redirect("/qr");
-          }}
-        >
-          <button type="submit" className="flex items-center gap-1 text-sm text-red-600 hover:underline">
-            <Trash size={14} /> Delete
-          </button>
-        </form>
+        <DeleteQRCodeButton qrCodeId={qr.id} label={qr.label} />
       </div>
     </div>
   );

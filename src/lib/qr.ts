@@ -1,5 +1,6 @@
 import "server-only";
 import crypto from "crypto";
+import { headers } from "next/headers";
 import QRCodeLib from "qrcode";
 import { db } from "./db";
 import type { QRTargetType } from "@prisma/client";
@@ -14,19 +15,30 @@ export function generateQRCodeSlug(): string {
   return code;
 }
 
-function appUrl() {
+/**
+ * Prefers the explicit NEXT_PUBLIC_APP_URL (stable across request/cron contexts, and
+ * what DEPLOY.md tells the operator to set), but falls back to the real host nginx
+ * forwarded for this request (same source requestOrigin.ts trusts) rather than
+ * throwing — a missing env var shouldn't take down the whole QR Management page.
+ */
+async function appUrl() {
   const base = process.env.NEXT_PUBLIC_APP_URL;
-  if (!base) throw new Error("NEXT_PUBLIC_APP_URL isn't set — QR codes need a public URL to point to.");
-  return base.replace(/\/$/, "");
+  if (base) return base.replace(/\/$/, "");
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) throw new Error("Couldn't determine this site's public URL — set NEXT_PUBLIC_APP_URL and redeploy.");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  return `${proto}://${host}`;
 }
 
-export function qrScanUrl(code: string) {
-  return `${appUrl()}/q/${code}`;
+export async function qrScanUrl(code: string) {
+  return `${await appUrl()}/q/${code}`;
 }
 
 /** PNG data URL — embedded directly in the admin page and the printable label, no file storage needed since it's cheap to regenerate from the code string. */
 export async function generateQRImageDataUrl(code: string): Promise<string> {
-  return QRCodeLib.toDataURL(qrScanUrl(code), { width: 480, margin: 2 });
+  return QRCodeLib.toDataURL(await qrScanUrl(code), { width: 480, margin: 2 });
 }
 
 type PublicTarget =
@@ -126,6 +138,28 @@ export async function resolveQRTarget(targetType: QRTargetType, targetId: string
     }
     default:
       return { kind: "not_found" };
+  }
+}
+
+/**
+ * Server-side defense-in-depth: the create/edit forms only ever submit a targetId drawn
+ * from the list matching the selected targetType, but this confirms that pairing still
+ * holds at submit time (not stale, not tampered with) instead of trusting the client.
+ */
+export async function targetExists(targetType: QRTargetType, targetId: string): Promise<boolean> {
+  switch (targetType) {
+    case "PRODUCT":
+      return (await db.inventoryItem.count({ where: { id: targetId } })) > 0;
+    case "GEMSTONE":
+      return (await db.orderGemstoneSpec.count({ where: { id: targetId } })) > 0;
+    case "CERTIFICATE":
+      return (await db.goldCertificate.count({ where: { id: targetId } })) > 0;
+    case "BOUTIQUE":
+      return (await db.branch.count({ where: { id: targetId } })) > 0;
+    case "TRAVEL_EXPERIENCE":
+      return (await db.tour.count({ where: { id: targetId } })) > 0;
+    default:
+      return false;
   }
 }
 
