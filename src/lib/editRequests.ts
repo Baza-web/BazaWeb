@@ -8,9 +8,11 @@ import { repostSaleJournalEntry, repostExpenseJournalEntry } from "./ledger";
 
 export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND" | "EXPENSE" | "BROKER";
 
-async function notifyOwners(title: string, body: string, link: string) {
-  const owners = await db.staff.findMany({ where: { role: "OWNER", active: true } });
-  await Promise.all(owners.map((o) => notifyStaff(o.id, "SYSTEM", title, body, link)));
+/** Customer requests also notify Admins, since Admin can review those too (every other entity type stays Owner-only). */
+async function notifyReviewers(entityType: EditableEntityType, title: string, body: string, link: string) {
+  const roles = entityType === "CUSTOMER" ? (["OWNER", "ADMIN"] as const) : (["OWNER"] as const);
+  const reviewers = await db.staff.findMany({ where: { role: { in: [...roles] }, active: true } });
+  await Promise.all(reviewers.map((r) => notifyStaff(r.id, "SYSTEM", title, body, link)));
 }
 
 /**
@@ -115,7 +117,8 @@ export async function initiateEdit(
 ): Promise<{ status: "applied" | "requested" }> {
   await assertNoPendingRequest(entityType, entityId);
 
-  if (session.role === "OWNER") {
+  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && entityType === "CUSTOMER");
+  if (appliesImmediately) {
     await PERFORMERS[entityType](entityId, proposedData, session);
     return { status: "applied" };
   }
@@ -123,7 +126,8 @@ export async function initiateEdit(
   await db.editRequest.create({
     data: { entityType, entityId, entityLabel, fieldSummary, proposedData, reason, requestedById: session.staffId },
   });
-  await notifyOwners(
+  await notifyReviewers(
+    entityType,
     "Edit awaiting approval",
     `${session.name} wants to update ${entityLabel} — ${fieldSummary}`,
     "/edit-requests",
@@ -149,6 +153,10 @@ export async function reviewEditRequest(session: SessionPayload, requestId: stri
   if (request.requestedById === session.staffId) {
     throw new Error("You can't approve or reject your own request — ask another Owner to review it.");
   }
+  // Admin may review Customer requests; every other entity type stays Owner-only, checked
+  // here (not just in the page that lists these) so this can't be reached by guessing a URL.
+  const canReview = session.role === "OWNER" || (session.role === "ADMIN" && request.entityType === "CUSTOMER");
+  if (!canReview) throw new Error("Forbidden");
 
   if (decision === "APPROVED") {
     await PERFORMERS[request.entityType as EditableEntityType](

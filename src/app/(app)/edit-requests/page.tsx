@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canReviewDeletions } from "@/lib/rbac";
+import { canReviewCustomerRequests } from "@/lib/rbac";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { decideEditRequest } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
@@ -17,11 +17,14 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default async function EditRequestsPage() {
   const session = await requireSessionOrRedirect();
-  if (!canReviewDeletions(session.role)) {
+  if (!canReviewCustomerRequests(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
+  // Admin reviews Customer requests only — every other entity type stays Owner-only.
+  const adminOnlyCustomers = session.role !== "OWNER";
 
   const requests = await db.editRequest.findMany({
+    where: adminOnlyCustomers ? { entityType: "CUSTOMER" } : undefined,
     include: { requestedBy: true, reviewedBy: true },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -36,7 +39,8 @@ export default async function EditRequestsPage() {
           <h1 className="page-title">Edit requests</h1>
           <p className="text-sm text-stone-500">
             When anyone other than the Owner edits a staff profile, inventory item, customer, sale, or brand, the
-            change shows up here for an Owner to approve or reject — nothing changes until you decide.
+            change shows up here for an Owner to approve or reject — nothing changes until you decide. Customer
+            edits by Sales staff can also be approved or rejected by an Admin.
           </p>
         </div>
         <PrintButton selector="#pending-edit-requests" label="Print" />

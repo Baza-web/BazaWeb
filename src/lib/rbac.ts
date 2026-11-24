@@ -119,14 +119,29 @@ export function canViewSalary(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
 }
 
-/** Owner only — the Owner is always the one who reviews a pending deletion request, never the Admin who raised it. */
-export function canReviewDeletions(role: Role) {
-  return role === "OWNER";
-}
-
 /** Owner/Admin — who may delete (directly, Owner) or request deletion of (Admin) a Staff/Inventory/Sale record. */
 export function canDeleteOrRequest(role: Role) {
   return STAFF_MANAGER_ROLES.includes(role);
+}
+
+const CUSTOMER_DELETE_ROLES: Role[] = ["OWNER", "ADMIN", "SALES"];
+
+/**
+ * Customers specifically also let Sales staff request a deletion — unlike every other
+ * record type above (Staff/Inventory/Sale), which stays Owner/Admin-only. Owner and
+ * Admin both delete a customer immediately; Sales always goes through a request.
+ */
+export function canDeleteOrRequestCustomer(role: Role) {
+  return CUSTOMER_DELETE_ROLES.includes(role);
+}
+
+/**
+ * Admin also reviews Customer edit/deletion requests (Owner still reviews everything).
+ * Scoped narrowly to Customers — every other entity type stays Owner-only, enforced in
+ * reviewEditRequest/reviewDeletionRequest themselves, not just by hiding this in the UI.
+ */
+export function canReviewCustomerRequests(role: Role) {
+  return role === "OWNER" || role === "ADMIN";
 }
 
 const PAYROLL_MANAGER_ROLES: Role[] = ["OWNER", "ADMIN", "ACCOUNTANT"];

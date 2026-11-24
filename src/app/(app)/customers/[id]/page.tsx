@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canDeleteOrRequest } from "@/lib/rbac";
+import { branchScope, canDeleteOrRequestCustomer } from "@/lib/rbac";
 import { formatMoney, formatDate, formatDateTime } from "@/lib/utils";
 import {
   addCustomerNote,
@@ -191,13 +191,13 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
               Email
             </Link>
           )}
-          {canDeleteOrRequest(session.role) && (
+          {canDeleteOrRequestCustomer(session.role) && (
             <DeleteRecordButton
               action={deleteCustomerPermanently.bind(null, customer.id)}
               label="customer"
-              isOwner={session.role === "OWNER"}
+              isOwner={session.role === "OWNER" || session.role === "ADMIN"}
               confirmMessage={`Permanently delete ${customer.name}? This can't be undone.`}
-              requestMessage={`Request permanent deletion of ${customer.name}? An Owner will need to approve it before anything happens.`}
+              requestMessage={`Request permanent deletion of ${customer.name}? An Admin or Owner will need to approve it before anything happens.`}
               redirectTo="/customers"
             />
           )}

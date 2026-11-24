@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canReviewDeletions } from "@/lib/rbac";
+import { canReviewCustomerRequests } from "@/lib/rbac";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { decideDeletionRequest } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
@@ -16,11 +16,14 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default async function DeletionRequestsPage() {
   const session = await requireSessionOrRedirect();
-  if (!canReviewDeletions(session.role)) {
+  if (!canReviewCustomerRequests(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
+  // Admin reviews Customer requests only — every other entity type stays Owner-only.
+  const adminOnlyCustomers = session.role !== "OWNER";
 
   const requests = await db.deletionRequest.findMany({
+    where: adminOnlyCustomers ? { entityType: "CUSTOMER" } : undefined,
     include: { requestedBy: true, reviewedBy: true },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -35,7 +38,8 @@ export default async function DeletionRequestsPage() {
           <h1 className="page-title">Deletion requests</h1>
           <p className="text-sm text-stone-500">
             When an Admin asks to delete a staff account, inventory item, or sale, it shows up here for an Owner
-            to approve or reject — nothing is deleted until you decide.
+            to approve or reject — nothing is deleted until you decide. A customer deletion requested by Sales
+            staff can also be approved or rejected by an Admin.
           </p>
         </div>
         <PrintButton selector="#pending-deletion-requests" label="Print" />

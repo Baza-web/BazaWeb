@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, isCompanyWide, canDeleteOrRequest, canManageRewardProgram } from "@/lib/rbac";
+import { branchScope, isCompanyWide, canDeleteOrRequestCustomer, canManageRewardProgram } from "@/lib/rbac";
 import { initiateEdit } from "@/lib/editRequests";
 import { initiateDeletion } from "@/lib/deletion";
 import { redeemRewards, setRewardRate } from "@/lib/rewards";
@@ -59,7 +59,7 @@ const editSchema = z.object({
   anniversary: z.coerce.date().optional(),
 });
 
-/** Owner's edit applies immediately; anyone else's is a pending request an Owner must approve first. */
+/** Owner's and Admin's edits apply immediately; anyone else's (Sales staff) is a pending request an Admin or Owner must approve first. */
 export async function updateCustomer(customerId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
@@ -207,10 +207,10 @@ export async function setRewardRateAction(formData: FormData): Promise<void> {
   revalidatePath("/customers");
 }
 
-/** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the customer has any sale/repair history. */
+/** Owner and Admin delete immediately; Sales staff can only request it, pending Admin/Owner approval. Refused if the customer has any sale/repair history. */
 export async function deleteCustomerPermanently(customerId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+  if (!canDeleteOrRequestCustomer(session.role)) throw new Error("Forbidden");
 
   const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
   if (!customer) throw new Error("Forbidden");

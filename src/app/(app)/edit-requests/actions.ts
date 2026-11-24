@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canReviewDeletions } from "@/lib/rbac";
+import { canReviewCustomerRequests } from "@/lib/rbac";
 import { reviewEditRequest, cancelEditRequest } from "@/lib/editRequests";
 
 export async function decideEditRequest(requestId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canReviewDeletions(session.role)) throw new Error("Forbidden");
+  // Coarse gate: Owner or Admin may be reviewing something. reviewEditRequest itself
+  // enforces the fine-grained rule (Admin: Customer requests only).
+  if (!canReviewCustomerRequests(session.role)) throw new Error("Forbidden");
 
   const decision = String(formData.get("decision"));
   if (decision !== "APPROVED" && decision !== "REJECTED") throw new Error("Invalid decision.");

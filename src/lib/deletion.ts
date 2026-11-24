@@ -7,9 +7,11 @@ import { reverseRewardsForSale } from "./rewards";
 
 export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE" | "CUSTOMER" | "EXPENSE" | "BROKER";
 
-async function notifyOwners(title: string, body: string, link: string) {
-  const owners = await db.staff.findMany({ where: { role: "OWNER", active: true } });
-  await Promise.all(owners.map((o) => notifyStaff(o.id, "SYSTEM", title, body, link)));
+/** Customer requests also notify Admins, since Admin can review those too (every other entity type stays Owner-only). */
+async function notifyReviewers(entityType: DeletableEntityType, title: string, body: string, link: string) {
+  const roles = entityType === "CUSTOMER" ? (["OWNER", "ADMIN"] as const) : (["OWNER"] as const);
+  const reviewers = await db.staff.findMany({ where: { role: { in: [...roles] }, active: true } });
+  await Promise.all(reviewers.map((r) => notifyStaff(r.id, "SYSTEM", title, body, link)));
 }
 
 /**
@@ -133,7 +135,10 @@ async function assertNoPendingRequest(entityType: DeletableEntityType, entityId:
   if (existing) throw new Error("A deletion request for this is already pending Owner review.");
 }
 
-/** Owner deletes immediately. Admin can only request it — a different Owner must approve. */
+/**
+ * Owner deletes immediately for any entity type. Admin also deletes immediately, but only for
+ * a Customer — every other entity type still queues for a different Owner to approve.
+ */
 export async function initiateDeletion(
   session: SessionPayload,
   entityType: DeletableEntityType,
@@ -143,7 +148,8 @@ export async function initiateDeletion(
 ): Promise<{ status: "deleted" | "requested" }> {
   await assertNoPendingRequest(entityType, entityId);
 
-  if (session.role === "OWNER") {
+  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && entityType === "CUSTOMER");
+  if (appliesImmediately) {
     await PERFORMERS[entityType](entityId, session);
     return { status: "deleted" };
   }
@@ -151,7 +157,8 @@ export async function initiateDeletion(
   await db.deletionRequest.create({
     data: { entityType, entityId, entityLabel, reason, requestedById: session.staffId },
   });
-  await notifyOwners(
+  await notifyReviewers(
+    entityType,
     "Deletion awaiting approval",
     `${session.name} wants to permanently delete ${entityLabel}`,
     "/deletion-requests",
@@ -181,6 +188,10 @@ export async function reviewDeletionRequest(
   if (request.requestedById === session.staffId) {
     throw new Error("You can't approve or reject your own request — ask another Owner to review it.");
   }
+  // Admin may review Customer requests; every other entity type stays Owner-only, checked
+  // here (not just in the page that lists these) so this can't be reached by guessing a URL.
+  const canReview = session.role === "OWNER" || (session.role === "ADMIN" && request.entityType === "CUSTOMER");
+  if (!canReview) throw new Error("Forbidden");
 
   if (decision === "APPROVED") {
     await PERFORMERS[request.entityType as DeletableEntityType](request.entityId, session);
