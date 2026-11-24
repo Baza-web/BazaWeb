@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<string, string> = {
   CUSTOMER: "Customer",
   EXPENSE: "Expense",
   BROKER: "Broker",
+  BRAND: "Brand",
 };
 
 export default async function DeletionRequestsPage() {
@@ -19,11 +20,11 @@ export default async function DeletionRequestsPage() {
   if (!canReviewCustomerRequests(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
-  // Admin reviews Customer requests only — every other entity type stays Owner-only.
-  const adminOnlyCustomers = session.role !== "OWNER";
+  // Admin reviews Customer and Brand requests only — every other entity type stays Owner-only.
+  const adminFilteredTypes = session.role !== "OWNER";
 
   const requests = await db.deletionRequest.findMany({
-    where: adminOnlyCustomers ? { entityType: "CUSTOMER" } : undefined,
+    where: adminFilteredTypes ? { entityType: { in: ["CUSTOMER", "BRAND"] } } : undefined,
     include: { requestedBy: true, reviewedBy: true },
     orderBy: { createdAt: "desc" },
     take: 100,

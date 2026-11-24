@@ -27,7 +27,11 @@ export function BrandRenameForm({ brandId, name }: { brandId: string; name: stri
         const fd = new FormData(e.currentTarget);
         startTransition(async () => {
           try {
-            await updateBrand(brandId, fd);
+            const result = await updateBrand(brandId, fd);
+            if ("error" in result) {
+              setError(result.error);
+              return;
+            }
             setEditing(false);
             router.refresh();
           } catch (err) {

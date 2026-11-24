@@ -3,9 +3,11 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageBrands } from "@/lib/rbac";
 import { formatDate } from "@/lib/utils";
-import { createBrand, toggleBrandActive, toggleRequiresGoldCertificates } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
 import { BrandRenameForm } from "@/components/BrandRenameForm";
+import { CreateBrandForm } from "@/components/CreateBrandForm";
+import { ToggleBrandActiveButton } from "@/components/ToggleBrandActiveButton";
+import { DeleteBrandButton } from "@/components/DeleteBrandButton";
 
 export default async function BrandsPage() {
   const session = await requireSessionOrRedirect();
@@ -62,15 +64,7 @@ export default async function BrandsPage() {
 
       <div className="card max-w-sm print:hidden">
         <h2 className="mb-3 font-medium">Add a brand</h2>
-        <form action={createBrand} className="flex gap-2">
-          <input className="input" name="name" required placeholder="New brand name" />
-          <button type="submit" className="btn-primary">
-            Add
-          </button>
-        </form>
-        {session.role !== "OWNER" && (
-          <p className="mt-2 text-xs text-stone-400">Adding a brand will need an Owner to approve it first.</p>
-        )}
+        <CreateBrandForm />
       </div>
 
       <div id="brands-table" className="card overflow-x-auto">
@@ -115,20 +109,8 @@ export default async function BrandsPage() {
                 </td>
                 <td className="print:hidden">
                   <div className="flex flex-wrap items-center gap-2">
-                    <form action={toggleBrandActive.bind(null, b.id)}>
-                      <button type="submit" className="btn-secondary text-xs">
-                        {b.active ? "Deactivate" : "Reactivate"}
-                      </button>
-                    </form>
-                    <form action={toggleRequiresGoldCertificates.bind(null, b.id)}>
-                      <button
-                        type="submit"
-                        className={`btn-secondary text-xs ${b.requiresGoldCertificates ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
-                        title="Blocks dispatch on this brand's orders until 2 gold certificates are verified"
-                      >
-                        {b.requiresGoldCertificates ? "Gold certs required ✓" : "Require gold certs"}
-                      </button>
-                    </form>
+                    <ToggleBrandActiveButton brandId={b.id} active={b.active} />
+                    <DeleteBrandButton brandId={b.id} brandName={b.name} />
                   </div>
                 </td>
               </tr>

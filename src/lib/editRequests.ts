@@ -9,7 +9,7 @@ import { repostSaleJournalEntry, repostExpenseJournalEntry } from "./ledger";
 export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND" | "EXPENSE" | "BROKER";
 
 /** Admin edits/reviews these entity types directly, same as Owner; every other type stays Owner-only. */
-const ADMIN_DIRECT_ENTITY_TYPES = new Set<EditableEntityType>(["CUSTOMER", "STAFF"]);
+const ADMIN_DIRECT_ENTITY_TYPES = new Set<EditableEntityType>(["CUSTOMER", "STAFF", "BRAND"]);
 
 /** Customer/Staff requests also notify Admins, since Admin can review those too (every other entity type stays Owner-only). */
 async function notifyReviewers(entityType: EditableEntityType, title: string, body: string, link: string) {

@@ -5,11 +5,13 @@ import { notifyStaff } from "./notifications";
 import { reverseSaleJournalEntry, reverseExpenseJournalEntry } from "./ledger";
 import { reverseRewardsForSale } from "./rewards";
 
-export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE" | "CUSTOMER" | "EXPENSE" | "BROKER";
+export type DeletableEntityType = "STAFF" | "INVENTORY" | "SALE" | "CUSTOMER" | "EXPENSE" | "BROKER" | "BRAND";
 
-/** Customer requests also notify Admins, since Admin can review those too (every other entity type stays Owner-only). */
+/** Customer and Brand requests also notify Admins, since Admin can review those too (every other entity type stays Owner-only). */
+const ADMIN_DIRECT_ENTITY_TYPES = new Set<DeletableEntityType>(["CUSTOMER", "BRAND"]);
+
 async function notifyReviewers(entityType: DeletableEntityType, title: string, body: string, link: string) {
-  const roles = entityType === "CUSTOMER" ? (["OWNER", "ADMIN"] as const) : (["OWNER"] as const);
+  const roles = ADMIN_DIRECT_ENTITY_TYPES.has(entityType) ? (["OWNER", "ADMIN"] as const) : (["OWNER"] as const);
   const reviewers = await db.staff.findMany({ where: { role: { in: [...roles] }, active: true } });
   await Promise.all(reviewers.map((r) => notifyStaff(r.id, "SYSTEM", title, body, link)));
 }
@@ -121,6 +123,18 @@ async function performBrokerDeletion(entityId: string) {
   await db.broker.delete({ where: { id: entityId } });
 }
 
+/** Refuses to delete a brand that any staff, social post, sale, expense, inventory item, or order is still attributed to — that's real business and compliance history, never silently detached or cascaded away. Deactivate it instead if it's no longer trading. */
+async function performBrandDeletion(entityId: string) {
+  const brand = await db.brand.findUniqueOrThrow({
+    where: { id: entityId },
+    include: { _count: { select: { staff: true, socialPosts: true, sales: true, expenses: true, inventoryItems: true, orders: true } } },
+  });
+  if (Object.values(brand._count).some((n) => n > 0)) {
+    throw new Error("This brand is still in use (staff, posts, sales, expenses, inventory, or orders reference it) and can't be deleted — deactivate it instead.");
+  }
+  await db.brand.delete({ where: { id: entityId } });
+}
+
 const PERFORMERS: Record<DeletableEntityType, (id: string, session: SessionPayload) => Promise<void>> = {
   STAFF: performStaffDeletion,
   INVENTORY: performInventoryDeletion,
@@ -128,6 +142,7 @@ const PERFORMERS: Record<DeletableEntityType, (id: string, session: SessionPaylo
   CUSTOMER: performCustomerDeletion,
   EXPENSE: performExpenseDeletion,
   BROKER: performBrokerDeletion,
+  BRAND: performBrandDeletion,
 };
 
 async function assertNoPendingRequest(entityType: DeletableEntityType, entityId: string) {
@@ -136,8 +151,8 @@ async function assertNoPendingRequest(entityType: DeletableEntityType, entityId:
 }
 
 /**
- * Owner deletes immediately for any entity type. Admin also deletes immediately, but only for
- * a Customer — every other entity type still queues for a different Owner to approve.
+ * Owner deletes immediately for any entity type. Admin also deletes immediately for a Customer
+ * or a Brand — every other entity type still queues for a different Owner to approve.
  */
 export async function initiateDeletion(
   session: SessionPayload,
@@ -148,7 +163,7 @@ export async function initiateDeletion(
 ): Promise<{ status: "deleted" | "requested" }> {
   await assertNoPendingRequest(entityType, entityId);
 
-  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && entityType === "CUSTOMER");
+  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(entityType));
   if (appliesImmediately) {
     await PERFORMERS[entityType](entityId, session);
     return { status: "deleted" };
@@ -188,9 +203,9 @@ export async function reviewDeletionRequest(
   if (request.requestedById === session.staffId) {
     throw new Error("You can't approve or reject your own request — ask another Owner to review it.");
   }
-  // Admin may review Customer requests; every other entity type stays Owner-only, checked
-  // here (not just in the page that lists these) so this can't be reached by guessing a URL.
-  const canReview = session.role === "OWNER" || (session.role === "ADMIN" && request.entityType === "CUSTOMER");
+  // Admin may review Customer or Brand requests; every other entity type stays Owner-only,
+  // checked here (not just in the page that lists these) so this can't be reached by guessing a URL.
+  const canReview = session.role === "OWNER" || (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(request.entityType as DeletableEntityType));
   if (!canReview) throw new Error("Forbidden");
 
   if (decision === "APPROVED") {

@@ -7,52 +7,61 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageBrands } from "@/lib/rbac";
 import { initiateEdit } from "@/lib/editRequests";
+import { initiateDeletion } from "@/lib/deletion";
 
 const createSchema = z.object({ name: z.string().min(2).max(60) });
 
-/** Owner's new brand goes live immediately; anyone else's is a pending request an Owner must approve first. */
-export async function createBrand(formData: FormData) {
+type ActionResult = { error: string } | { status: "applied" | "requested" };
+
+/** Owner's new brand goes live immediately; Admin's does too; anyone else's would be a pending request an Owner must approve first (in practice only Owner/Admin can reach this page at all). */
+export async function createBrand(formData: FormData): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
   if (!canManageBrands(session.role)) throw new Error("Forbidden");
 
-  const { name } = createSchema.parse({ name: String(formData.get("name") || "").trim() });
+  const parsed = createSchema.safeParse({ name: String(formData.get("name") || "").trim() });
+  if (!parsed.success) return { error: "Enter a brand name (at least 2 characters)." };
+  const { name } = parsed.data;
 
   const existing = await db.brand.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
-  if (existing) throw new Error("A brand with that name already exists.");
+  if (existing) return { error: "A brand with that name already exists." };
 
   const pendingSameName = await db.editRequest.findFirst({
     where: { entityType: "BRAND", status: "PENDING", proposedData: { path: ["name"], equals: name } },
   });
-  if (pendingSameName) throw new Error(`A request to add "${name}" is already pending Owner review.`);
+  if (pendingSameName) return { error: `A request to add "${name}" is already pending review.` };
 
-  await initiateEdit(session, "BRAND", crypto.randomUUID(), name, `New brand: ${name}`, { name, __create: true });
+  const result = await initiateEdit(session, "BRAND", crypto.randomUUID(), name, `New brand: ${name}`, { name, __create: true });
   revalidatePath("/brands");
   revalidatePath("/edit-requests");
+  return result;
 }
 
-/** Owner's rename applies immediately; anyone else's is a pending request an Owner must approve first. */
-export async function updateBrand(brandId: string, formData: FormData) {
+/** Owner's and Admin's renames apply immediately; anyone else's is a pending request an Owner must approve first. */
+export async function updateBrand(brandId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
   if (!canManageBrands(session.role)) throw new Error("Forbidden");
 
-  const { name } = createSchema.parse({ name: String(formData.get("name") || "").trim() });
+  const parsed = createSchema.safeParse({ name: String(formData.get("name") || "").trim() });
+  if (!parsed.success) return { error: "Enter a brand name (at least 2 characters)." };
+  const { name } = parsed.data;
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
 
   const existing = await db.brand.findFirst({ where: { name: { equals: name, mode: "insensitive" }, id: { not: brandId } } });
-  if (existing) throw new Error(`A brand named "${name}" already exists.`);
+  if (existing) return { error: `A brand named "${name}" already exists.` };
 
-  await initiateEdit(session, "BRAND", brandId, brand.name, `Renamed "${brand.name}" to "${name}"`, { name });
+  const result = await initiateEdit(session, "BRAND", brandId, brand.name, `Renamed "${brand.name}" to "${name}"`, { name });
   revalidatePath("/brands");
   revalidatePath("/edit-requests");
+  return result;
 }
 
-/** Owner's change applies immediately; anyone else's is a pending request an Owner must approve first. Configurable per brand (Maison D'or today) rather than a hardcoded brand-name check — see Order dispatch gating in src/lib/qc.ts. */
-export async function toggleRequiresGoldCertificates(brandId: string) {
+/** Owner's and Admin's change applies immediately; anyone else's is a pending request an Owner must approve first. Configurable per brand (Maison D'or today) rather than a hardcoded brand-name check — see Order dispatch gating in src/lib/qc.ts. */
+export async function toggleRequiresGoldCertificates(brandId: string): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
   if (!canManageBrands(session.role)) throw new Error("Forbidden");
 
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
-  await initiateEdit(
+  const result = await initiateEdit(
     session,
     "BRAND",
     brandId,
@@ -62,15 +71,16 @@ export async function toggleRequiresGoldCertificates(brandId: string) {
   );
   revalidatePath("/brands");
   revalidatePath("/edit-requests");
+  return result;
 }
 
-/** Owner's status change applies immediately; anyone else's is a pending request an Owner must approve first. */
-export async function toggleBrandActive(brandId: string) {
+/** Owner's and Admin's status change applies immediately; anyone else's is a pending request an Owner must approve first. */
+export async function toggleBrandActive(brandId: string): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
   if (!canManageBrands(session.role)) throw new Error("Forbidden");
 
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
-  await initiateEdit(
+  const result = await initiateEdit(
     session,
     "BRAND",
     brandId,
@@ -80,4 +90,21 @@ export async function toggleBrandActive(brandId: string) {
   );
   revalidatePath("/brands");
   revalidatePath("/edit-requests");
+  return result;
+}
+
+/** Owner and Admin delete immediately; refuses if the brand is still in use anywhere (see performBrandDeletion in src/lib/deletion.ts). */
+export async function deleteBrand(brandId: string): Promise<{ error: string } | { status: "deleted" | "requested" }> {
+  const session = await requireSessionOrRedirect();
+  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+
+  const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
+  try {
+    const result = await initiateDeletion(session, "BRAND", brandId, brand.name);
+    revalidatePath("/brands");
+    revalidatePath("/deletion-requests");
+    return result;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't delete this brand." };
+  }
 }
