@@ -205,6 +205,11 @@ export function canCheckOutSuppliesOrTools(role: Role) {
   return QC_INSPECTOR_ROLES.includes(role);
 }
 
+/** Owner/Admin/Manager — same tier as Inventory/Purchasing: generating a QR that can point anywhere (including an external URL) is an operational action, not a routine floor task. */
+export function canManageQRCodes(role: Role) {
+  return STAFF_SCOPED_MANAGER_ROLES.includes(role);
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`

@@ -326,6 +326,7 @@ model Staff {
   toolsAssigned WorkshopTool[]
   toolMaintenanceLogged ToolMaintenanceLog[]
   suppliesIssued SupplyIssue[]
+  qrCodesCreated QRCode[]
 
   @@index([branchId])
 }
@@ -1862,4 +1863,58 @@ model NavSettings {
   id        String   @id @default("singleton")
   order     String[] @default([])
   updatedAt DateTime @updatedAt
+}
+
+// --- QR Code Management ---
+//
+// `targetId` is a loose, untyped reference, not a Prisma relation: the
+// table it points into depends on `targetType` (InventoryItem, Order for
+// gemstones/certificates, Branch, or Tour), and Prisma has no polymorphic
+// relation — five separate nullable FK columns would be messier than one
+// resolved in code (src/lib/qr.ts). CAMPAIGN has no internal target at
+// all; it's a plain external redirect.
+enum QRTargetType {
+  PRODUCT
+  GEMSTONE
+  CERTIFICATE
+  BOUTIQUE
+  TRAVEL_EXPERIENCE
+  CAMPAIGN
+}
+
+model QRCode {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  label         String
+  targetType    QRTargetType
+  targetId      String?
+  externalUrl   String?
+  active        Boolean      @default(true)
+  createdById   String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  createdBy Staff    @relation(fields: [createdById], references: [id])
+  scans     QRScan[]
+
+  @@index([createdById])
+  @@index([targetType, targetId])
+}
+
+// Deliberately minimal — no raw IP, no precise geolocation (would need an
+// external geo-IP service this deployment doesn't have); the QR's own
+// label is how a boutique/campaign scan gets attributed to a place or
+// promotion, not a derived location.
+model QRScan {
+  id        String   @id @default(cuid())
+  qrCodeId  String
+  scannedAt DateTime @default(now())
+  ipHash    String?
+  userAgent String?
+  referrer  String?
+
+  qrCode QRCode @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+
+  @@index([qrCodeId])
+  @@index([scannedAt])
 }

@@ -43,6 +43,12 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
     roles: ["OWNER", "ADMIN", "MANAGER", "CRAFTSMAN"],
   },
   {
+    href: "/qr",
+    label: "QR Management",
+    iconKey: "qr",
+    roles: ["OWNER", "ADMIN", "MANAGER"],
+  },
+  {
     href: "/repairs",
     label: "Repairs & Custom Orders",
     iconKey: "repairs",

@@ -35,6 +35,7 @@ import {
   ChartBar,
   Wrench,
   Toolbox,
+  QrCode,
   Truck,
   GoogleDriveLogo,
   FileText,
@@ -104,6 +105,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   travel: Airplane,
   orders: ClipboardText,
   workshop: Toolbox,
+  qr: QrCode,
 };
 
 export {
@@ -143,6 +145,7 @@ export {
   ChartBar,
   Wrench,
   Toolbox,
+  QrCode,
   Truck,
   GoogleDriveLogo,
   FileText,
