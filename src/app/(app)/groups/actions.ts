@@ -39,7 +39,9 @@ export async function addGroupMember(groupId: string, formData: FormData) {
   if (!staffId) return;
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (staff.branchId !== group.branchId) throw new Error("Staff must belong to the group's branch.");
+  if (!isCompanyWide(session.role) && staff.branchId !== group.branchId) {
+    throw new Error("Staff must belong to the group's branch.");
+  }
 
   await db.staffGroup.update({
     where: { id: groupId },

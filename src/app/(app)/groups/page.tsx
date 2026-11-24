@@ -69,7 +69,9 @@ export default async function GroupsPage() {
         )}
         {groups.map((group) => {
           const branchStaff = staff.filter(
-            (s) => s.branchId === group.branchId && !group.members.some((m) => m.id === s.id),
+            (s) =>
+              (isCompanyWide(session.role) || s.branchId === group.branchId) &&
+              !group.members.some((m) => m.id === s.id),
           );
           return (
             <div key={group.id} className="card">
@@ -86,11 +88,16 @@ export default async function GroupsPage() {
               </div>
 
               <ul className="mb-3 space-y-2">
-                {group.members.map((m) => (
+                {group.members.map((m) => {
+                  const memberBranch = branches.find((b) => b.id === m.branchId);
+                  return (
                   <li key={m.id} className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="avatar h-7 w-7 text-xs">{initials(m.name)}</span>
                       <span className="text-sm">{m.name}</span>
+                      {isCompanyWide(session.role) && memberBranch && m.branchId !== group.branchId && (
+                        <span className="badge bg-stone-100 text-stone-500">{memberBranch.name}</span>
+                      )}
                     </div>
                     <form action={removeGroupMember.bind(null, group.id)}>
                       <input type="hidden" name="staffId" value={m.id} />
@@ -103,7 +110,8 @@ export default async function GroupsPage() {
                       </button>
                     </form>
                   </li>
-                ))}
+                  );
+                })}
                 {group.members.length === 0 && (
                   <li className="text-sm text-stone-400">No members yet.</li>
                 )}
