@@ -166,13 +166,18 @@ export default async function InventoryPage({
                 </td>
                 {canDelete && (
                   <td className="print:hidden">
-                    <DeleteRecordButton
-                      action={deleteInventoryItemPermanently.bind(null, item.id)}
-                      label="item"
-                      isOwner={session.role === "OWNER"}
-                      confirmMessage={`Permanently delete ${item.sku} — ${item.name}? This can't be undone.`}
-                      requestMessage={`Request permanent deletion of ${item.sku} — ${item.name}? An Owner will need to approve it before anything happens.`}
-                    />
+                    <div className="flex items-center gap-3">
+                      <Link href={`/inventory/${item.id}`} className="text-xs text-brand-700 hover:underline">
+                        Edit
+                      </Link>
+                      <DeleteRecordButton
+                        action={deleteInventoryItemPermanently.bind(null, item.id)}
+                        label="item"
+                        isOwner={session.role === "OWNER"}
+                        confirmMessage={`Permanently delete ${item.sku} — ${item.name}? This can't be undone.`}
+                        requestMessage={`Request permanent deletion of ${item.sku} — ${item.name}? An Owner will need to approve it before anything happens.`}
+                      />
+                    </div>
                   </td>
                 )}
               </tr>
