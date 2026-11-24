@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageBrands } from "@/lib/rbac";
 import { formatDate } from "@/lib/utils";
-import { createBrand, toggleBrandActive } from "./actions";
+import { createBrand, toggleBrandActive, toggleRequiresGoldCertificates } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
 import { BrandRenameForm } from "@/components/BrandRenameForm";
 
@@ -114,11 +114,22 @@ export default async function BrandsPage() {
                   </span>
                 </td>
                 <td className="print:hidden">
-                  <form action={toggleBrandActive.bind(null, b.id)}>
-                    <button type="submit" className="btn-secondary text-xs">
-                      {b.active ? "Deactivate" : "Reactivate"}
-                    </button>
-                  </form>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <form action={toggleBrandActive.bind(null, b.id)}>
+                      <button type="submit" className="btn-secondary text-xs">
+                        {b.active ? "Deactivate" : "Reactivate"}
+                      </button>
+                    </form>
+                    <form action={toggleRequiresGoldCertificates.bind(null, b.id)}>
+                      <button
+                        type="submit"
+                        className={`btn-secondary text-xs ${b.requiresGoldCertificates ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
+                        title="Blocks dispatch on this brand's orders until 2 gold certificates are verified"
+                      >
+                        {b.requiresGoldCertificates ? "Gold certs required ✓" : "Require gold certs"}
+                      </button>
+                    </form>
+                  </div>
                 </td>
               </tr>
             ))}

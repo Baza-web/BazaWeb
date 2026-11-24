@@ -34,6 +34,7 @@ import {
   VideoCamera,
   ChartBar,
   Wrench,
+  Toolbox,
   Truck,
   GoogleDriveLogo,
   FileText,
@@ -102,6 +103,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   email: EnvelopeSimple,
   travel: Airplane,
   orders: ClipboardText,
+  workshop: Toolbox,
 };
 
 export {
@@ -140,6 +142,7 @@ export {
   VideoCamera,
   ChartBar,
   Wrench,
+  Toolbox,
   Truck,
   GoogleDriveLogo,
   FileText,

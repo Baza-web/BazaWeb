@@ -9,6 +9,7 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageOrdersScoped, canManageOrdersCompanyWide, canCreateOrders, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedImages } from "@/lib/uploads";
 import { notifyStaff } from "@/lib/notifications";
+import { assertDispatchAllowed } from "@/lib/qc";
 import type { OrderStatus, OrderApprovalDecision } from "@prisma/client";
 
 function orderNumber() {
@@ -203,6 +204,15 @@ export async function changeOrderStatus(orderId: string, formData: FormData) {
   const reason = emptyToUndefined(formData.get("reason"));
 
   if (RESTRICTED_STATUSES.includes(status) && !canManage) throw new Error("Forbidden");
+
+  if (status === "DISPATCHED") {
+    const [brand, qcInspections, goldCertificates] = await Promise.all([
+      order.brandId ? db.brand.findUnique({ where: { id: order.brandId } }) : Promise.resolve(null),
+      db.qCInspection.findMany({ where: { orderId } }),
+      db.goldCertificate.findMany({ where: { orderId } }),
+    ]);
+    assertDispatchAllowed({ brand }, qcInspections, goldCertificates);
+  }
 
   await db.order.update({
     where: { id: orderId },

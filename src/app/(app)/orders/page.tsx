@@ -202,6 +202,14 @@ export default async function OrdersCommandCentrePage({
           <Link href="/orders/all" className="btn-secondary text-sm">
             All Orders <ArrowRight size={16} aria-hidden="true" />
           </Link>
+          {canManageOrdersCompanyWide(session.role) && (
+            <Link href="/orders/qc-settings" className="btn-secondary text-sm">
+              QC Settings
+            </Link>
+          )}
+          <Link href="/workshop" className="btn-secondary text-sm">
+            Workshop &amp; Supplies
+          </Link>
         </div>
       </div>
 

@@ -46,6 +46,24 @@ export async function updateBrand(brandId: string, formData: FormData) {
   revalidatePath("/edit-requests");
 }
 
+/** Owner's change applies immediately; anyone else's is a pending request an Owner must approve first. Configurable per brand (Maison D'or today) rather than a hardcoded brand-name check — see Order dispatch gating in src/lib/qc.ts. */
+export async function toggleRequiresGoldCertificates(brandId: string) {
+  const session = await requireSessionOrRedirect();
+  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+
+  const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
+  await initiateEdit(
+    session,
+    "BRAND",
+    brandId,
+    brand.name,
+    `${brand.requiresGoldCertificates ? "Disable" : "Enable"} gold certificate requirement for ${brand.name}`,
+    { requiresGoldCertificates: !brand.requiresGoldCertificates },
+  );
+  revalidatePath("/brands");
+  revalidatePath("/edit-requests");
+}
+
 /** Owner's status change applies immediately; anyone else's is a pending request an Owner must approve first. */
 export async function toggleBrandActive(brandId: string) {
   const session = await requireSessionOrRedirect();

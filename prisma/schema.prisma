@@ -204,6 +204,7 @@ model Branch {
   journalEntries JournalEntry[]
   tours          Tour[]
   orders         Order[]
+  supplyItems    SupplyItem[]
 }
 
 // A house brand this business trades under (e.g. "Baza Boutique", "Silver
@@ -214,6 +215,10 @@ model Brand {
   id        String   @id @default(cuid())
   name      String   @unique
   active    Boolean  @default(true)
+  // Dispatch is blocked on this brand's orders until >=2 gold certificates
+  // reach VERIFIED — configurable per brand (Maison D'or today) rather than
+  // a hardcoded brand-name check, per the spec's own requirement.
+  requiresGoldCertificates Boolean @default(false)
   createdAt DateTime @default(now())
 
   staff       Staff[]      @relation("StaffBrands")
@@ -314,6 +319,13 @@ model Staff {
   orderApprovalsRequested OrderApproval[] @relation("OrderApprovalRequester")
   orderApprovalsReviewed  OrderApproval[] @relation("OrderApprovalReviewer")
   orderComments        OrderComment[]
+  qcInspectionsPerformed QCInspection[]
+  goldCertificatesVerified GoldCertificate[]
+  handoversFrom OrderHandover[] @relation("HandoverFrom")
+  handoversTo   OrderHandover[] @relation("HandoverTo")
+  toolsAssigned WorkshopTool[]
+  toolMaintenanceLogged ToolMaintenanceLog[]
+  suppliesIssued SupplyIssue[]
 
   @@index([branchId])
 }
@@ -808,6 +820,7 @@ model Supplier {
   createdAt DateTime @default(now())
 
   purchaseOrders PurchaseOrder[]
+  gemstoneSpecs  OrderGemstoneSpec[]
 }
 
 model PurchaseOrder {
@@ -1461,12 +1474,295 @@ model Order {
   approvals       OrderApproval[]
   comments        OrderComment[]
   tasks           Task[]
+  metalSpecs       OrderMetalSpec[]
+  gemstoneSpecs    OrderGemstoneSpec[]
+  components       OrderComponent[]
+  qcInspections    QCInspection[]
+  goldCertificates GoldCertificate[]
+  handovers        OrderHandover[]
+  supplyIssues     SupplyIssue[]
 
   @@index([branchId])
   @@index([brandId])
   @@index([primaryStaffId])
   @@index([status])
   @@index([currentDeadline])
+}
+
+// --- Production, QC & Maison D'or compliance (Phase 3) ---
+//
+// Deliberately layered onto the existing Order lifecycle (same status enum,
+// same primaryStaff/supportingStaff assignment, same statusHistory) rather
+// than forking a parallel production-order system — Orders Handling already
+// has IN_PRODUCTION/QUALITY_CHECK/REVISION_REQUIRED/APPROVED states; what was
+// missing was structured data capture for those stages, not new workflow
+// plumbing.
+
+enum MetalType {
+  GOLD
+  SILVER
+  PALLADIUM
+  OTHER
+}
+
+// One row per metal used on an order — estimated at BOM time, actual
+// filled in once production reports real consumption/wastage/scrap.
+model OrderMetalSpec {
+  id                   String    @id @default(cuid())
+  orderId              String
+  metalType            MetalType
+  purity               String?
+  estimatedWeightGrams Float?
+  actualWeightGrams    Float?
+  wastageGrams         Float?
+  scrapRecoveredGrams  Float?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// Per-stone record — deliberately one row per physical stone, not a
+// quantity field, since each gemstone's certificate/treatment/origin is
+// individual. Unverified fields must be entered as unknown, never guessed.
+model OrderGemstoneSpec {
+  id                String    @id @default(cuid())
+  orderId           String
+  gemstoneType      String
+  caratWeight       Float?
+  dimensions        String?
+  cut               String?
+  color             String?
+  clarity           String?
+  origin            String?
+  treatment         String?
+  certificateNumber String?
+  certificateDocUrl String?
+  supplierId        String?
+  photos            String[]  @default([])
+  verified          Boolean   @default(false)
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([orderId])
+  @@index([supplierId])
+}
+
+// Findings, packaging and other non-metal/non-gemstone BOM lines.
+model OrderComponent {
+  id           String   @id @default(cuid())
+  orderId      String
+  name         String
+  estimatedQty Int?
+  actualQty    Int?
+  unit         String?
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+enum QCDecision {
+  PASS
+  FAIL
+  NA
+}
+
+// Owner/Admin-configurable checklist items, so QC criteria can change
+// without a code deploy — satisfies "configurable, not hardcoded."
+model QCChecklistTemplate {
+  id        String   @id @default(cuid())
+  label     String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  results QCChecklistResult[]
+}
+
+// One inspection attempt. Multiple inspections per order are expected —
+// a FAIL returns the order to rework and a fresh inspection follows;
+// every past inspection is preserved, never overwritten.
+model QCInspection {
+  id           String     @id @default(cuid())
+  orderId      String
+  inspectorId  String
+  decision     QCDecision
+  generalNotes String?
+  performedAt  DateTime   @default(now())
+
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  inspector Staff               @relation(fields: [inspectorId], references: [id])
+  results   QCChecklistResult[]
+
+  @@index([orderId])
+  @@index([inspectorId])
+}
+
+model QCChecklistResult {
+  id           String     @id @default(cuid())
+  inspectionId String
+  templateId   String?
+  label        String
+  result       QCDecision
+  comment      String?
+  photoUrl     String?
+
+  inspection QCInspection         @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  template   QCChecklistTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([inspectionId])
+}
+
+enum CertificateVerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  REJECTED
+}
+
+// Gold certificate tracking for brands flagged `requiresGoldCertificates`
+// (Maison D'or today, configurable to any brand) — dispatch is blocked
+// unless at least 2 certificates on the order reach VERIFIED.
+model GoldCertificate {
+  id                 String                         @id @default(cuid())
+  orderId            String
+  certificateNumber  String
+  issuingAuthority   String?
+  documentUrl        String?
+  goldSpecification  String?
+  verificationStatus CertificateVerificationStatus  @default(UNVERIFIED)
+  verifiedById       String?
+  verifiedAt         DateTime?
+  notes              String?
+  createdAt          DateTime                       @default(now())
+
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  verifiedBy Staff? @relation(fields: [verifiedById], references: [id])
+
+  @@index([orderId])
+}
+
+// Explicit staff-to-staff work handover, distinct from OrderStatusHistory
+// (which records status transitions, not who-to-whom the physical work
+// moved) — spec 11.6 asks for both employees, materials and acknowledgement.
+model OrderHandover {
+  id             String    @id @default(cuid())
+  orderId        String
+  fromStaffId    String?
+  toStaffId      String
+  handoverAt     DateTime  @default(now())
+  materialsNote  String?
+  photos         String[]  @default([])
+  acknowledgedAt DateTime?
+
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStaff Staff? @relation("HandoverFrom", fields: [fromStaffId], references: [id])
+  toStaff   Staff  @relation("HandoverTo", fields: [toStaffId], references: [id])
+
+  @@index([orderId])
+}
+
+enum ToolCondition {
+  GOOD
+  DAMAGED
+  MISSING
+  UNDER_MAINTENANCE
+}
+
+// Reusable workshop tools have a checkout/return lifecycle, unlike
+// consumable supplies — kept as its own model rather than overloading
+// InventoryItem's sale-oriented quantity/status semantics.
+model WorkshopTool {
+  id                 String        @id @default(cuid())
+  toolId             String        @unique
+  name               String
+  assignedStaffId    String?
+  issueDate          DateTime?
+  expectedReturnDate DateTime?
+  returnDate         DateTime?
+  condition          ToolCondition @default(GOOD)
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  assignedStaff   Staff?               @relation(fields: [assignedStaffId], references: [id])
+  maintenanceLogs ToolMaintenanceLog[]
+
+  @@index([assignedStaffId])
+}
+
+model ToolMaintenanceLog {
+  id         String   @id @default(cuid())
+  toolId     String
+  loggedById String
+  date       DateTime @default(now())
+  note       String
+  cost       Float?
+  createdAt  DateTime @default(now())
+
+  tool     WorkshopTool @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  loggedBy Staff        @relation(fields: [loggedById], references: [id])
+
+  @@index([toolId])
+}
+
+enum SupplyCategory {
+  OFFICE_SUPPLY
+  JEWELLERY_BOX
+  PACKAGING
+  CONSUMABLE
+}
+
+// Deliberately NOT folded into InventoryItem: that model's cost/sell-price
+// and sale-driven decrement semantics don't fit non-sellable consumables,
+// and spec rule #7 ("don't create duplicate inventory systems") is honored
+// by giving this its own narrow model rather than a second full catalog.
+model SupplyItem {
+  id              String         @id @default(cuid())
+  sku             String         @unique
+  name            String
+  category        SupplyCategory
+  unit            String?
+  quantity        Int            @default(0)
+  minimumStock    Int            @default(0)
+  purchasePrice   Float?
+  storageLocation String?
+  branchId        String?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  branch Branch?       @relation(fields: [branchId], references: [id])
+  issues SupplyIssue[]
+
+  @@index([branchId])
+  @@index([category])
+}
+
+model SupplyIssue {
+  id              String   @id @default(cuid())
+  supplyItemId    String
+  quantity        Int
+  issuedToStaffId String?
+  orderId         String?
+  reason          String?
+  issuedAt        DateTime @default(now())
+
+  supplyItem    SupplyItem @relation(fields: [supplyItemId], references: [id], onDelete: Cascade)
+  issuedToStaff Staff?     @relation(fields: [issuedToStaffId], references: [id])
+  order         Order?     @relation(fields: [orderId], references: [id])
+
+  @@index([supplyItemId])
+  @@index([orderId])
 }
 
 model OrderStatusHistory {

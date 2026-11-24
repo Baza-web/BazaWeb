@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { isCompanyWide, canManageOrdersScoped, canAccessOrders } from "@/lib/rbac";
+import { isCompanyWide, canManageOrdersScoped, canAccessOrders, canPerformQCInspection, canVerifyGoldCertificates } from "@/lib/rbac";
 import {
   getOrderPrioritySettings,
   computeAutoPriority,
@@ -15,7 +15,6 @@ import { ORDER_STATUS_STYLES, ORDER_STATUS_LABELS, ORDER_STATUS_OPTIONS, DELAY_R
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
 import {
   updateOrder,
-  changeOrderStatus,
   updateProgress,
   changeDeadline,
   reportDelay,
@@ -23,6 +22,18 @@ import {
   submitForApproval,
   createLinkedTask,
 } from "../actions";
+import {
+  addOrderMetalSpec,
+  deleteOrderMetalSpec,
+  addOrderGemstoneSpec,
+  deleteOrderGemstoneSpec,
+  addOrderComponent,
+  deleteOrderComponent,
+  recordOrderHandover,
+} from "../production-actions";
+import { QCInspectionPanel } from "@/components/orders/QCInspectionPanel";
+import { GoldCertificatePanel } from "@/components/orders/GoldCertificatePanel";
+import { StatusChangeForm } from "@/components/orders/StatusChangeForm";
 import { WarningCircle, Trash, ChatText, ClipboardText } from "@/components/icons";
 
 const RESTRICTED_STATUSES = ["APPROVED", "ON_HOLD", "CANCELLED"];
@@ -51,13 +62,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       approvals: { include: { requestedBy: true, reviewedBy: true }, orderBy: { createdAt: "desc" } },
       comments: { include: { staff: true }, orderBy: { createdAt: "desc" } },
       tasks: { include: { assignedTo: true } },
+      metalSpecs: { orderBy: { createdAt: "asc" } },
+      gemstoneSpecs: { include: { supplier: true }, orderBy: { createdAt: "asc" } },
+      components: { orderBy: { createdAt: "asc" } },
+      qcInspections: { include: { inspector: true, results: true }, orderBy: { performedAt: "desc" } },
+      goldCertificates: { include: { verifiedBy: true }, orderBy: { createdAt: "desc" } },
+      handovers: { include: { fromStaff: true, toStaff: true }, orderBy: { handoverAt: "desc" } },
     },
   });
   if (!order) notFound();
 
   const isAssigned = order.primaryStaffId === session.staffId || order.supportingStaff.some((s) => s.id === session.staffId);
   const canManage = canManageOrdersScoped(session.role);
-  if (!canManage && !isAssigned) {
+  // A QC-eligible inspector (e.g. Craftsman) must be able to open an order they're NOT assigned to —
+  // that's the whole point of an independent inspection — within their own branch, same as canManage below.
+  if (!canManage && !isAssigned && !canPerformQCInspection(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this order.</p>;
   }
   if (!isCompanyWide(session.role) && order.branchId && order.branchId !== session.branchId) {
@@ -75,6 +94,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     : await db.staff.findMany({ where: { active: true, branchId: order.branchId ?? session.branchId ?? undefined }, orderBy: { name: "asc" } });
 
   const brands = isCompanyWide(session.role) || canManage ? await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : [];
+
+  const [qcTemplates, suppliers] = await Promise.all([
+    db.qCChecklistTemplate.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.supplier.findMany({ orderBy: { name: "asc" } }),
+  ]);
+  const canInspect = canPerformQCInspection(session.role) && !isAssigned;
+  const canReviewCertificates = canVerifyGoldCertificates(session.role);
 
   type TimelineEntry = { at: Date; node: React.ReactNode };
   const timeline: TimelineEntry[] = [
@@ -166,24 +192,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       <div className="card">
         <h2 className="section-title mb-3">Actions</h2>
         <div className="flex flex-wrap gap-4">
-          <form action={changeOrderStatus.bind(null, order.id)} className="flex flex-wrap items-end gap-2">
-            <div>
-              <label className="label">Change status</label>
-              <select className="input text-sm" name="status" defaultValue={order.status}>
-                {ORDER_STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s} disabled={RESTRICTED_STATUSES.includes(s) && !canManage}>
-                    {ORDER_STATUS_LABELS[s]}
-                    {RESTRICTED_STATUSES.includes(s) && !canManage ? " (managers only)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">Reason (optional)</label>
-              <input className="input text-sm" name="reason" />
-            </div>
-            <button type="submit" className="btn-secondary text-sm">Update status</button>
-          </form>
+          <StatusChangeForm
+            orderId={order.id}
+            currentStatus={order.status}
+            statusOptions={ORDER_STATUS_OPTIONS}
+            restrictedStatuses={RESTRICTED_STATUSES}
+            canManage={canManage}
+            labels={ORDER_STATUS_LABELS}
+          />
 
           <form action={updateProgress.bind(null, order.id)} className="flex items-end gap-2">
             <div>
@@ -318,6 +334,171 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           )}
         </div>
+      </div>
+
+      <div className="card space-y-5">
+        <h2 className="section-title">Materials &amp; Bill of Materials</h2>
+
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-ink-900">Metal</h3>
+          {order.metalSpecs.length > 0 && (
+            <table className="table-base mb-2">
+              <thead>
+                <tr>
+                  <th>Type</th><th>Purity</th><th>Est. (g)</th><th>Actual (g)</th><th>Wastage (g)</th><th>Scrap recovered (g)</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.metalSpecs.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.metalType}</td>
+                    <td>{m.purity ?? "—"}</td>
+                    <td>{m.estimatedWeightGrams ?? "—"}</td>
+                    <td>{m.actualWeightGrams ?? "—"}</td>
+                    <td>{m.wastageGrams ?? "—"}</td>
+                    <td>{m.scrapRecoveredGrams ?? "—"}</td>
+                    <td>
+                      <form action={deleteOrderMetalSpec.bind(null, m.id)}>
+                        <button type="submit" className="text-red-600 hover:underline" aria-label="Remove">
+                          <Trash size={14} />
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <form action={addOrderMetalSpec.bind(null, order.id)} className="flex flex-wrap items-end gap-2">
+            <select className="input text-sm" name="metalType" required defaultValue="GOLD">
+              <option value="GOLD">Gold</option>
+              <option value="SILVER">Silver</option>
+              <option value="PALLADIUM">Palladium</option>
+              <option value="OTHER">Other</option>
+            </select>
+            <input className="input text-sm w-28" name="purity" placeholder="Purity (22K)" />
+            <input className="input text-sm w-28" type="number" step="0.001" name="estimatedWeightGrams" placeholder="Est. grams" />
+            <input className="input text-sm w-28" type="number" step="0.001" name="actualWeightGrams" placeholder="Actual grams" />
+            <input className="input text-sm w-28" type="number" step="0.001" name="wastageGrams" placeholder="Wastage" />
+            <input className="input text-sm w-28" type="number" step="0.001" name="scrapRecoveredGrams" placeholder="Scrap" />
+            <button type="submit" className="btn-secondary text-sm">Add metal</button>
+          </form>
+        </div>
+
+        <div className="border-t border-stone-100 pt-4">
+          <h3 className="mb-2 text-sm font-semibold text-ink-900">Gemstones (one row per physical stone)</h3>
+          {order.gemstoneSpecs.length > 0 && (
+            <div className="mb-2 space-y-2">
+              {order.gemstoneSpecs.map((g) => (
+                <div key={g.id} className="flex items-start justify-between gap-2 rounded-lg bg-stone-50 p-3 text-sm">
+                  <div>
+                    <p className="font-medium text-ink-900">
+                      {g.gemstoneType} {g.caratWeight ? `· ${g.caratWeight}ct` : ""} {g.verified && <span className="badge bg-emerald-100 text-emerald-700 ml-1">Verified</span>}
+                    </p>
+                    <p className="text-xs text-stone-500">
+                      {[g.cut, g.color, g.clarity, g.origin, g.treatment].filter(Boolean).join(" · ") || "No further details recorded"}
+                      {g.supplier ? ` · Supplier: ${g.supplier.name}` : ""}
+                      {g.certificateNumber ? ` · Cert #${g.certificateNumber}` : ""}
+                    </p>
+                    {g.notes && <p className="mt-1 text-xs text-stone-500">{g.notes}</p>}
+                  </div>
+                  <form action={deleteOrderGemstoneSpec.bind(null, g.id)}>
+                    <button type="submit" className="text-red-600 hover:underline shrink-0" aria-label="Remove">
+                      <Trash size={14} />
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
+          )}
+          <form action={addOrderGemstoneSpec.bind(null, order.id)} encType="multipart/form-data" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <input className="input text-sm" name="gemstoneType" placeholder="Type (e.g. Sapphire)" required />
+            <input className="input text-sm" type="number" step="0.001" name="caratWeight" placeholder="Carat" />
+            <input className="input text-sm" name="dimensions" placeholder="Dimensions" />
+            <input className="input text-sm" name="cut" placeholder="Cut" />
+            <input className="input text-sm" name="color" placeholder="Colour" />
+            <input className="input text-sm" name="clarity" placeholder="Clarity" />
+            <input className="input text-sm" name="origin" placeholder="Origin — leave blank if unverified" />
+            <input className="input text-sm" name="treatment" placeholder="Treatment" />
+            <input className="input text-sm" name="certificateNumber" placeholder="Certificate #" />
+            <select className="input text-sm" name="supplierId" defaultValue="">
+              <option value="">No supplier on file</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <input className="input text-sm col-span-2" type="file" name="photos" accept="image/*" multiple />
+            <input className="input text-sm col-span-2" name="notes" placeholder="Notes" />
+            <button type="submit" className="btn-secondary text-sm col-span-2">Add gemstone</button>
+          </form>
+        </div>
+
+        <div className="border-t border-stone-100 pt-4">
+          <h3 className="mb-2 text-sm font-semibold text-ink-900">Components (findings, packaging, other)</h3>
+          {order.components.length > 0 && (
+            <ul className="mb-2 space-y-1 text-sm">
+              {order.components.map((c) => (
+                <li key={c.id} className="flex items-center justify-between">
+                  <span>{c.name} — est. {c.estimatedQty ?? "—"}{c.unit ? ` ${c.unit}` : ""}, actual {c.actualQty ?? "—"}</span>
+                  <form action={deleteOrderComponent.bind(null, c.id)}>
+                    <button type="submit" className="text-red-600 hover:underline" aria-label="Remove"><Trash size={14} /></button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form action={addOrderComponent.bind(null, order.id)} className="flex flex-wrap items-end gap-2">
+            <input className="input text-sm" name="name" placeholder="Component name" required />
+            <input className="input text-sm w-24" type="number" name="estimatedQty" placeholder="Est. qty" />
+            <input className="input text-sm w-24" type="number" name="actualQty" placeholder="Actual qty" />
+            <input className="input text-sm w-20" name="unit" placeholder="Unit" />
+            <button type="submit" className="btn-secondary text-sm">Add component</button>
+          </form>
+        </div>
+      </div>
+
+      <QCInspectionPanel
+        orderId={order.id}
+        inspections={order.qcInspections}
+        templates={qcTemplates}
+        canInspect={canInspect}
+        isAssigned={isAssigned}
+      />
+
+      {order.brand?.requiresGoldCertificates && (
+        <GoldCertificatePanel orderId={order.id} certificates={order.goldCertificates} canReview={canReviewCertificates} />
+      )}
+
+      <div className="card">
+        <h2 className="section-title mb-3">Work handovers</h2>
+        <form action={recordOrderHandover.bind(null, order.id)} encType="multipart/form-data" className="mb-3 flex flex-wrap items-end gap-2">
+          <select className="input text-sm" name="toStaffId" required defaultValue="">
+            <option value="" disabled>Hand over to…</option>
+            {assignableStaff.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <input className="input text-sm min-w-[200px] flex-1" name="materialsNote" placeholder="Materials transferred / notes" />
+          <input className="input text-sm" type="file" name="photos" accept="image/*" multiple />
+          <button type="submit" className="btn-secondary text-sm">Record handover</button>
+        </form>
+        {order.handovers.length === 0 ? (
+          <p className="text-sm text-stone-400">No handovers recorded yet.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {order.handovers.map((h) => (
+              <li key={h.id} className="flex items-center justify-between border-b border-stone-100 pb-1 last:border-0">
+                <span>
+                  {h.fromStaff?.name ?? "—"} → {h.toStaff.name} · {formatDateTime(h.handoverAt)}
+                  {h.materialsNote ? ` — ${h.materialsNote}` : ""}
+                </span>
+                <span className={`badge ${h.acknowledgedAt ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                  {h.acknowledgedAt ? "Acknowledged" : "Pending"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="card">

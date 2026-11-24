@@ -178,6 +178,33 @@ export function canCreateOrders(role: Role) {
   return ORDER_CREATOR_ROLES.includes(role);
 }
 
+const QC_INSPECTOR_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER", "CRAFTSMAN"];
+
+/** Who is eligible to perform a QC inspection at all — the "is this person the production staff on THIS order" independence check is separate, see requireIndependentInspector in src/lib/qc.ts. */
+export function canPerformQCInspection(role: Role) {
+  return QC_INSPECTOR_ROLES.includes(role);
+}
+
+/** Owner/Admin only — the QC checklist is a compliance control, same tier as every other configurable company-wide policy. */
+export function canEditQCChecklistTemplate(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
+/** Owner/Admin only — verifying a gold certificate (and therefore clearing an order to dispatch) is a compliance sign-off, not a routine order action. */
+export function canVerifyGoldCertificates(role: Role) {
+  return STAFF_MANAGER_ROLES.includes(role);
+}
+
+/** Owner/Admin/Manager manage the supply/tool catalog (add items, set reorder levels); same tier as Inventory/Purchasing. */
+export function canManageSupplyCatalog(role: Role) {
+  return STAFF_SCOPED_MANAGER_ROLES.includes(role);
+}
+
+/** Checking a tool out/in or issuing a supply is a routine workshop action — same audience as who can actually do the work, not just who manages the catalog. */
+export function canCheckOutSuppliesOrTools(role: Role) {
+  return QC_INSPECTOR_ROLES.includes(role);
+}
+
 /**
  * Returns a Prisma `where` fragment that scopes a query to the caller's
  * branch unless they hold a company-wide role, in which case `branchFilter`
