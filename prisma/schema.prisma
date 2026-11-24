@@ -273,6 +273,7 @@ model Staff {
   leaveReviews      LeaveRequest[]   @relation("LeaveReviewer")
   attendanceLogs    AttendanceLog[]
   repairOrdersAssigned RepairOrder[] @relation("RepairAssignedTo")
+  repairOrdersAssignedSales RepairOrder[] @relation("RepairAssignedSales")
   repairOrdersCreated  RepairOrder[] @relation("RepairCreatedBy")
   purchaseOrdersCreated PurchaseOrder[]
   groups            StaffGroup[]    @relation("GroupMembers")
@@ -792,6 +793,10 @@ model RepairOrder {
   finalCost           Float?
   relatedInventoryItemId String?
   assignedToId        String?
+  // The Sales staff who handled this customer stays attached to the order alongside the
+  // Craftsman doing the work — both stay jointly accountable until the customer's follow-up
+  // (e.g. a Google review) closes the loop, not just whoever did the intake.
+  assignedSalesId     String?
   createdById         String
   photos              String[]     @default([])
   notes               String?
@@ -803,11 +808,13 @@ model RepairOrder {
   branch               Branch        @relation(fields: [branchId], references: [id])
   relatedInventoryItem InventoryItem? @relation(fields: [relatedInventoryItemId], references: [id])
   assignedTo           Staff?         @relation("RepairAssignedTo", fields: [assignedToId], references: [id])
+  assignedSales        Staff?         @relation("RepairAssignedSales", fields: [assignedSalesId], references: [id])
   createdBy            Staff          @relation("RepairCreatedBy", fields: [createdById], references: [id])
 
   @@index([branchId])
   @@index([customerId])
   @@index([assignedToId])
+  @@index([assignedSalesId])
 }
 
 model Supplier {

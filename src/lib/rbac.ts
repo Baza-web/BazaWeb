@@ -72,6 +72,11 @@ export function canManageRepairs(role: Role) {
   return REPAIR_MANAGER_ROLES.includes(role);
 }
 
+/** Editing an order's core details or deleting it outright is tighter than day-to-day intake/assignment — Owner/Admin only. */
+export function canEditDeleteRepairs(role: Role) {
+  return role === "OWNER" || role === "ADMIN";
+}
+
 /** Same audience as Inventory — purchasing from suppliers restocks inventory. */
 export function canManagePurchasing(role: Role) {
   return INVENTORY_MANAGER_ROLES.includes(role);
