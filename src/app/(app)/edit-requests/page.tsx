@@ -20,11 +20,11 @@ export default async function EditRequestsPage() {
   if (!canReviewCustomerRequests(session.role)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
-  // Admin reviews Customer requests only — every other entity type stays Owner-only.
-  const adminOnlyCustomers = session.role !== "OWNER";
+  // Admin reviews Customer and Staff requests only — every other entity type stays Owner-only.
+  const adminFilteredTypes = session.role !== "OWNER";
 
   const requests = await db.editRequest.findMany({
-    where: adminOnlyCustomers ? { entityType: "CUSTOMER" } : undefined,
+    where: adminFilteredTypes ? { entityType: { in: ["CUSTOMER", "STAFF"] } } : undefined,
     include: { requestedBy: true, reviewedBy: true },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -40,7 +40,7 @@ export default async function EditRequestsPage() {
           <p className="text-sm text-stone-500">
             When anyone other than the Owner edits a staff profile, inventory item, customer, sale, or brand, the
             change shows up here for an Owner to approve or reject — nothing changes until you decide. Customer
-            edits by Sales staff can also be approved or rejected by an Admin.
+            and Staff edits by anyone else can also be approved or rejected by an Admin.
           </p>
         </div>
         <PrintButton selector="#pending-edit-requests" label="Print" />

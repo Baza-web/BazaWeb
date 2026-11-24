@@ -13,6 +13,9 @@ export const STAFF_SCOPED_MANAGER_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER"];
 /** Roles a Branch Manager is allowed to grant — never company-wide roles, to prevent privilege escalation. */
 export const MANAGER_GRANTABLE_ROLES: Role[] = ["MANAGER", "SALES", "CRAFTSMAN"];
 
+/** Roles an Admin is allowed to grant when changing someone's role — everything except Owner, so an Admin can never mint a new Owner-level account. Only an existing Owner can do that. */
+export const ADMIN_GRANTABLE_ROLES: Role[] = ["ADMIN", "MANAGER", "SALES", "ACCOUNTANT", "CRAFTSMAN", "CREATIVE"];
+
 export function isCompanyWide(role: Role) {
   return COMPANY_WIDE_ROLES.includes(role);
 }

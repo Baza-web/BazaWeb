@@ -5,7 +5,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, hashPassword } from "@/lib/auth";
-import { canManageStaffScoped, canManageStaff, canViewSalary, isCompanyWide, MANAGER_GRANTABLE_ROLES } from "@/lib/rbac";
+import type { Role } from "@prisma/client";
+import {
+  canManageStaffScoped,
+  canManageStaff,
+  canViewSalary,
+  isCompanyWide,
+  MANAGER_GRANTABLE_ROLES,
+  ADMIN_GRANTABLE_ROLES,
+  ROLE_LABELS,
+} from "@/lib/rbac";
 import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
 import { saveUploadedImages } from "@/lib/uploads";
@@ -166,6 +175,49 @@ export async function updateStaffProfile(staffId: string, formData: FormData) {
   revalidatePath("/edit-requests");
 }
 
+/**
+ * Owner/Admin only. An Admin can never set someone to Owner — only an existing Owner can
+ * create another Owner-level account, so that privilege can't be granted from a lower role.
+ *
+ * Returns { error } instead of throwing for the validation case: Next.js redacts a thrown
+ * Error's message in production builds, so the real reason would never reach the Owner/Admin
+ * on the live site even though it works fine in local dev (see deleteBranch for the same fix).
+ */
+export async function updateStaffRole(
+  staffId: string,
+  formData: FormData,
+): Promise<{ error: string } | { status: "applied" | "requested" }> {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+
+  const requestedRole = String(formData.get("role")) as Role;
+  const assignableRoles = session.role === "OWNER" ? (Object.keys(ROLE_LABELS) as Role[]) : ADMIN_GRANTABLE_ROLES;
+  if (!assignableRoles.includes(requestedRole)) {
+    return {
+      error:
+        session.role === "ADMIN" && requestedRole === "OWNER"
+          ? "Only an Owner can promote someone to Owner."
+          : "Invalid role.",
+    };
+  }
+
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+  if (staff.role === requestedRole) return { status: "applied" };
+
+  const result = await initiateEdit(
+    session,
+    "STAFF",
+    staffId,
+    staff.name,
+    `Role: ${ROLE_LABELS[staff.role]} → ${ROLE_LABELS[requestedRole]}`,
+    { role: requestedRole },
+  );
+  revalidatePath(`/staff/${staffId}`);
+  revalidatePath("/staff");
+  revalidatePath("/edit-requests");
+  return result;
+}
+
 const paySchema = z.object({
   baseSalary: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().min(0).optional()),
   bankName: z.string().optional(),
@@ -205,7 +257,7 @@ const passwordSchema = z.object({
   password: z.string().min(8),
 });
 
-/** Owner/Admin only — resets a staff member's login password. Owner's reset applies immediately; Admin's goes through the usual edit-approval flow, same as salary. */
+/** Owner/Admin only — resets a staff member's login password. Both apply immediately; anyone else requesting a Staff edit still queues, same as salary. */
 export async function setStaffPassword(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   if (!canManageStaff(session.role)) throw new Error("Forbidden");

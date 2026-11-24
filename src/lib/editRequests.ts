@@ -8,9 +8,12 @@ import { repostSaleJournalEntry, repostExpenseJournalEntry } from "./ledger";
 
 export type EditableEntityType = "STAFF" | "INVENTORY" | "CUSTOMER" | "SALE" | "BRAND" | "EXPENSE" | "BROKER";
 
-/** Customer requests also notify Admins, since Admin can review those too (every other entity type stays Owner-only). */
+/** Admin edits/reviews these entity types directly, same as Owner; every other type stays Owner-only. */
+const ADMIN_DIRECT_ENTITY_TYPES = new Set<EditableEntityType>(["CUSTOMER", "STAFF"]);
+
+/** Customer/Staff requests also notify Admins, since Admin can review those too (every other entity type stays Owner-only). */
 async function notifyReviewers(entityType: EditableEntityType, title: string, body: string, link: string) {
-  const roles = entityType === "CUSTOMER" ? (["OWNER", "ADMIN"] as const) : (["OWNER"] as const);
+  const roles = ADMIN_DIRECT_ENTITY_TYPES.has(entityType) ? (["OWNER", "ADMIN"] as const) : (["OWNER"] as const);
   const reviewers = await db.staff.findMany({ where: { role: { in: [...roles] }, active: true } });
   await Promise.all(reviewers.map((r) => notifyStaff(r.id, "SYSTEM", title, body, link)));
 }
@@ -117,7 +120,7 @@ export async function initiateEdit(
 ): Promise<{ status: "applied" | "requested" }> {
   await assertNoPendingRequest(entityType, entityId);
 
-  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && entityType === "CUSTOMER");
+  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(entityType));
   if (appliesImmediately) {
     await PERFORMERS[entityType](entityId, proposedData, session);
     return { status: "applied" };
@@ -155,7 +158,9 @@ export async function reviewEditRequest(session: SessionPayload, requestId: stri
   }
   // Admin may review Customer requests; every other entity type stays Owner-only, checked
   // here (not just in the page that lists these) so this can't be reached by guessing a URL.
-  const canReview = session.role === "OWNER" || (session.role === "ADMIN" && request.entityType === "CUSTOMER");
+  const canReview =
+    session.role === "OWNER" ||
+    (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(request.entityType as EditableEntityType));
   if (!canReview) throw new Error("Forbidden");
 
   if (decision === "APPROVED") {

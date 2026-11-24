@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageStaff, canManageStaffScoped, canViewSalary, isCompanyWide, ROLE_LABELS } from "@/lib/rbac";
+import { canManageStaff, canManageStaffScoped, canViewSalary, isCompanyWide, ROLE_LABELS, ADMIN_GRANTABLE_ROLES } from "@/lib/rbac";
 import { formatDate, formatDateTime, formatMoney, round2 } from "@/lib/utils";
 import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
 import { StaffPasswordForm } from "@/components/StaffPasswordForm";
+import { ChangeRoleForm } from "@/components/ChangeRoleForm";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
@@ -221,15 +222,37 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         </div>
       )}
 
+      {canManageStaff(session.role) && (
+        <div className="card print:hidden">
+          <h2 className="mb-3 font-medium">Role</h2>
+          <ChangeRoleForm
+            staffId={staff.id}
+            currentRole={staff.role}
+            disabled={!!pendingEdit}
+            roleOptions={(session.role === "OWNER" ? (Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]) : ADMIN_GRANTABLE_ROLES).map(
+              (r) => ({ value: r, label: ROLE_LABELS[r] }),
+            )}
+          />
+        </div>
+      )}
+
       <div className="card print:hidden">
         <h2 className="mb-3 font-medium">Edit HR details</h2>
-        <StaffProfileForm staff={staff} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
+        <StaffProfileForm
+          staff={staff}
+          disabled={!!pendingEdit}
+          requiresApproval={session.role !== "OWNER" && session.role !== "ADMIN"}
+        />
       </div>
 
       {showSalary && (
         <div className="card print:hidden">
           <h2 className="mb-3 font-medium">Salary & bank details</h2>
-          <StaffPayForm staff={staff} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
+          <StaffPayForm
+            staff={staff}
+            disabled={!!pendingEdit}
+            requiresApproval={session.role !== "OWNER" && session.role !== "ADMIN"}
+          />
         </div>
       )}
 
@@ -239,7 +262,11 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
           <p className="mb-3 text-xs text-stone-400">
             Sets a new password for this account — share it with {staff.name} directly, it won&apos;t be emailed.
           </p>
-          <StaffPasswordForm staffId={staff.id} disabled={!!pendingEdit} requiresApproval={session.role !== "OWNER"} />
+          <StaffPasswordForm
+            staffId={staff.id}
+            disabled={!!pendingEdit}
+            requiresApproval={session.role !== "OWNER" && session.role !== "ADMIN"}
+          />
         </div>
       )}
 
