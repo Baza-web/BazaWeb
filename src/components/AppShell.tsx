@@ -78,7 +78,7 @@ export function AppShell({
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur print:hidden sm:px-6">
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur print:hidden sm:px-6">
           <div className="flex items-center gap-1">
             <button
               type="button"
