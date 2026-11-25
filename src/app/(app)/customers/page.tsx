@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, isCompanyWide, canManageRewardProgram } from "@/lib/rbac";
-import { createCustomer, setRewardRateAction } from "./actions";
+import { branchScope, isCompanyWide, canManageRewardProgram, canDeleteOrRequestCustomer } from "@/lib/rbac";
+import { createCustomer, setRewardRateAction, deleteCustomerPermanently } from "./actions";
 import { PrintButton } from "@/components/PrintButton";
 import { ExportButton } from "@/components/ExportButton";
+import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 import { EnvelopeSimple, Gift } from "@/components/icons";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { computeRfmStats, classifyRfmSegment, RFM_SEGMENT_LABELS, type RfmSegment } from "@/lib/rfm";
@@ -34,6 +35,7 @@ export default async function CustomersPage({
   const { q, tag, segment: segmentFilter, stage } = await searchParams;
 
   const canManageRewards = canManageRewardProgram(session.roles);
+  const canDelete = canDeleteOrRequestCustomer(session.roles);
   const [allForTags, branches, rewardSettings] = await Promise.all([
     db.customer.findMany({ where: branchScope(session), select: { tags: true } }),
     isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
@@ -141,6 +143,7 @@ export default async function CustomersPage({
               <th>Segment</th>
               <th>Tags</th>
               <th>Rewards</th>
+              {canDelete && <th className="print:hidden">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -181,11 +184,27 @@ export default async function CustomersPage({
                 </td>
                 <td className="max-w-[160px] truncate text-xs text-stone-500">{c.tags.join(", ") || "—"}</td>
                 <td className="text-amber-700">{c.rewardBalance > 0 ? formatMoney(c.rewardBalance) : "—"}</td>
+                {canDelete && (
+                  <td className="print:hidden">
+                    <div className="flex items-center gap-3">
+                      <Link href={`/customers/${c.id}`} className="text-xs text-brand-700 hover:underline">
+                        Edit
+                      </Link>
+                      <DeleteRecordButton
+                        action={deleteCustomerPermanently.bind(null, c.id)}
+                        label="customer"
+                        isOwner={session.role === "OWNER" || session.role === "ADMIN"}
+                        confirmMessage={`Permanently delete ${c.name}? This can't be undone.`}
+                        requestMessage={`Request permanent deletion of ${c.name}? An Admin or Owner will need to approve it before anything happens.`}
+                      />
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-6 text-center text-stone-400">
+                <td colSpan={canDelete ? 10 : 9} className="py-6 text-center text-stone-400">
                   No customers yet.
                 </td>
               </tr>
