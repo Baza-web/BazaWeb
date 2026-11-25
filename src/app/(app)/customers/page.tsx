@@ -68,11 +68,14 @@ export default async function CustomersPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h1 className="page-title">Customers</h1>
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <ExportButton href={`/api/export/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`} />
           <PrintButton selector="#customers-table" />
+          <Link href="/customers/bulk-add" className="btn-secondary">
+            Import
+          </Link>
         </div>
       </div>
 

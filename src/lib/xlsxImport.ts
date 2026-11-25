@@ -42,6 +42,42 @@ export async function parseImportSheet(buffer: Buffer): Promise<ParsedImportRow[
   return rows;
 }
 
+export type PlainRow = { rowNumber: number; cells: Record<string, string | number | Date | null> };
+
+/**
+ * Reads a plain template-style sheet (no hidden Record ID column — row 1 is
+ * headers, column A is a normal data column) for the bulk-CREATE flow: unlike
+ * parseImportSheet, every uploaded row is a brand-new record, not a match
+ * against an existing one, so there's nothing to key off.
+ */
+export async function parsePlainSheet(buffer: Buffer): Promise<PlainRow[]> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.worksheets[0];
+  if (!sheet) return [];
+
+  const headers: string[] = [];
+  sheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headers[colNumber] = String(cell.value ?? "").trim();
+  });
+
+  const rows: PlainRow[] = [];
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const cells: Record<string, string | number | Date | null> = {};
+    let hasAnyValue = false;
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const header = headers[colNumber];
+      if (!header) return;
+      const value = normalizeCellValue(cell.value);
+      if (value !== null && value !== "") hasAnyValue = true;
+      cells[header] = value;
+    });
+    if (hasAnyValue) rows.push({ rowNumber, cells });
+  });
+  return rows;
+}
+
 function normalizeCellValue(value: ExcelJS.CellValue): string | number | Date | null {
   if (value == null) return null;
   if (value instanceof Date) return value;

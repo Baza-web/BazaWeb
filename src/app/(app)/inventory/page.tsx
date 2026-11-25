@@ -74,6 +74,11 @@ export default async function InventoryPage({
           />
           <PrintButton selector="#inventory-table" />
           {canAdd && (
+            <Link href="/inventory/bulk-add" className="btn-secondary print:hidden">
+              Import
+            </Link>
+          )}
+          {canAdd && (
             <Link href="/inventory/new" className="btn-primary print:hidden">
               <Plus size={16} aria-hidden="true" />
               Add item

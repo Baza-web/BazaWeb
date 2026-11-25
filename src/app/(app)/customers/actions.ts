@@ -9,7 +9,8 @@ import { branchScope, isCompanyWide, canDeleteOrRequestCustomer, canManageReward
 import { initiateEdit } from "@/lib/editRequests";
 import { initiateDeletion } from "@/lib/deletion";
 import { redeemRewards, setRewardRate } from "@/lib/rewards";
-import type { CustomerStage } from "@prisma/client";
+import { parsePlainSheet, type PlainRow } from "@/lib/xlsxImport";
+import type { CustomerStage, Prisma } from "@prisma/client";
 
 const STAGE_LABELS: Record<CustomerStage, string> = { LEAD: "Lead", PROSPECT: "Prospect", CUSTOMER: "Customer" };
 
@@ -220,4 +221,115 @@ export async function deleteCustomerPermanently(customerId: string, formData: Fo
   revalidatePath("/customers");
   revalidatePath("/deletion-requests");
   return result;
+}
+
+export type BulkCreateCustomerRow = {
+  rowNumber: number;
+  label: string;
+  errors: string[];
+  data: Record<string, unknown> | null;
+};
+
+function cellText(cells: PlainRow["cells"], header: string): string {
+  const v = cells[header];
+  return v == null ? "" : String(v).trim();
+}
+
+function cellDate(cells: PlainRow["cells"], header: string): { value: Date | undefined; error?: string } {
+  const raw = cells[header];
+  if (raw == null || raw === "") return { value: undefined };
+  const d = raw instanceof Date ? raw : new Date(String(raw));
+  if (Number.isNaN(d.getTime())) return { value: undefined, error: `${header}: not a valid date` };
+  return { value: d };
+}
+
+function parseCustomerCreateRow(
+  row: PlainRow,
+  ctx: { companyWide: boolean; defaultBranchId: string | null; branchByName: Map<string, string> },
+): BulkCreateCustomerRow {
+  const errors: string[] = [];
+  const name = cellText(row.cells, "Name");
+  if (!name || name.length < 2) errors.push("Name is required (at least 2 characters).");
+
+  const email = cellText(row.cells, "Email");
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.push("Email is not a valid address.");
+
+  let branchId = ctx.defaultBranchId;
+  const branchText = cellText(row.cells, "Branch");
+  if (branchText) {
+    const match = ctx.branchByName.get(branchText.toLowerCase());
+    if (!match) errors.push(`Branch "${branchText}" doesn't match any existing branch.`);
+    else branchId = match;
+  } else if (ctx.companyWide) {
+    errors.push("Branch is required.");
+  }
+
+  const birthday = cellDate(row.cells, "Birthday");
+  if (birthday.error) errors.push(birthday.error);
+  const anniversary = cellDate(row.cells, "Anniversary");
+  if (anniversary.error) errors.push(anniversary.error);
+
+  const label = name || `Row ${row.rowNumber}`;
+  if (errors.length > 0 || !branchId) {
+    if (!branchId && errors.length === 0) errors.push("Branch is required.");
+    return { rowNumber: row.rowNumber, label, errors, data: null };
+  }
+
+  return {
+    rowNumber: row.rowNumber,
+    label,
+    errors: [],
+    data: {
+      name,
+      phone: cellText(row.cells, "Phone") || null,
+      email: email || null,
+      address: cellText(row.cells, "Address") || null,
+      birthday: birthday.value ?? null,
+      anniversary: anniversary.value ?? null,
+      branchId,
+    },
+  };
+}
+
+/** Parses an uploaded "add new customers" sheet and validates each row, without creating anything yet. Same audience as the single Add-customer form — any logged-in staff member. */
+export async function previewBulkCreateCustomers(formData: FormData): Promise<{ batchId: string | null; rows: BulkCreateCustomerRow[] }> {
+  const session = await requireSessionOrRedirect();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Choose a .xlsx file first.");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const parsedRows = await parsePlainSheet(buffer);
+  if (parsedRows.length === 0) throw new Error("No rows found in that file.");
+
+  const branches = await db.branch.findMany({ select: { id: true, name: true } });
+  const ctx = {
+    companyWide: isCompanyWide(session.roles),
+    defaultBranchId: session.branchId,
+    branchByName: new Map(branches.map((b) => [b.name.toLowerCase(), b.id])),
+  };
+
+  const rows = parsedRows.map((row) => parseCustomerCreateRow(row, ctx));
+  const batch = await db.importBatch.create({
+    data: { entityType: "CUSTOMER_CREATE", createdById: session.staffId, rowsJson: rows as unknown as object },
+  });
+  return { batchId: batch.id, rows };
+}
+
+/** Creates the selected, error-free rows from a previewed bulk-create batch. */
+export async function applyBulkCreateCustomers(batchId: string, selectedRowNumbers: number[]) {
+  const session = await requireSessionOrRedirect();
+
+  const batch = await db.importBatch.findUniqueOrThrow({ where: { id: batchId } });
+  if (batch.createdById !== session.staffId || batch.entityType !== "CUSTOMER_CREATE") throw new Error("Forbidden");
+
+  const rows = batch.rowsJson as unknown as BulkCreateCustomerRow[];
+  const selected = new Set(selectedRowNumbers);
+  const toCreate = rows.filter((r) => selected.has(r.rowNumber) && r.errors.length === 0 && r.data);
+
+  if (toCreate.length > 0) {
+    await db.customer.createMany({ data: toCreate.map((r) => r.data) as Prisma.CustomerCreateManyInput[] });
+  }
+  await db.importBatch.delete({ where: { id: batchId } });
+  revalidatePath("/customers");
+  return { created: toCreate.length };
 }
