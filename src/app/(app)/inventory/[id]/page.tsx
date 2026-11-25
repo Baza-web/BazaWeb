@@ -2,7 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canManageInventory, canViewCost, canViewSellingPrice } from "@/lib/rbac";
+import { canManageInventory, canViewCost, canViewSellingPrice, isCompanyWide } from "@/lib/rbac";
 import { formatMoney, formatDateTime, formatDate } from "@/lib/utils";
 import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink, updateInventoryItem } from "../actions";
 import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
@@ -40,21 +40,27 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
   const session = await requireSessionOrRedirect();
   const { id } = await params;
 
+  // Inventory stock is visible company-wide — any staff member can open any item's detail
+  // page, same as the list (see inventory/page.tsx). Editing stays scoped below.
   const item = await db.inventoryItem.findFirst({
-    where: { id, ...branchScope(session) },
+    where: { id },
     include: { branch: true, brand: true, saleItems: { include: { sale: true } } },
   });
   if (!item) notFound();
 
+  // Owner/Admin/Accountant manage any branch; everyone else can only edit items that
+  // belong to their own branch, even though they can now *view* any branch's stock.
+  const canEditThisItem = canManageInventory(session.roles) && (isCompanyWide(session.roles) || item.branchId === session.branchId);
+
   const [pendingEdit, brands, gemstoneTypes, clarities, cuts, certifications] = await Promise.all([
-    canManageInventory(session.roles)
+    canEditThisItem
       ? db.editRequest.findFirst({ where: { entityType: "INVENTORY", entityId: item.id, status: "PENDING" } })
       : Promise.resolve(null),
-    canManageInventory(session.roles) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
-    canManageInventory(session.roles) ? attributeOptions("GEMSTONE_TYPE") : Promise.resolve([]),
-    canManageInventory(session.roles) ? attributeOptions("CLARITY") : Promise.resolve([]),
-    canManageInventory(session.roles) ? attributeOptions("CUT") : Promise.resolve([]),
-    canManageInventory(session.roles) ? attributeOptions("CERTIFICATION") : Promise.resolve([]),
+    canEditThisItem ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    canEditThisItem ? attributeOptions("GEMSTONE_TYPE") : Promise.resolve([]),
+    canEditThisItem ? attributeOptions("CLARITY") : Promise.resolve([]),
+    canEditThisItem ? attributeOptions("CUT") : Promise.resolve([]),
+    canEditThisItem ? attributeOptions("CERTIFICATION") : Promise.resolve([]),
   ]);
 
   const detail: { label: string; value: string | null }[] = [
@@ -157,7 +163,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      {canManageInventory(session.roles) && (
+      {canEditThisItem && (
         <div className="card">
           <p className="mb-2 text-sm font-medium">Status: {item.status.replace("_", " ")}</p>
           <form action={updateInventoryStatus.bind(null, item.id)} className="flex gap-2 print:hidden">
@@ -180,7 +186,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      {canManageInventory(session.roles) && (
+      {canEditThisItem && (
         <div className="card print:hidden">
           <p className="mb-3 text-sm font-medium">Edit item details</p>
           <form action={updateInventoryItem.bind(null, item.id)} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -336,7 +342,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         ) : (
           <p className="mb-3 text-sm text-stone-400">No certificates or documents uploaded yet.</p>
         )}
-        {canManageInventory(session.roles) && (
+        {canEditThisItem && (
           <form
             action={addInventoryDocuments.bind(null, item.id)}
             encType="multipart/form-data"
@@ -368,7 +374,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         ) : (
           <p className="mb-3 text-sm text-stone-400">No Drive link added yet.</p>
         )}
-        {canManageInventory(session.roles) && (
+        {canEditThisItem && (
           <form
             action={updateInventoryDriveLink.bind(null, item.id)}
             className="mt-3 flex flex-wrap items-center gap-2"

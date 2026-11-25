@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canViewCost, canViewSellingPrice, canDeleteOrRequest, canManageInventory } from "@/lib/rbac";
+import { canViewCost, canViewSellingPrice, canDeleteOrRequest, canManageInventory } from "@/lib/rbac";
 import { formatMoney } from "@/lib/utils";
 import { deleteInventoryItemPermanently } from "./actions";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
@@ -20,19 +20,23 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; brandId?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; brandId?: string; branchId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
   const showCost = canViewCost(session.roles);
   const showSelling = canViewSellingPrice(session.roles);
   const canDelete = canDeleteOrRequest(session.roles);
   const canAdd = canManageInventory(session.roles);
-  const { q, status, brandId } = await searchParams;
+  const { q, status, brandId, branchId } = await searchParams;
 
-  const [items, brands] = await Promise.all([
+  // Inventory stock is visible company-wide to every role — every staff member can see
+  // what's in stock at any branch (price visibility is still tiered, see canViewCost/
+  // canViewSellingPrice above). This is intentionally broader than branchScope(), which
+  // still gates who can EDIT a given item (see canEditThisItem in [id]/page.tsx).
+  const [items, brands, branches] = await Promise.all([
     db.inventoryItem.findMany({
       where: {
-        ...branchScope(session),
+        ...(branchId ? { branchId } : {}),
         ...(status ? { status: status as never } : {}),
         ...(brandId ? { brandId } : {}),
         ...(q
@@ -50,6 +54,7 @@ export default async function InventoryPage({
       take: 200,
     }),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    db.branch.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const lowStock = items.filter((i) => i.status === "IN_STOCK" && i.quantity <= i.lowStockAt);
@@ -64,6 +69,7 @@ export default async function InventoryPage({
               ...(q ? { q } : {}),
               ...(status ? { status } : {}),
               ...(brandId ? { brandId } : {}),
+              ...(branchId ? { branchId } : {}),
             }).toString()}`}
           />
           <PrintButton selector="#inventory-table" />
@@ -106,6 +112,16 @@ export default async function InventoryPage({
           <select className="input max-w-[180px]" name="brandId" defaultValue={brandId ?? ""}>
             <option value="">All brands</option>
             {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {branches.length > 1 && (
+          <select className="input max-w-[180px]" name="branchId" defaultValue={branchId ?? ""}>
+            <option value="">All branches</option>
+            {branches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
               </option>
@@ -192,9 +208,9 @@ export default async function InventoryPage({
                   colSpan={8 + (showCost ? 1 : 0) + (showSelling ? 1 : 0) + (canDelete ? 1 : 0)}
                   className="py-6 text-center text-stone-400"
                 >
-                  {q || status || brandId
+                  {q || status || brandId || branchId
                     ? "No items match your search or filters."
-                    : "No inventory items yet for your branch — ask an Owner/Admin/Manager to add stock, or check that you're assigned to the right branch."}
+                    : "No inventory items recorded yet — use Add item to get started."}
                 </td>
               </tr>
             )}

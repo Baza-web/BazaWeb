@@ -1,19 +1,21 @@
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { branchScope, canViewCost, canViewSellingPrice } from "@/lib/rbac";
+import { canViewCost, canViewSellingPrice } from "@/lib/rbac";
 import { buildExportSheet, xlsxResponse, timestampedFilename, type ExportColumn } from "@/lib/xlsxExport";
 
 type Row = Awaited<ReturnType<typeof getItems>>[number];
 
+// Matches the inventory list page: stock is visible company-wide to every role, so the
+// export isn't branch-scoped either. Price-tier visibility is still enforced below.
 async function getItems(
-  session: Awaited<ReturnType<typeof requireSession>>,
   q?: string,
   status?: string,
   brandId?: string,
+  branchId?: string,
 ) {
   return db.inventoryItem.findMany({
     where: {
-      ...branchScope(session),
+      ...(branchId ? { branchId } : {}),
       ...(status ? { status: status as never } : {}),
       ...(brandId ? { brandId } : {}),
       ...(q
@@ -68,7 +70,8 @@ export async function GET(request: Request) {
   const q = searchParams.get("q") ?? undefined;
   const status = searchParams.get("status") ?? undefined;
   const brandId = searchParams.get("brandId") ?? undefined;
-  const items = await getItems(session, q, status, brandId);
+  const branchId = searchParams.get("branchId") ?? undefined;
+  const items = await getItems(q, status, brandId, branchId);
   const showCost = canViewCost(session.roles);
   const showSelling = canViewSellingPrice(session.roles);
 
