@@ -6,8 +6,7 @@ import { formatDate, formatDateTime, formatMoney, round2 } from "@/lib/utils";
 import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
 import { StaffPasswordForm } from "@/components/StaffPasswordForm";
-import { ChangeRoleForm } from "@/components/ChangeRoleForm";
-import { AdditionalRolesForm } from "@/components/AdditionalRolesForm";
+import { RolesPicker } from "@/components/RolesPicker";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
@@ -229,33 +228,16 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
       )}
 
       {canManageStaff(session.roles) && (
-        <div className="card print:hidden">
-          <h2 className="mb-3 font-medium">Role</h2>
-          <ChangeRoleForm
+        <div className="card overflow-visible print:hidden">
+          <h2 className="mb-3 font-medium">Roles</h2>
+          <RolesPicker
             staffId={staff.id}
             currentRole={staff.role}
+            currentAdditionalRoles={staff.additionalRoles}
             disabled={!!pendingEdit}
             roleOptions={(session.roles.includes("OWNER") ? (Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]) : ADMIN_GRANTABLE_ROLES).map(
               (r) => ({ value: r, label: ROLE_LABELS[r] }),
             )}
-          />
-        </div>
-      )}
-
-      {canManageStaff(session.roles) && (
-        <div className="card print:hidden">
-          <h2 className="mb-1 font-medium">Extra roles</h2>
-          <p className="mb-3 text-xs text-stone-400">
-            On top of their primary role above — e.g. a Craftsman who also covers Sales. Permissions are the
-            union of everything ticked here plus the primary role; up to 2 extras (3 roles total).
-          </p>
-          <AdditionalRolesForm
-            staffId={staff.id}
-            currentAdditionalRoles={staff.additionalRoles}
-            disabled={!!pendingEdit}
-            roleOptions={(session.roles.includes("OWNER") ? (Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]) : ADMIN_GRANTABLE_ROLES)
-              .filter((r) => r !== staff.role)
-              .map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
           />
         </div>
       )}
