@@ -44,26 +44,65 @@ export async function parseImportSheet(buffer: Buffer): Promise<ParsedImportRow[
 
 export type PlainRow = { rowNumber: number; cells: Record<string, string | number | Date | null> };
 
+function normalizeHeaderText(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 /**
- * Reads a plain template-style sheet (no hidden Record ID column — row 1 is
- * headers, column A is a normal data column) for the bulk-CREATE flow: unlike
- * parseImportSheet, every uploaded row is a brand-new record, not a match
- * against an existing one, so there's nothing to key off.
+ * Reads a plain template-style sheet (no hidden Record ID column) for the
+ * bulk-CREATE flow: unlike parseImportSheet, every uploaded row is a
+ * brand-new record, not a match against an existing one, so there's nothing
+ * to key off.
+ *
+ * `expectedHeaders` is the template's own header list. Real-world uploads
+ * reliably break two assumptions a strict "row 1 = headers" reader would
+ * make: a title/note row gets added above the real header row (common when
+ * someone edits the template in a phone spreadsheet app), and header casing
+ * or spacing drifts ("name " vs "Name"). So instead of assuming row 1, this
+ * scans the first several rows and picks whichever one matches the most
+ * expected headers (case/whitespace-insensitively), then normalizes each
+ * matched header back to the template's own spelling so the field parsers
+ * below can look cells up by exact expected name regardless of how the
+ * uploaded file actually spelled it.
  */
-export async function parsePlainSheet(buffer: Buffer): Promise<PlainRow[]> {
+export async function parsePlainSheet(buffer: Buffer, expectedHeaders: string[]): Promise<PlainRow[]> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return [];
+  if (workbook.worksheets.length === 0) return [];
+
+  const expectedByNormalized = new Map(expectedHeaders.map((h) => [normalizeHeaderText(h), h]));
+
+  // Also guard against the real data ending up on a different tab than the
+  // first one (e.g. someone duplicated the template inside a phone
+  // spreadsheet app and left an extra tab ahead of it) — score every sheet's
+  // best header row and use whichever sheet+row combination matches best.
+  let sheet = workbook.worksheets[0];
+  let headerRowNumber = 1;
+  let bestMatches = -1;
+  for (const candidate of workbook.worksheets) {
+    const scanLimit = Math.min(10, candidate.rowCount || 1);
+    for (let r = 1; r <= scanLimit; r++) {
+      let matches = 0;
+      candidate.getRow(r).eachCell({ includeEmpty: true }, (cell) => {
+        if (expectedByNormalized.has(normalizeHeaderText(String(cell.value ?? "")))) matches++;
+      });
+      if (matches > bestMatches) {
+        bestMatches = matches;
+        sheet = candidate;
+        headerRowNumber = r;
+      }
+    }
+  }
 
   const headers: string[] = [];
-  sheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
-    headers[colNumber] = String(cell.value ?? "").trim();
+  sheet.getRow(headerRowNumber).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    const raw = String(cell.value ?? "").trim();
+    headers[colNumber] = expectedByNormalized.get(normalizeHeaderText(raw)) ?? raw;
   });
 
   const rows: PlainRow[] = [];
   sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
+    if (rowNumber <= headerRowNumber) return;
     const cells: Record<string, string | number | Date | null> = {};
     let hasAnyValue = false;
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {

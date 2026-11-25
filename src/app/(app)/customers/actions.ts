@@ -10,6 +10,7 @@ import { initiateEdit } from "@/lib/editRequests";
 import { initiateDeletion } from "@/lib/deletion";
 import { redeemRewards, setRewardRate } from "@/lib/rewards";
 import { parsePlainSheet, type PlainRow } from "@/lib/xlsxImport";
+import { customerBulkCreateHeaders } from "@/lib/bulkCreateColumns";
 import type { CustomerStage, Prisma } from "@prisma/client";
 
 const STAGE_LABELS: Record<CustomerStage, string> = { LEAD: "Lead", PROSPECT: "Prospect", CUSTOMER: "Customer" };
@@ -298,7 +299,7 @@ export async function previewBulkCreateCustomers(formData: FormData): Promise<{ 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose a .xlsx file first.");
   const buffer = Buffer.from(await file.arrayBuffer());
-  const parsedRows = await parsePlainSheet(buffer);
+  const parsedRows = await parsePlainSheet(buffer, customerBulkCreateHeaders());
   if (parsedRows.length === 0) throw new Error("No rows found in that file.");
 
   const branches = await db.branch.findMany({ select: { id: true, name: true } });

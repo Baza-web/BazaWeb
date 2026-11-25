@@ -12,6 +12,7 @@ import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
 import { formatMoney } from "@/lib/utils";
 import { parsePlainSheet, type PlainRow } from "@/lib/xlsxImport";
+import { inventoryBulkCreateHeaders } from "@/lib/bulkCreateColumns";
 
 /**
  * Lets whoever can already create/edit inventory items add a new canonical name to one of
@@ -463,7 +464,7 @@ export async function previewBulkCreateInventory(formData: FormData): Promise<{ 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose a .xlsx file first.");
   const buffer = Buffer.from(await file.arrayBuffer());
-  const parsedRows = await parsePlainSheet(buffer);
+  const parsedRows = await parsePlainSheet(buffer, inventoryBulkCreateHeaders(canViewCost(session.roles)));
   if (parsedRows.length === 0) throw new Error("No rows found in that file.");
 
   const [branches, brands, existing] = await Promise.all([
