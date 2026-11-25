@@ -2,7 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canManageInventory, canViewCost } from "@/lib/rbac";
+import { branchScope, canManageInventory, canViewCost, canViewSellingPrice } from "@/lib/rbac";
 import { formatMoney, formatDateTime, formatDate } from "@/lib/utils";
 import { updateInventoryStatus, addInventoryDocuments, updateInventoryDriveLink, updateInventoryItem } from "../actions";
 import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
@@ -131,10 +131,12 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
             <p className="font-medium">{formatMoney(item.costPrice)}</p>
           </div>
         )}
-        <div>
-          <p className="text-xs text-stone-500">Selling price</p>
-          <p className="font-medium">{formatMoney(item.sellingPrice)}</p>
-        </div>
+        {canViewSellingPrice(session.roles) && (
+          <div>
+            <p className="text-xs text-stone-500">Selling price</p>
+            <p className="font-medium">{formatMoney(item.sellingPrice)}</p>
+          </div>
+        )}
         <div>
           <p className="text-xs text-stone-500">Quantity</p>
           <p className="flex items-center gap-2 font-medium">
@@ -270,10 +272,14 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
                 <input className="input" type="number" step="0.01" name="costPrice" defaultValue={item.costPrice} disabled={!!pendingEdit} required />
               </div>
             )}
-            <div>
-              <label className="label">Selling price</label>
-              <input className="input" type="number" step="0.01" name="sellingPrice" defaultValue={item.sellingPrice} disabled={!!pendingEdit} required />
-            </div>
+            {canViewSellingPrice(session.roles) ? (
+              <div>
+                <label className="label">Selling price</label>
+                <input className="input" type="number" step="0.01" name="sellingPrice" defaultValue={item.sellingPrice} disabled={!!pendingEdit} required />
+              </div>
+            ) : (
+              <input type="hidden" name="sellingPrice" value={item.sellingPrice} />
+            )}
             <div>
               <label className="label">Low stock at</label>
               <input className="input" type="number" name="lowStockAt" defaultValue={item.lowStockAt} disabled={!!pendingEdit} />
@@ -381,7 +387,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         )}
       </div>
 
-      {item.saleItems.length > 0 && (
+      {item.saleItems.length > 0 && canViewSellingPrice(session.roles) && (
         <div className="card">
           <p className="mb-2 text-sm font-medium">Sale history</p>
           <ul className="space-y-1 text-sm">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { branchScope, canViewCost, canDeleteOrRequest } from "@/lib/rbac";
+import { branchScope, canViewCost, canViewSellingPrice, canDeleteOrRequest, canManageInventory } from "@/lib/rbac";
 import { formatMoney } from "@/lib/utils";
 import { deleteInventoryItemPermanently } from "./actions";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
@@ -24,7 +24,9 @@ export default async function InventoryPage({
 }) {
   const session = await requireSessionOrRedirect();
   const showCost = canViewCost(session.roles);
+  const showSelling = canViewSellingPrice(session.roles);
   const canDelete = canDeleteOrRequest(session.roles);
+  const canAdd = canManageInventory(session.roles);
   const { q, status, brandId } = await searchParams;
 
   const [items, brands] = await Promise.all([
@@ -65,10 +67,12 @@ export default async function InventoryPage({
             }).toString()}`}
           />
           <PrintButton selector="#inventory-table" />
-          <Link href="/inventory/new" className="btn-primary print:hidden">
-            <Plus size={16} aria-hidden="true" />
-            Add item
-          </Link>
+          {canAdd && (
+            <Link href="/inventory/new" className="btn-primary print:hidden">
+              <Plus size={16} aria-hidden="true" />
+              Add item
+            </Link>
+          )}
         </div>
       </div>
 
@@ -127,7 +131,7 @@ export default async function InventoryPage({
               <th>Brand</th>
               <th>Qty</th>
               {showCost && <th>Cost</th>}
-              <th>Price</th>
+              {showSelling && <th>Price</th>}
               <th>Status</th>
               {canDelete && <th className="print:hidden">Actions</th>}
             </tr>
@@ -158,7 +162,7 @@ export default async function InventoryPage({
                   )}
                 </td>
                 {showCost && <td>{formatMoney(item.costPrice)}</td>}
-                <td>{formatMoney(item.sellingPrice)}</td>
+                {showSelling && <td>{formatMoney(item.sellingPrice)}</td>}
                 <td>
                   <span className={`badge ${STATUS_COLORS[item.status]}`}>
                     {item.status.replace("_", " ")}
@@ -184,8 +188,13 @@ export default async function InventoryPage({
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={showCost ? (canDelete ? 11 : 10) : canDelete ? 10 : 9} className="py-6 text-center text-stone-400">
-                  No items match.
+                <td
+                  colSpan={8 + (showCost ? 1 : 0) + (showSelling ? 1 : 0) + (canDelete ? 1 : 0)}
+                  className="py-6 text-center text-stone-400"
+                >
+                  {q || status || brandId
+                    ? "No items match your search or filters."
+                    : "No inventory items yet for your branch — ask an Owner/Admin/Manager to add stock, or check that you're assigned to the right branch."}
                 </td>
               </tr>
             )}

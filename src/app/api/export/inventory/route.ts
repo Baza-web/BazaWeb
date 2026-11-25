@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { branchScope, canViewCost } from "@/lib/rbac";
+import { branchScope, canViewCost, canViewSellingPrice } from "@/lib/rbac";
 import { buildExportSheet, xlsxResponse, timestampedFilename, type ExportColumn } from "@/lib/xlsxExport";
 
 type Row = Awaited<ReturnType<typeof getItems>>[number];
@@ -32,7 +32,7 @@ async function getItems(
   });
 }
 
-function buildColumns(showCost: boolean): ExportColumn<Row>[] {
+function buildColumns(showCost: boolean, showSelling: boolean): ExportColumn<Row>[] {
   const cols: ExportColumn<Row>[] = [
     { header: "SKU", value: (r) => r.sku, width: 16 },
     { header: "Name", value: (r) => r.name, width: 26 },
@@ -47,8 +47,8 @@ function buildColumns(showCost: boolean): ExportColumn<Row>[] {
     { header: "Carat weight", value: (r) => r.caratWeight, width: 12 },
   ];
   if (showCost) cols.push({ header: "Cost price", value: (r) => r.costPrice, format: "money", width: 14 });
+  if (showSelling) cols.push({ header: "Selling price", value: (r) => r.sellingPrice, format: "money", width: 14 });
   cols.push(
-    { header: "Selling price", value: (r) => r.sellingPrice, format: "money", width: 14 },
     { header: "Quantity", value: (r) => r.quantity, width: 10 },
     { header: "Low stock at", value: (r) => r.lowStockAt, width: 12 },
     { header: "Status", value: (r) => r.status, width: 14 },
@@ -70,7 +70,8 @@ export async function GET(request: Request) {
   const brandId = searchParams.get("brandId") ?? undefined;
   const items = await getItems(session, q, status, brandId);
   const showCost = canViewCost(session.roles);
+  const showSelling = canViewSellingPrice(session.roles);
 
-  const buffer = await buildExportSheet("Inventory", buildColumns(showCost), items, (r) => r.id);
+  const buffer = await buildExportSheet("Inventory", buildColumns(showCost, showSelling), items, (r) => r.id);
   return xlsxResponse(buffer, timestampedFilename("inventory"));
 }

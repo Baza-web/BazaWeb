@@ -132,9 +132,17 @@ export function canAddOrDeleteBranches(roles: Role | Role[]) {
   return hasAny(roles, ["OWNER"]);
 }
 
-/** Owner/Admin only — what an item cost the business is commercially sensitive; everyone else sees only the selling price. */
+const COST_PRICE_VIEWER_ROLES: Role[] = ["OWNER", "ADMIN", "ACCOUNTANT"];
+
+/** Owner/Admin/Accountant — what an item cost the business is commercially sensitive. */
 export function canViewCost(roles: Role | Role[]) {
-  return hasAny(roles, STAFF_MANAGER_ROLES);
+  return hasAny(roles, COST_PRICE_VIEWER_ROLES);
+}
+
+/** Everyone except Creative — Creative plans content from an item's details alone, with no price exposure (cost or selling) at all. */
+const PRICE_VISIBLE_ROLES: Role[] = ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT", "CRAFTSMAN"];
+export function canViewSellingPrice(roles: Role | Role[]) {
+  return hasAny(roles, PRICE_VISIBLE_ROLES);
 }
 
 /** Owner/Admin only — salary and bank details are more sensitive than the rest of a staff profile, which Manager can already see/edit. */

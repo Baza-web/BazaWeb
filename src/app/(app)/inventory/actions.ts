@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { InventoryAttributeKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
-import { branchScope, canManageInventory, canDeleteOrRequest, canViewCost, isCompanyWide } from "@/lib/rbac";
+import { branchScope, canManageInventory, canDeleteOrRequest, canViewCost, canViewSellingPrice, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedImages } from "@/lib/uploads";
 import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
@@ -277,7 +277,10 @@ export async function updateInventoryItem(itemId: string, formData: FormData) {
     // nothing in formData to read — keep the item's existing cost rather than let a missing
     // field coerce to 0 and silently wipe it.
     costPrice: canViewCost(session.roles) ? formData.get("costPrice") : item.costPrice,
-    sellingPrice: formData.get("sellingPrice"),
+    // Same reasoning as costPrice above — Creative (the one role without canViewSellingPrice)
+    // can't reach this form at all today (gated by canManageInventory), but this keeps the
+    // guard in place if that ever changes.
+    sellingPrice: canViewSellingPrice(session.roles) ? formData.get("sellingPrice") : item.sellingPrice,
     lowStockAt: formData.get("lowStockAt") || 1,
     notes: emptyToUndefined(formData.get("notes")),
     brandId: emptyToUndefined(formData.get("brandId")),
