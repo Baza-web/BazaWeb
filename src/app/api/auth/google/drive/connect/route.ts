@@ -8,7 +8,7 @@ import { driveConnectConfigured, buildDriveAuthUrl } from "@/lib/googleDrive";
 
 export async function GET(request: Request) {
   const session = await requireSessionOrRedirect();
-  if (!canManageIntegrations(session.role)) {
+  if (!canManageIntegrations(session.roles)) {
     return NextResponse.redirect(absoluteUrl(request, "/dashboard"));
   }
 

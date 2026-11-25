@@ -77,9 +77,9 @@ const brokerSchema = z.object({
 
 export async function createBroker(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+  if (!canManageBrokers(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -100,7 +100,7 @@ export async function createBroker(formData: FormData) {
 /** Owner's edit applies immediately; anyone else's is a pending request an Owner must approve first. */
 export async function updateBroker(brokerId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+  if (!canManageBrokers(session.roles)) throw new Error("Forbidden");
 
   const broker = await db.broker.findFirst({ where: { id: brokerId, ...branchScope(session) } });
   if (!broker) throw new Error("Forbidden");
@@ -123,7 +123,7 @@ export async function updateBroker(brokerId: string, formData: FormData) {
 /** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the broker has any memo history. */
 export async function deleteBrokerPermanently(brokerId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+  if (!canManageBrokers(session.roles)) throw new Error("Forbidden");
 
   const broker = await db.broker.findFirst({ where: { id: brokerId, ...branchScope(session) } });
   if (!broker) throw new Error("Forbidden");
@@ -156,9 +156,9 @@ function memoNumber() {
 
 export async function createMemo(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+  if (!canManageBrokers(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -295,7 +295,7 @@ async function applyMemoEditChanges(
 /** Owner's edit applies immediately, same convention as initiateEdit/initiateDeletion elsewhere — Admin's still goes to a pending request a different Owner/Admin must approve. */
 export async function requestMemoEdit(memoId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+  if (!canManageBrokers(session.roles)) throw new Error("Forbidden");
 
   const memo = await db.brokerMemo.findFirst({
     where: { id: memoId, ...branchScope(session) },
@@ -322,7 +322,7 @@ export async function requestMemoEdit(memoId: string, formData: FormData) {
   const hasChange = parsed.itemReturns.some((r) => r.returnQuantity > 0) || parsed.notesChange !== undefined;
   if (!hasChange) throw new Error("Nothing to change.");
 
-  if (session.role === "OWNER") {
+  if (session.roles.includes("OWNER")) {
     await applyMemoEditChanges(memo, parsed.itemReturns, parsed.notesChange);
     revalidatePath(`/brokers/${memo.brokerId}`);
     revalidatePath("/inventory");
@@ -359,13 +359,13 @@ const decisionSchema = z.enum(["APPROVED", "REJECTED"]);
 
 export async function reviewMemoEditRequest(requestId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+  if (!canManageBrokers(session.roles)) throw new Error("Forbidden");
 
   const request = await db.brokerMemoEditRequest.findUniqueOrThrow({
     where: { id: requestId },
     include: { memo: { include: { items: true, broker: true } } },
   });
-  if (!isCompanyWide(session.role) && request.memo.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && request.memo.branchId !== session.branchId) throw new Error("Forbidden");
   if (request.status !== "PENDING") throw new Error("This request has already been reviewed.");
   if (request.requestedById === session.staffId) {
     throw new Error("You can't approve or reject your own request — ask another Owner/Admin to review it.");
@@ -401,7 +401,7 @@ export async function reviewMemoEditRequest(requestId: string, formData: FormDat
 
 export async function resendBrokerStatement(brokerId: string, _formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) throw new Error("Forbidden");
+  if (!canManageBrokers(session.roles)) throw new Error("Forbidden");
 
   const broker = await db.broker.findFirst({ where: { id: brokerId, ...branchScope(session) } });
   if (!broker) throw new Error("Forbidden");

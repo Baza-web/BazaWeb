@@ -12,7 +12,7 @@ export default async function SettingsPage({
   searchParams: Promise<{ error?: string; success?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageIntegrations(session.role)) {
+  if (!canManageIntegrations(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

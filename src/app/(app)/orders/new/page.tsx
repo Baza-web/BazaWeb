@@ -6,7 +6,7 @@ import { Plus } from "@/components/icons";
 
 export default async function NewOrderPage() {
   const session = await requireSessionOrRedirect();
-  if (!canCreateOrders(session.role)) {
+  if (!canCreateOrders(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -15,10 +15,10 @@ export default async function NewOrderPage() {
   const [brands, customers, staffList, branches, departmentRows] = await Promise.all([
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     db.customer.findMany({ where: scope, orderBy: { name: "asc" }, take: 1000 }),
-    isCompanyWide(session.role)
+    isCompanyWide(session.roles)
       ? db.staff.findMany({ where: { active: true }, orderBy: { name: "asc" } })
       : db.staff.findMany({ where: { active: true, branchId: session.branchId ?? undefined }, orderBy: { name: "asc" } }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.order.findMany({ where: { department: { not: null } }, select: { department: true }, distinct: ["department"] }),
   ]);
 
@@ -134,7 +134,7 @@ export default async function NewOrderPage() {
           </div>
         </div>
 
-        {isCompanyWide(session.role) && (
+        {isCompanyWide(session.roles) && (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" defaultValue={session.branchId ?? ""}>

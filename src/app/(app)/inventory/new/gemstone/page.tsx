@@ -6,12 +6,12 @@ import { Diamond } from "@/components/icons";
 
 export default async function NewGemstonePage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) {
+  if (!canManageInventory(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
   const [branches, brands] = await Promise.all([
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
@@ -28,7 +28,7 @@ export default async function NewGemstonePage() {
       <form action={createInventoryItem} encType="multipart/form-data" className="card space-y-5">
         <input type="hidden" name="category" value="LOOSE_STONE" />
 
-        {isCompanyWide(session.role) ? (
+        {isCompanyWide(session.roles) ? (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" required>

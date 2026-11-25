@@ -21,9 +21,16 @@ export type SessionPayload = {
   staffId: string;
   name: string;
   email: string;
+  /** Primary role — drives dashboard home and "Manager/Sales/etc." badges. */
   role: Role;
+  /** Primary + additionalRoles, deduped. Permission checks should use this (the union), not `role` alone. */
+  roles: Role[];
   branchId: string | null;
 };
+
+function effectiveRoles(staff: { role: Role; additionalRoles: Role[] }): Role[] {
+  return Array.from(new Set([staff.role, ...staff.additionalRoles]));
+}
 
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
@@ -62,11 +69,13 @@ export async function getSession(): Promise<SessionPayload | null> {
 
   try {
     const { payload } = await jwtVerify(token, secretKey());
+    const role = payload.role as Role;
     return {
       staffId: payload.staffId as string,
       name: payload.name as string,
       email: payload.email as string,
-      role: payload.role as Role,
+      role,
+      roles: (payload.roles as Role[] | undefined) ?? [role],
       branchId: (payload.branchId as string | null) ?? null,
     };
   } catch {
@@ -85,7 +94,9 @@ export async function requireSession(): Promise<SessionPayload> {
   if (!staff || !staff.active) {
     throw new Error("UNAUTHENTICATED");
   }
-  return session;
+  // Refresh role/roles/branch from the row we already fetched, so a role grant or branch
+  // move takes effect immediately instead of waiting for the next login.
+  return { ...session, role: staff.role, roles: effectiveRoles(staff), branchId: staff.branchId };
 }
 
 /** For pages/layouts: redirects to /login instead of throwing. */
@@ -98,5 +109,5 @@ export async function requireSessionOrRedirect(): Promise<SessionPayload> {
   if (!staff || !staff.active) {
     redirect("/login");
   }
-  return session;
+  return { ...session, role: staff.role, roles: effectiveRoles(staff), branchId: staff.branchId };
 }

@@ -6,7 +6,7 @@ import { ClipboardText, Trash } from "@/components/icons";
 
 export default async function QCSettingsPage() {
   const session = await requireSessionOrRedirect();
-  if (!canEditQCChecklistTemplate(session.role)) {
+  if (!canEditQCChecklistTemplate(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

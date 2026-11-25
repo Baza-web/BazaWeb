@@ -298,7 +298,7 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 8,
     }),
-    isCompanyWide(session.role)
+    isCompanyWide(session.roles)
       ? db.sale.groupBy({ by: ["branchId"], where: { createdAt: { gte: today } }, _sum: { total: true } })
       : Promise.resolve([]),
     db.sale.findMany({
@@ -323,24 +323,24 @@ export default async function DashboardPage() {
       where: { ...scope, metalType: "Silver", status: "IN_STOCK" },
       select: { category: true, quantity: true, costPrice: true, grossWeightG: true },
     }),
-    canManageRepairs(session.role) || session.role === "CRAFTSMAN"
+    canManageRepairs(session.roles) || session.roles.includes("CRAFTSMAN")
       ? db.repairOrder.count({
           where: {
-            ...(session.role === "CRAFTSMAN" ? { assignedToId: session.staffId } : scope),
+            ...(session.roles.includes("CRAFTSMAN") ? { assignedToId: session.staffId } : scope),
             status: { notIn: ["COMPLETED", "CANCELLED"] },
           },
         })
       : Promise.resolve(null),
-    canReviewLeave(session.role)
+    canReviewLeave(session.roles)
       ? db.leaveRequest.count({
-          where: { status: "PENDING", staff: isCompanyWide(session.role) ? {} : { branchId: session.branchId } },
+          where: { status: "PENDING", staff: isCompanyWide(session.roles) ? {} : { branchId: session.branchId } },
         })
       : Promise.resolve(null),
-    canViewAttendance(session.role)
+    canViewAttendance(session.roles)
       ? db.attendanceLog.findMany({ where: { ...scope, clockInAt: { gte: today } }, select: { staffId: true } })
       : Promise.resolve(null),
-    canViewAttendance(session.role) ? db.staff.count({ where: { ...scope, active: true } }) : Promise.resolve(null),
-    canManagePurchasing(session.role) || canManageAccounting(session.role)
+    canViewAttendance(session.roles) ? db.staff.count({ where: { ...scope, active: true } }) : Promise.resolve(null),
+    canManagePurchasing(session.roles) || canManageAccounting(session.roles)
       ? db.purchaseOrder.aggregate({
           where: { ...scope, status: "ORDERED" },
           _sum: { totalAmount: true, amountPaid: true },
@@ -349,10 +349,10 @@ export default async function DashboardPage() {
     db.salesTarget.findMany({
       where: {
         periodEnd: { gte: today },
-        ...(canManageSalesTargets(session.role) ? scope : { staffId: session.staffId }),
+        ...(canManageSalesTargets(session.roles) ? scope : { staffId: session.staffId }),
       },
     }),
-    canManageBrokers(session.role)
+    canManageBrokers(session.roles)
       ? db.brokerMemoItem.findMany({
           where: { memo: { ...scope, status: { not: "RETURNED" } } },
           select: { quantity: true, returnedQuantity: true, valueEach: true },
@@ -533,7 +533,7 @@ export default async function DashboardPage() {
           <Link href="/targets" className="card-interactive block">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                {canManageSalesTargets(session.role) ? "Team target" : "Your target"}
+                {canManageSalesTargets(session.roles) ? "Team target" : "Your target"}
               </p>
               <span className={`badge ${targetPercent >= 100 ? "bg-green-100 text-green-700" : "bg-brand-100 text-brand-700"}`}>
                 {targetPercent}%

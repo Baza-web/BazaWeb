@@ -25,7 +25,7 @@ const EXT_TO_MEDIA_TYPE: Record<string, string> = {
  */
 export async function scanReceipt(formData: FormData): Promise<ExtractedExpense & { error?: string }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   if (!aiConfigured()) {
     return {
@@ -80,9 +80,9 @@ const expenseSchema = z.object({
 
 export async function createExpense(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -153,7 +153,7 @@ const expenseEditSchema = z.object({
 /** Owner's edit applies immediately; anyone else's is a pending request an Owner must approve first. Refused for expenses created from a Purchase Order payment. */
 export async function updateExpense(expenseId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const expense = await db.expense.findFirst({ where: { id: expenseId, ...branchScope(session) } });
   if (!expense) throw new Error("Forbidden");
@@ -178,7 +178,7 @@ export async function updateExpense(expenseId: string, formData: FormData) {
 /** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused for expenses created from a Purchase Order payment. */
 export async function deleteExpensePermanently(expenseId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+  if (!canDeleteOrRequest(session.roles)) throw new Error("Forbidden");
 
   const expense = await db.expense.findFirst({ where: { id: expenseId, ...branchScope(session) } });
   if (!expense) throw new Error("Forbidden");
@@ -198,9 +198,9 @@ const budgetSchema = z.object({
 
 export async function setBudget(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -221,10 +221,10 @@ export async function setBudget(formData: FormData) {
 
 export async function deleteBudget(budgetId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const budget = await db.budget.findUniqueOrThrow({ where: { id: budgetId } });
-  if (!isCompanyWide(session.role) && budget.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && budget.branchId !== session.branchId) throw new Error("Forbidden");
 
   await db.budget.delete({ where: { id: budgetId } });
   revalidatePath("/accounting");

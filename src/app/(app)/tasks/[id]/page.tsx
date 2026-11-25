@@ -25,7 +25,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
   const isGroupMember = task.group?.members.some((m) => m.id === session.staffId) ?? false;
   const isInScopeManager =
-    canAssignTasks(session.role) && (isCompanyWide(session.role) || task.branchId === session.branchId);
+    canAssignTasks(session.roles) && (isCompanyWide(session.roles) || task.branchId === session.branchId);
   const canEdit = task.assignedToId === session.staffId || isInScopeManager || isGroupMember;
 
   if (!canEdit) notFound();

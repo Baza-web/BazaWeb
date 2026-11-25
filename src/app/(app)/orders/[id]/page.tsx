@@ -40,7 +40,7 @@ const RESTRICTED_STATUSES = ["APPROVED", "ON_HOLD", "CANCELLED"];
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessOrders(session.role)) {
+  if (!canAccessOrders(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -73,13 +73,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!order) notFound();
 
   const isAssigned = order.primaryStaffId === session.staffId || order.supportingStaff.some((s) => s.id === session.staffId);
-  const canManage = canManageOrdersScoped(session.role);
+  const canManage = canManageOrdersScoped(session.roles);
   // A QC-eligible inspector (e.g. Craftsman) must be able to open an order they're NOT assigned to —
   // that's the whole point of an independent inspection — within their own branch, same as canManage below.
-  if (!canManage && !isAssigned && !canPerformQCInspection(session.role)) {
+  if (!canManage && !isAssigned && !canPerformQCInspection(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this order.</p>;
   }
-  if (!isCompanyWide(session.role) && order.branchId && order.branchId !== session.branchId) {
+  if (!isCompanyWide(session.roles) && order.branchId && order.branchId !== session.branchId) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this order.</p>;
   }
 
@@ -89,18 +89,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const overdue = daysOverdue(order.currentDeadline);
   const pendingApproval = order.approvals.find((a) => !a.decision);
 
-  const assignableStaff = isCompanyWide(session.role)
+  const assignableStaff = isCompanyWide(session.roles)
     ? await db.staff.findMany({ where: { active: true }, orderBy: { name: "asc" } })
     : await db.staff.findMany({ where: { active: true, branchId: order.branchId ?? session.branchId ?? undefined }, orderBy: { name: "asc" } });
 
-  const brands = isCompanyWide(session.role) || canManage ? await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : [];
+  const brands = isCompanyWide(session.roles) || canManage ? await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : [];
 
   const [qcTemplates, suppliers] = await Promise.all([
     db.qCChecklistTemplate.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.supplier.findMany({ orderBy: { name: "asc" } }),
   ]);
-  const canInspect = canPerformQCInspection(session.role) && !isAssigned;
-  const canReviewCertificates = canVerifyGoldCertificates(session.role);
+  const canInspect = canPerformQCInspection(session.roles) && !isAssigned;
+  const canReviewCertificates = canVerifyGoldCertificates(session.roles);
 
   type TimelineEntry = { at: Date; node: React.ReactNode };
   const timeline: TimelineEntry[] = [

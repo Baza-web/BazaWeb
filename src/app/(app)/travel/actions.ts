@@ -84,11 +84,11 @@ function parseTourForm(formData: FormData) {
 
 export async function createTour(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessTravel(session.role)) throw new Error("Forbidden");
+  if (!canAccessTravel(session.roles)) throw new Error("Forbidden");
 
   const parsed = parseTourForm(formData);
 
-  const branchId = parsed.branchId ?? (isCompanyWide(session.role) ? undefined : session.branchId ?? undefined);
+  const branchId = parsed.branchId ?? (isCompanyWide(session.roles) ? undefined : session.branchId ?? undefined);
   if (branchId) {
     const branch = await db.branch.findUnique({ where: { id: branchId } });
     if (!branch) throw new Error("That branch doesn't exist.");
@@ -131,7 +131,7 @@ export async function updateTour(tourId: string, formData: FormData) {
 
   const parsed = parseTourForm(formData);
 
-  const branchId = parsed.branchId ?? (isCompanyWide(session.role) ? undefined : session.branchId ?? undefined);
+  const branchId = parsed.branchId ?? (isCompanyWide(session.roles) ? undefined : session.branchId ?? undefined);
   if (branchId) {
     const branch = await db.branch.findUnique({ where: { id: branchId } });
     if (!branch) throw new Error("That branch doesn't exist.");

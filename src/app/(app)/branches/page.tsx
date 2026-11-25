@@ -10,10 +10,10 @@ import { formatDate } from "@/lib/utils";
 
 export default async function BranchesPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) {
+  if (!canManageStaff(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
-  const canAddOrDelete = canAddOrDeleteBranches(session.role);
+  const canAddOrDelete = canAddOrDeleteBranches(session.roles);
 
   const branches = await db.branch.findMany({
     include: { _count: { select: { staff: true, inventoryItems: true } } },
@@ -45,7 +45,7 @@ export default async function BranchesPage() {
               <th>Staff</th>
               <th>Inventory items</th>
               <th>Main location</th>
-              {canManageStaff(session.role) && <th className="print:hidden">Actions</th>}
+              {canManageStaff(session.roles) && <th className="print:hidden">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -70,7 +70,7 @@ export default async function BranchesPage() {
                     </form>
                   )}
                 </td>
-                {canManageStaff(session.role) && (
+                {canManageStaff(session.roles) && (
                   <td className="print:hidden">
                     <div className="flex items-start gap-3">
                       <EditBranchButton branchId={b.id} name={b.name} address={b.address} phone={b.phone} />
@@ -82,7 +82,7 @@ export default async function BranchesPage() {
             ))}
             {branches.length === 0 && (
               <tr>
-                <td colSpan={canManageStaff(session.role) ? 8 : 7} className="py-6 text-center text-stone-400">
+                <td colSpan={canManageStaff(session.roles) ? 8 : 7} className="py-6 text-center text-stone-400">
                   No branches yet.
                 </td>
               </tr>

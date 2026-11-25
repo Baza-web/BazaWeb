@@ -62,9 +62,9 @@ function emptyToUndefined(value: FormDataEntryValue | null) {
 
 export async function createInventoryItem(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+  if (!canManageInventory(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -103,7 +103,7 @@ export async function createInventoryItem(formData: FormData) {
 
 export async function addInventoryDocuments(itemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+  if (!canManageInventory(session.roles)) throw new Error("Forbidden");
 
   const item = await requireItemInScope(itemId, session);
 
@@ -122,7 +122,7 @@ export async function addInventoryDocuments(itemId: string, formData: FormData) 
 
 export async function updateInventoryDriveLink(itemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+  if (!canManageInventory(session.roles)) throw new Error("Forbidden");
   await requireItemInScope(itemId, session);
 
   const raw = emptyToUndefined(formData.get("driveLink"));
@@ -145,7 +145,7 @@ const STATUS_LABELS: Record<string, string> = {
 /** Owner's status change applies immediately; anyone else's is a pending request an Owner must approve first. */
 export async function updateInventoryStatus(itemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+  if (!canManageInventory(session.roles)) throw new Error("Forbidden");
   const item = await requireItemInScope(itemId, session);
 
   const status = statusSchema.parse(formData.get("status"));
@@ -200,7 +200,7 @@ const editableItemSchema = z.object({
  */
 export async function updateInventoryItem(itemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) throw new Error("Forbidden");
+  if (!canManageInventory(session.roles)) throw new Error("Forbidden");
   const item = await requireItemInScope(itemId, session);
 
   const parsed = editableItemSchema.parse({
@@ -246,7 +246,7 @@ export async function updateInventoryItem(itemId: string, formData: FormData) {
 /** Owner deletes immediately; Admin can only request it, pending Owner approval. Refused if the item has any sale/memo/repair history. */
 export async function deleteInventoryItemPermanently(itemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+  if (!canDeleteOrRequest(session.roles)) throw new Error("Forbidden");
   const item = await requireItemInScope(itemId, session);
 
   const reason = String(formData.get("reason") || "").trim() || undefined;

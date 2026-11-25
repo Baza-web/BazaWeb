@@ -11,10 +11,10 @@ import { formatDate } from "@/lib/utils";
 
 export default async function StaffPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) {
+  if (!canManageStaffScoped(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
-  const canDelete = canManageStaff(session.role);
+  const canDelete = canManageStaff(session.roles);
 
   const staff = await db.staff.findMany({
     where: { ...branchScope(session), deletedAt: null },
@@ -70,7 +70,12 @@ export default async function StaffPage() {
                   </Link>
                 </td>
                 <td>{s.email}</td>
-                <td>{ROLE_LABELS[s.role]}</td>
+                <td>
+                  {ROLE_LABELS[s.role]}
+                  {s.additionalRoles.length > 0 && (
+                    <span className="text-xs text-stone-400"> + {s.additionalRoles.map((r) => ROLE_LABELS[r]).join(", ")}</span>
+                  )}
+                </td>
                 <td>{s.branch?.name ?? "—"}</td>
                 <td className="text-xs text-stone-500">
                   {s.brands.length > 0 ? s.brands.map((b) => b.name).join(", ") : "—"}

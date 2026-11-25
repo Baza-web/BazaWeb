@@ -8,14 +8,14 @@ import { disconnectMail } from "@/lib/googleMail";
 
 export async function disconnectGoogleDrive() {
   const session = await requireSessionOrRedirect();
-  if (!canManageIntegrations(session.role)) throw new Error("Forbidden");
+  if (!canManageIntegrations(session.roles)) throw new Error("Forbidden");
   await disconnectDrive();
   revalidatePath("/settings");
 }
 
 export async function disconnectGmail() {
   const session = await requireSessionOrRedirect();
-  if (!canManageIntegrations(session.role)) throw new Error("Forbidden");
+  if (!canManageIntegrations(session.roles)) throw new Error("Forbidden");
   await disconnectMail();
   revalidatePath("/settings");
 }

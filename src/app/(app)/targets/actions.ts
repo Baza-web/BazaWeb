@@ -21,9 +21,9 @@ const schema = z
 
 export async function createSalesTarget(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSalesTargets(session.role)) throw new Error("Forbidden");
+  if (!canManageSalesTargets(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -36,7 +36,7 @@ export async function createSalesTarget(formData: FormData) {
   });
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: parsed.staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) {
+  if (!isCompanyWide(session.roles) && staff.branchId !== session.branchId) {
     throw new Error("Forbidden");
   }
 
@@ -46,10 +46,10 @@ export async function createSalesTarget(formData: FormData) {
 
 export async function deleteSalesTarget(targetId: string, _formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSalesTargets(session.role)) throw new Error("Forbidden");
+  if (!canManageSalesTargets(session.roles)) throw new Error("Forbidden");
 
   const target = await db.salesTarget.findUniqueOrThrow({ where: { id: targetId } });
-  if (!isCompanyWide(session.role) && target.branchId !== session.branchId) {
+  if (!isCompanyWide(session.roles) && target.branchId !== session.branchId) {
     throw new Error("Forbidden");
   }
 

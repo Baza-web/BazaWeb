@@ -36,11 +36,11 @@ export default async function AllOrdersPage({
   }>;
 }) {
   const session = await requireSessionOrRedirect();
-  const manageScoped = canManageOrdersScoped(session.role);
+  const manageScoped = canManageOrdersScoped(session.roles);
   const params = await searchParams;
 
   const scopeWhere: Prisma.OrderWhereInput = manageScoped
-    ? isCompanyWide(session.role)
+    ? isCompanyWide(session.roles)
       ? {}
       : { branchId: session.branchId ?? undefined }
     : { OR: [{ primaryStaffId: session.staffId }, { supportingStaff: { some: { id: session.staffId } } }] };
@@ -82,7 +82,7 @@ export default async function AllOrdersPage({
       take: view === "table" ? PAGE_SIZE : 500,
     }),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
-    isCompanyWide(session.role)
+    isCompanyWide(session.roles)
       ? db.staff.findMany({ where: { active: true }, orderBy: { name: "asc" } })
       : db.staff.findMany({ where: { active: true, branchId: session.branchId ?? undefined }, orderBy: { name: "asc" } }),
     db.order.findMany({ where: { ...scopeWhere, department: { not: null } }, select: { department: true }, distinct: ["department"] }),
@@ -111,7 +111,7 @@ export default async function AllOrdersPage({
           <p className="text-sm text-stone-500">{total} order{total === 1 ? "" : "s"} matching these filters.</p>
         </div>
         <div className="flex items-center gap-2">
-          {canCreateOrders(session.role) && (
+          {canCreateOrders(session.roles) && (
             <Link href="/orders/new" className="btn-primary text-sm">
               <Plus size={16} aria-hidden="true" /> Create New Order
             </Link>

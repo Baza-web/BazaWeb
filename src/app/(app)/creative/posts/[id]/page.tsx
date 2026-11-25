@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canAccessCreativeHub, STAFF_MANAGER_ROLES } from "@/lib/rbac";
+import { canAccessCreativeHub, canManageStaff } from "@/lib/rbac";
 import { formatDateTime } from "@/lib/utils";
 import { updateSocialPost, updateSocialPostStatus, deleteSocialPost, approveSocialPost } from "../../actions";
 
@@ -22,7 +22,7 @@ function toLocalInput(d: Date | null) {
 
 export default async function SocialPostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) {
+  if (!canAccessCreativeHub(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
   const { id } = await params;
@@ -40,7 +40,7 @@ export default async function SocialPostDetailPage({ params }: { params: Promise
   if (!post) notFound();
 
   const isMember = post.group.members.some((m) => m.id === session.staffId);
-  const isManager = STAFF_MANAGER_ROLES.includes(session.role);
+  const isManager = canManageStaff(session.roles);
   if (!isMember && !isManager) notFound();
 
   const brands = await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } });

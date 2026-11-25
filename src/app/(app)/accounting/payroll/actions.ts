@@ -22,7 +22,7 @@ async function requireRunInEditableState(runId: string) {
 
 export async function generatePayrollRun(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePayroll(session.role)) throw new Error("Forbidden");
+  if (!canManagePayroll(session.roles)) throw new Error("Forbidden");
 
   const { periodStart, periodEnd } = periodSchema.parse({
     periodStart: formData.get("periodStart"),
@@ -62,7 +62,7 @@ export async function generatePayrollRun(staffId: string, formData: FormData) {
 
 export async function bulkGeneratePayroll(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePayroll(session.role)) throw new Error("Forbidden");
+  if (!canManagePayroll(session.roles)) throw new Error("Forbidden");
 
   const { periodStart, periodEnd } = periodSchema.parse({
     periodStart: formData.get("periodStart"),
@@ -109,7 +109,7 @@ const adjustmentSchema = z.object({
 
 export async function updatePayrollAdjustment(runId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePayroll(session.role)) throw new Error("Forbidden");
+  if (!canManagePayroll(session.roles)) throw new Error("Forbidden");
 
   const run = await requireRunInEditableState(runId);
   const { adjustment, adjustmentNote } = adjustmentSchema.parse({
@@ -130,7 +130,7 @@ export async function updatePayrollAdjustment(runId: string, formData: FormData)
 
 export async function deletePayrollRun(runId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePayroll(session.role)) throw new Error("Forbidden");
+  if (!canManagePayroll(session.roles)) throw new Error("Forbidden");
   await requireRunInEditableState(runId);
   await db.payrollRun.delete({ where: { id: runId } });
   revalidatePath("/accounting/payroll");
@@ -139,7 +139,7 @@ export async function deletePayrollRun(runId: string) {
 /** Pays a draft run: creates the Expense + Ledger entry that actually moves it through Accounting, then locks the run. */
 export async function markPayrollPaid(runId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePayroll(session.role)) throw new Error("Forbidden");
+  if (!canManagePayroll(session.roles)) throw new Error("Forbidden");
 
   const run = await requireRunInEditableState(runId);
   const staff = await db.staff.findUniqueOrThrow({ where: { id: run.staffId } });

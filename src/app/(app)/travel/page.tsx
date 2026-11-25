@@ -29,7 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default async function TravelDashboardPage() {
   const session = await requireSessionOrRedirect();
-  if (!canAccessTravel(session.role)) {
+  if (!canAccessTravel(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

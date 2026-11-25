@@ -15,7 +15,7 @@ const PAYMENT_COLORS: Record<string, string> = {
 
 export default async function SalesPage() {
   const session = await requireSessionOrRedirect();
-  if (!canRecordSale(session.role)) {
+  if (!canRecordSale(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -33,7 +33,7 @@ export default async function SalesPage() {
         <div className="flex items-center gap-2">
           <ExportButton href="/api/export/sales" />
           <PrintButton selector="#sales-table" />
-          {canRecordSale(session.role) && (
+          {canRecordSale(session.roles) && (
             <Link href="/sales/new" className="btn-primary print:hidden">
               <Plus size={16} aria-hidden="true" />
               New sale

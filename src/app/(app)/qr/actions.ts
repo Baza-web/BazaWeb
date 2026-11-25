@@ -42,7 +42,7 @@ async function parseTarget(formData: FormData): Promise<{ error: string } | { ta
 
 export async function createQRCode(formData: FormData): Promise<{ error: string } | { id: string }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageQRCodes(session.role)) throw new Error("Forbidden");
+  if (!canManageQRCodes(session.roles)) throw new Error("Forbidden");
 
   const label = z.string().min(1).safeParse(formData.get("label"));
   if (!label.success) return { error: "A label is required." };
@@ -76,7 +76,7 @@ export async function createQRCode(formData: FormData): Promise<{ error: string 
 
 export async function toggleQRCodeActive(qrCodeId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageQRCodes(session.role)) throw new Error("Forbidden");
+  if (!canManageQRCodes(session.roles)) throw new Error("Forbidden");
 
   const qr = await db.qRCode.findUniqueOrThrow({ where: { id: qrCodeId } });
   await db.qRCode.update({ where: { id: qrCodeId }, data: { active: !qr.active } });
@@ -86,7 +86,7 @@ export async function toggleQRCodeActive(qrCodeId: string) {
 
 export async function updateQRCodeTarget(qrCodeId: string, formData: FormData): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageQRCodes(session.role)) throw new Error("Forbidden");
+  if (!canManageQRCodes(session.roles)) throw new Error("Forbidden");
 
   const label = z.string().min(1).safeParse(formData.get("label"));
   if (!label.success) return { error: "A label is required." };
@@ -110,7 +110,7 @@ export async function updateQRCodeTarget(qrCodeId: string, formData: FormData): 
 
 export async function deleteQRCode(qrCodeId: string): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageQRCodes(session.role)) throw new Error("Forbidden");
+  if (!canManageQRCodes(session.roles)) throw new Error("Forbidden");
   await db.qRCode.delete({ where: { id: qrCodeId } });
   revalidatePath("/qr");
   return { ok: true };

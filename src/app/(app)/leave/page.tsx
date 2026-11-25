@@ -14,7 +14,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function LeavePage() {
   const session = await requireSessionOrRedirect();
-  const reviewer = canReviewLeave(session.role);
+  const reviewer = canReviewLeave(session.roles);
 
   const [myRequests, pendingRequests] = await Promise.all([
     db.leaveRequest.findMany({
@@ -25,7 +25,7 @@ export default async function LeavePage() {
       ? db.leaveRequest.findMany({
           where: {
             status: "PENDING",
-            staff: isCompanyWide(session.role) ? {} : { branchId: session.branchId },
+            staff: isCompanyWide(session.roles) ? {} : { branchId: session.branchId },
           },
           include: { staff: true },
           orderBy: { createdAt: "asc" },

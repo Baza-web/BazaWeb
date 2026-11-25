@@ -257,6 +257,10 @@ model Staff {
   phone        String?
   passwordHash String
   role         Role
+  /// Extra roles beyond the primary `role` above — e.g. a Craftsman who also covers Sales.
+  /// Permissions are the union of role + additionalRoles; `role` alone still drives their
+  /// dashboard home and the "Manager/Sales/etc." badges shown elsewhere in the app.
+  additionalRoles Role[] @default([])
   branchId     String?
   active       Boolean  @default(true)
   failedLoginAttempts Int       @default(0)

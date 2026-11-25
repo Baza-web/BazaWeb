@@ -19,7 +19,7 @@ const MEMO_STATUS_STYLES: Record<string, string> = {
 
 export default async function BrokerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) {
+  if (!canManageBrokers(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
   const { id } = await params;

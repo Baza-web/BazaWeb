@@ -40,7 +40,7 @@ async function notifyLowStockIfNeeded(supplyItemId: string) {
 
 export async function createSupplyItem(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSupplyCatalog(session.role)) throw new Error("Forbidden");
+  if (!canManageSupplyCatalog(session.roles)) throw new Error("Forbidden");
 
   await db.supplyItem.create({
     data: {
@@ -61,7 +61,7 @@ export async function createSupplyItem(formData: FormData) {
 
 export async function restockSupplyItem(supplyItemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSupplyCatalog(session.role)) throw new Error("Forbidden");
+  if (!canManageSupplyCatalog(session.roles)) throw new Error("Forbidden");
 
   const amount = z.coerce.number().positive().parse(formData.get("amount"));
   await db.supplyItem.update({ where: { id: supplyItemId }, data: { quantity: { increment: amount } } });
@@ -71,7 +71,7 @@ export async function restockSupplyItem(supplyItemId: string, formData: FormData
 /** Decrements stock and records who/what it went to — the one "stock movement" record this narrow model keeps. */
 export async function issueSupply(supplyItemId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canCheckOutSuppliesOrTools(session.role)) throw new Error("Forbidden");
+  if (!canCheckOutSuppliesOrTools(session.roles)) throw new Error("Forbidden");
 
   const quantity = z.coerce.number().int().positive().parse(formData.get("quantity"));
   const item = await db.supplyItem.findUniqueOrThrow({ where: { id: supplyItemId } });
@@ -96,7 +96,7 @@ export async function issueSupply(supplyItemId: string, formData: FormData) {
 
 export async function deleteSupplyItem(supplyItemId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSupplyCatalog(session.role)) throw new Error("Forbidden");
+  if (!canManageSupplyCatalog(session.roles)) throw new Error("Forbidden");
   await db.supplyItem.delete({ where: { id: supplyItemId } });
   revalidatePath("/workshop");
 }
@@ -105,7 +105,7 @@ export async function deleteSupplyItem(supplyItemId: string) {
 
 export async function createWorkshopTool(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSupplyCatalog(session.role)) throw new Error("Forbidden");
+  if (!canManageSupplyCatalog(session.roles)) throw new Error("Forbidden");
 
   await db.workshopTool.create({
     data: {
@@ -119,7 +119,7 @@ export async function createWorkshopTool(formData: FormData) {
 
 export async function checkOutTool(toolId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canCheckOutSuppliesOrTools(session.role)) throw new Error("Forbidden");
+  if (!canCheckOutSuppliesOrTools(session.roles)) throw new Error("Forbidden");
 
   const assignedStaffId = z.string().min(1).parse(formData.get("assignedStaffId"));
   const expectedReturnDate = formData.get("expectedReturnDate") ? new Date(String(formData.get("expectedReturnDate"))) : undefined;
@@ -132,7 +132,7 @@ export async function checkOutTool(toolId: string, formData: FormData) {
 
 export async function returnTool(toolId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canCheckOutSuppliesOrTools(session.role)) throw new Error("Forbidden");
+  if (!canCheckOutSuppliesOrTools(session.roles)) throw new Error("Forbidden");
 
   const condition = z.enum(["GOOD", "DAMAGED", "MISSING", "UNDER_MAINTENANCE"]).parse(formData.get("condition")) as ToolCondition;
   await db.workshopTool.update({
@@ -154,7 +154,7 @@ export async function returnTool(toolId: string, formData: FormData) {
 
 export async function logToolMaintenance(toolId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSupplyCatalog(session.role)) throw new Error("Forbidden");
+  if (!canManageSupplyCatalog(session.roles)) throw new Error("Forbidden");
 
   await db.toolMaintenanceLog.create({
     data: {
@@ -170,7 +170,7 @@ export async function logToolMaintenance(toolId: string, formData: FormData) {
 
 export async function deleteWorkshopTool(toolId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageSupplyCatalog(session.role)) throw new Error("Forbidden");
+  if (!canManageSupplyCatalog(session.roles)) throw new Error("Forbidden");
   await db.workshopTool.delete({ where: { id: toolId } });
   revalidatePath("/workshop");
 }

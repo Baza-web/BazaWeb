@@ -171,7 +171,8 @@ export async function initiateDeletion(
 ): Promise<{ status: "deleted" | "requested" }> {
   await assertNoPendingRequest(entityType, entityId);
 
-  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(entityType));
+  const appliesImmediately =
+    session.roles.includes("OWNER") || (session.roles.includes("ADMIN") && ADMIN_DIRECT_ENTITY_TYPES.has(entityType));
   if (appliesImmediately) {
     await PERFORMERS[entityType](entityId, session);
     return { status: "deleted" };
@@ -213,7 +214,9 @@ export async function reviewDeletionRequest(
   }
   // Admin may review Customer or Brand requests; every other entity type stays Owner-only,
   // checked here (not just in the page that lists these) so this can't be reached by guessing a URL.
-  const canReview = session.role === "OWNER" || (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(request.entityType as DeletableEntityType));
+  const canReview =
+    session.roles.includes("OWNER") ||
+    (session.roles.includes("ADMIN") && ADMIN_DIRECT_ENTITY_TYPES.has(request.entityType as DeletableEntityType));
   if (!canReview) throw new Error("Forbidden");
 
   if (decision === "APPROVED") {

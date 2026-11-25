@@ -7,6 +7,7 @@ import { StaffProfileForm } from "@/components/StaffProfileForm";
 import { StaffPayForm } from "@/components/StaffPayForm";
 import { StaffPasswordForm } from "@/components/StaffPasswordForm";
 import { ChangeRoleForm } from "@/components/ChangeRoleForm";
+import { AdditionalRolesForm } from "@/components/AdditionalRolesForm";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
 import { StaffDocumentsForm } from "@/components/StaffDocumentsForm";
@@ -55,18 +56,18 @@ function daysInclusive(start: Date, end: Date) {
 
 export default async function StaffProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) {
+  if (!canManageStaffScoped(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
   const { id } = await params;
   const staff = await db.staff.findFirst({
-    where: { id, deletedAt: null, ...(isCompanyWide(session.role) ? {} : { branchId: session.branchId }) },
+    where: { id, deletedAt: null, ...(isCompanyWide(session.roles) ? {} : { branchId: session.branchId }) },
     include: { branch: true, brands: true },
   });
   if (!staff) notFound();
 
-  const showSalary = canViewSalary(session.role);
+  const showSalary = canViewSalary(session.roles);
   const currentYear = new Date().getFullYear();
   const yearStart = new Date(currentYear, 0, 1);
   const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
@@ -102,7 +103,12 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
     <div className="max-w-3xl space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-stone-500 print:hidden">{ROLE_LABELS[staff.role]} · {staff.branch?.name ?? "No branch"}</p>
+          <p className="text-sm text-stone-500 print:hidden">
+            {ROLE_LABELS[staff.role]}
+            {staff.additionalRoles.length > 0 && ` + ${staff.additionalRoles.map((r) => ROLE_LABELS[r]).join(", ")}`}
+            {" · "}
+            {staff.branch?.name ?? "No branch"}
+          </p>
           <h1 className="page-title">{staff.name}</h1>
           <p className="text-sm text-stone-500">{staff.email}</p>
         </div>
@@ -222,16 +228,34 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         </div>
       )}
 
-      {canManageStaff(session.role) && (
+      {canManageStaff(session.roles) && (
         <div className="card print:hidden">
           <h2 className="mb-3 font-medium">Role</h2>
           <ChangeRoleForm
             staffId={staff.id}
             currentRole={staff.role}
             disabled={!!pendingEdit}
-            roleOptions={(session.role === "OWNER" ? (Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]) : ADMIN_GRANTABLE_ROLES).map(
+            roleOptions={(session.roles.includes("OWNER") ? (Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]) : ADMIN_GRANTABLE_ROLES).map(
               (r) => ({ value: r, label: ROLE_LABELS[r] }),
             )}
+          />
+        </div>
+      )}
+
+      {canManageStaff(session.roles) && (
+        <div className="card print:hidden">
+          <h2 className="mb-1 font-medium">Extra roles</h2>
+          <p className="mb-3 text-xs text-stone-400">
+            On top of their primary role above — e.g. a Craftsman who also covers Sales. Permissions are the
+            union of everything ticked here plus the primary role; up to 2 extras (3 roles total).
+          </p>
+          <AdditionalRolesForm
+            staffId={staff.id}
+            currentAdditionalRoles={staff.additionalRoles}
+            disabled={!!pendingEdit}
+            roleOptions={(session.roles.includes("OWNER") ? (Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]) : ADMIN_GRANTABLE_ROLES)
+              .filter((r) => r !== staff.role)
+              .map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
           />
         </div>
       )}
@@ -241,7 +265,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
         <StaffProfileForm
           staff={staff}
           disabled={!!pendingEdit}
-          requiresApproval={session.role !== "OWNER" && session.role !== "ADMIN"}
+          requiresApproval={!session.roles.includes("OWNER") && !session.roles.includes("ADMIN")}
         />
       </div>
 
@@ -251,12 +275,12 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
           <StaffPayForm
             staff={staff}
             disabled={!!pendingEdit}
-            requiresApproval={session.role !== "OWNER" && session.role !== "ADMIN"}
+            requiresApproval={!session.roles.includes("OWNER") && !session.roles.includes("ADMIN")}
           />
         </div>
       )}
 
-      {canManageStaff(session.role) && (
+      {canManageStaff(session.roles) && (
         <div className="card print:hidden">
           <h2 className="mb-3 font-medium">Login password</h2>
           <p className="mb-3 text-xs text-stone-400">
@@ -265,7 +289,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
           <StaffPasswordForm
             staffId={staff.id}
             disabled={!!pendingEdit}
-            requiresApproval={session.role !== "OWNER" && session.role !== "ADMIN"}
+            requiresApproval={!session.roles.includes("OWNER") && !session.roles.includes("ADMIN")}
           />
         </div>
       )}

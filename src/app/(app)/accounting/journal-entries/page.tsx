@@ -10,13 +10,13 @@ import { PrintButton } from "@/components/PrintButton";
 
 export default async function JournalEntriesPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
   const [accounts, branches, entries] = await Promise.all([
     db.account.findMany({ where: { active: true }, orderBy: { code: "asc" } }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.journalEntry.findMany({
       include: { lines: { include: { account: true } }, createdBy: true, branch: true, reversedBy: true },
       orderBy: { date: "desc" },
@@ -60,7 +60,7 @@ export default async function JournalEntriesPage() {
           <JournalEntryForm
             accounts={accounts}
             branches={branches}
-            showBranchSelect={isCompanyWide(session.role)}
+            showBranchSelect={isCompanyWide(session.roles)}
             defaultBranchId={session.branchId ?? ""}
           />
         </div>

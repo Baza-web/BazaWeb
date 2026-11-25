@@ -31,7 +31,7 @@ export async function unsubscribeDevicePush(endpoint: string) {
  */
 export async function updateNavOrder(order: string[]) {
   const session = await requireSessionOrRedirect();
-  if (!canEditNavOrder(session.role)) throw new Error("Forbidden");
+  if (!canEditNavOrder(session.roles)) throw new Error("Forbidden");
 
   if (!Array.isArray(order) || order.some((href) => typeof href !== "string")) {
     throw new Error("Invalid order.");

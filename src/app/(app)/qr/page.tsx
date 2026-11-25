@@ -10,7 +10,7 @@ import { TARGET_LABELS } from "@/lib/qrTargets";
 
 export default async function QRManagementPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageQRCodes(session.role)) {
+  if (!canManageQRCodes(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

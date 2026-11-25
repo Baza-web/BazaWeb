@@ -23,8 +23,8 @@ export default async function InventoryPage({
   searchParams: Promise<{ q?: string; status?: string; brandId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  const showCost = canViewCost(session.role);
-  const canDelete = canDeleteOrRequest(session.role);
+  const showCost = canViewCost(session.roles);
+  const canDelete = canDeleteOrRequest(session.roles);
   const { q, status, brandId } = await searchParams;
 
   const [items, brands] = await Promise.all([

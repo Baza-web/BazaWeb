@@ -14,7 +14,7 @@ export default async function TasksPage({
 }) {
   const session = await requireSessionOrRedirect();
   const { view } = await searchParams;
-  const manager = canAssignTasks(session.role);
+  const manager = canAssignTasks(session.roles);
   const mineOnly = view === "mine" || !manager;
 
   if (!mineOnly) {
@@ -34,14 +34,14 @@ export default async function TasksPage({
     }),
     manager
       ? db.staff.findMany({
-          where: isCompanyWide(session.role) ? { active: true } : { branchId: session.branchId, active: true },
+          where: isCompanyWide(session.roles) ? { active: true } : { branchId: session.branchId, active: true },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
-    manager && isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    manager && isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     manager
       ? db.staffGroup.findMany({
-          where: isCompanyWide(session.role) ? {} : { branchId: session.branchId ?? "__none__" },
+          where: isCompanyWide(session.roles) ? {} : { branchId: session.branchId ?? "__none__" },
           include: { members: true },
           orderBy: { name: "asc" },
         })
@@ -146,7 +146,7 @@ export default async function TasksPage({
             memberNames: g.members.map((m) => m.name),
           }))}
           branchOptions={branches.map((b) => ({ id: b.id, name: b.name }))}
-          showBranchSelect={isCompanyWide(session.role)}
+          showBranchSelect={isCompanyWide(session.roles)}
           defaultBranchId={session.branchId ?? ""}
           canAssign={manager}
         />

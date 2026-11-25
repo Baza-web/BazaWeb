@@ -64,10 +64,10 @@ const entitlementSchema = z.object({
 
 export async function setLeaveEntitlement(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && staff.branchId !== session.branchId) throw new Error("Forbidden");
 
   const parsed = entitlementSchema.parse({
     type: formData.get("type"),
@@ -88,7 +88,7 @@ const decisionSchema = z.enum(["APPROVED", "REJECTED"]);
 
 export async function reviewLeaveRequest(requestId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canReviewLeave(session.role)) throw new Error("Forbidden");
+  if (!canReviewLeave(session.roles)) throw new Error("Forbidden");
 
   const decision = decisionSchema.parse(formData.get("decision"));
 
@@ -97,7 +97,7 @@ export async function reviewLeaveRequest(requestId: string, formData: FormData) 
     include: { staff: true },
   });
 
-  if (!isCompanyWide(session.role) && request.staff.branchId !== session.branchId) {
+  if (!isCompanyWide(session.roles) && request.staff.branchId !== session.branchId) {
     throw new Error("Forbidden");
   }
 

@@ -12,11 +12,11 @@ const ALL_ROLES = Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[];
 
 export default async function NewStaffPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) {
+  if (!canManageStaffScoped(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const companyWide = isCompanyWide(session.role);
+  const companyWide = isCompanyWide(session.roles);
   const assignableRoles = companyWide ? ALL_ROLES : MANAGER_GRANTABLE_ROLES;
   const branches = companyWide ? await db.branch.findMany({ orderBy: { name: "asc" } }) : [];
 

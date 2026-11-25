@@ -128,7 +128,8 @@ export async function initiateEdit(
 ): Promise<{ status: "applied" | "requested" }> {
   await assertNoPendingRequest(entityType, entityId);
 
-  const appliesImmediately = session.role === "OWNER" || (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(entityType));
+  const appliesImmediately =
+    session.roles.includes("OWNER") || (session.roles.includes("ADMIN") && ADMIN_DIRECT_ENTITY_TYPES.has(entityType));
   if (appliesImmediately) {
     await PERFORMERS[entityType](entityId, proposedData, session);
     return { status: "applied" };
@@ -167,8 +168,8 @@ export async function reviewEditRequest(session: SessionPayload, requestId: stri
   // Admin may review Customer requests; every other entity type stays Owner-only, checked
   // here (not just in the page that lists these) so this can't be reached by guessing a URL.
   const canReview =
-    session.role === "OWNER" ||
-    (session.role === "ADMIN" && ADMIN_DIRECT_ENTITY_TYPES.has(request.entityType as EditableEntityType));
+    session.roles.includes("OWNER") ||
+    (session.roles.includes("ADMIN") && ADMIN_DIRECT_ENTITY_TYPES.has(request.entityType as EditableEntityType));
   if (!canReview) throw new Error("Forbidden");
 
   if (decision === "APPROVED") {

@@ -34,9 +34,9 @@ const intakeSchema = z.object({
 
 export async function createRepairOrder(formData: FormData): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageRepairs(session.role)) throw new Error("Forbidden");
+  if (!canManageRepairs(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -109,9 +109,9 @@ export async function updateRepairStatus(orderId: string, formData: FormData) {
     include: { customer: true, createdBy: true },
   });
 
-  const isAssignedCraftsman = session.role === "CRAFTSMAN" && order.assignedToId === session.staffId;
-  if (!canManageRepairs(session.role) && !isAssignedCraftsman) throw new Error("Forbidden");
-  if (!isCompanyWide(session.role) && order.branchId !== session.branchId) throw new Error("Forbidden");
+  const isAssignedCraftsman = session.roles.includes("CRAFTSMAN") && order.assignedToId === session.staffId;
+  if (!canManageRepairs(session.roles) && !isAssignedCraftsman) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && order.branchId !== session.branchId) throw new Error("Forbidden");
 
   const status = statusSchema.parse(formData.get("status"));
   const finalCost = numOrUndef.parse(formData.get("finalCost"));
@@ -150,10 +150,10 @@ export async function updateRepairStatus(orderId: string, formData: FormData) {
 
 export async function assignRepairOrder(orderId: string, formData: FormData): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageRepairs(session.role)) throw new Error("Forbidden");
+  if (!canManageRepairs(session.roles)) throw new Error("Forbidden");
 
   const existing = await db.repairOrder.findUniqueOrThrow({ where: { id: orderId } });
-  if (!isCompanyWide(session.role) && existing.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && existing.branchId !== session.branchId) throw new Error("Forbidden");
 
   const assignedToId = emptyToUndefined(formData.get("assignedToId"));
   if (assignedToId) {
@@ -185,10 +185,10 @@ export async function assignRepairOrder(orderId: string, formData: FormData): Pr
 
 export async function assignSalesRepairOrder(orderId: string, formData: FormData): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageRepairs(session.role)) throw new Error("Forbidden");
+  if (!canManageRepairs(session.roles)) throw new Error("Forbidden");
 
   const existing = await db.repairOrder.findUniqueOrThrow({ where: { id: orderId } });
-  if (!isCompanyWide(session.role) && existing.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && existing.branchId !== session.branchId) throw new Error("Forbidden");
 
   const assignedSalesId = emptyToUndefined(formData.get("assignedSalesId"));
   if (assignedSalesId) {
@@ -229,10 +229,10 @@ const editSchema = z.object({
 /** Owner/Admin only — tighter than day-to-day intake/assignment, which every repair-manager role can already do. */
 export async function updateRepairOrder(orderId: string, formData: FormData): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canEditDeleteRepairs(session.role)) throw new Error("Forbidden");
+  if (!canEditDeleteRepairs(session.roles)) throw new Error("Forbidden");
 
   const existing = await db.repairOrder.findUniqueOrThrow({ where: { id: orderId } });
-  if (!isCompanyWide(session.role) && existing.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && existing.branchId !== session.branchId) throw new Error("Forbidden");
 
   const rawParsed = editSchema.safeParse({
     type: formData.get("type"),
@@ -267,10 +267,10 @@ export async function updateRepairOrder(orderId: string, formData: FormData): Pr
 /** Owner/Admin only. A repair/custom order has no other record pointing at it, so this is a plain delete — nothing to reverse or refuse. */
 export async function deleteRepairOrder(orderId: string): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canEditDeleteRepairs(session.role)) throw new Error("Forbidden");
+  if (!canEditDeleteRepairs(session.roles)) throw new Error("Forbidden");
 
   const existing = await db.repairOrder.findUniqueOrThrow({ where: { id: orderId } });
-  if (!isCompanyWide(session.role) && existing.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && existing.branchId !== session.branchId) throw new Error("Forbidden");
 
   try {
     await db.repairOrder.delete({ where: { id: orderId } });

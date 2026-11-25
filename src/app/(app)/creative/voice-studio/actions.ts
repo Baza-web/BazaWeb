@@ -27,7 +27,7 @@ function parseVoiceSettings(formData: FormData): VoiceSettings {
 
 async function requireCreativeAccess() {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) throw new Error("Forbidden");
+  if (!canAccessCreativeHub(session.roles)) throw new Error("Forbidden");
   return session;
 }
 

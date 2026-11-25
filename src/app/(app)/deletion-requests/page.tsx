@@ -17,11 +17,11 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default async function DeletionRequestsPage() {
   const session = await requireSessionOrRedirect();
-  if (!canReviewCustomerRequests(session.role)) {
+  if (!canReviewCustomerRequests(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
   // Admin reviews Customer and Brand requests only — every other entity type stays Owner-only.
-  const adminFilteredTypes = session.role !== "OWNER";
+  const adminFilteredTypes = !session.roles.includes("OWNER");
 
   const requests = await db.deletionRequest.findMany({
     where: adminFilteredTypes ? { entityType: { in: ["CUSTOMER", "BRAND"] } } : undefined,

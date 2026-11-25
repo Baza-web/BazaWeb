@@ -43,12 +43,12 @@ export async function GET() {
   } catch {
     return new Response("Unauthenticated", { status: 401 });
   }
-  if (!canManageStaffScoped(session.role)) {
+  if (!canManageStaffScoped(session.roles)) {
     return new Response("Forbidden", { status: 403 });
   }
 
   const staff = await getStaff(session);
-  const showSalary = canViewSalary(session.role);
+  const showSalary = canViewSalary(session.roles);
 
   const buffer = await buildExportSheet("Staff", buildColumns(showSalary), staff, (r) => r.id);
   return xlsxResponse(buffer, timestampedFilename("staff"));

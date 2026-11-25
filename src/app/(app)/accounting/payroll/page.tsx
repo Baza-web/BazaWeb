@@ -19,7 +19,7 @@ export default async function PayrollPage({
   searchParams: Promise<{ periodStart?: string; periodEnd?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePayroll(session.role)) {
+  if (!canManagePayroll(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

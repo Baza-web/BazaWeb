@@ -28,10 +28,10 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
 
   const [pendingEdit, customers, brands] = await Promise.all([
     db.editRequest.findFirst({ where: { entityType: "SALE", entityId: sale.id, status: "PENDING" } }),
-    canDeleteOrRequest(session.role)
+    canDeleteOrRequest(session.roles)
       ? db.customer.findMany({ where: { branchId: sale.branchId }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
-    canDeleteOrRequest(session.role) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    canDeleteOrRequest(session.roles) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
   return (
@@ -124,7 +124,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         )}
       </div>
 
-      {canDeleteOrRequest(session.role) && (
+      {canDeleteOrRequest(session.roles) && (
         <div className="card print:hidden">
           <h2 className="mb-3 font-medium">Edit sale</h2>
           <form action={updateSale.bind(null, sale.id)} className="space-y-3">
@@ -191,7 +191,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
 
       <div className="flex items-center gap-4 print:hidden">
         <PrintButton label="Print invoice" />
-        {canDeleteOrRequest(session.role) && (
+        {canDeleteOrRequest(session.roles) && (
           <DeleteRecordButton
             action={deleteSalePermanently.bind(null, sale.id)}
             label="sale"

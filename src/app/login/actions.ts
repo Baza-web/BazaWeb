@@ -90,6 +90,7 @@ export async function login(formData: FormData) {
     name: staff.name,
     email: staff.email,
     role: staff.role,
+    roles: Array.from(new Set([staff.role, ...staff.additionalRoles])),
     branchId: staff.branchId,
   });
 

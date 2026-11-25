@@ -33,10 +33,10 @@ export default async function CustomersPage({
   const session = await requireSessionOrRedirect();
   const { q, tag, segment: segmentFilter, stage } = await searchParams;
 
-  const canManageRewards = canManageRewardProgram(session.role);
+  const canManageRewards = canManageRewardProgram(session.roles);
   const [allForTags, branches, rewardSettings] = await Promise.all([
     db.customer.findMany({ where: branchScope(session), select: { tags: true } }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     canManageRewards ? getRewardSettings() : Promise.resolve(null),
   ]);
   const allTags = Array.from(new Set(allForTags.flatMap((c) => c.tags))).sort();
@@ -231,7 +231,7 @@ export default async function CustomersPage({
       <div className="card max-w-lg print:hidden">
         <h2 className="mb-3 font-medium">Add a customer</h2>
         <form action={createCustomer} className="space-y-3">
-          {isCompanyWide(session.role) && (
+          {isCompanyWide(session.roles) && (
             <div>
               <label className="label">Branch</label>
               <select className="input" name="branchId" required>
@@ -243,7 +243,7 @@ export default async function CustomersPage({
               </select>
             </div>
           )}
-          {!isCompanyWide(session.role) && <input type="hidden" name="branchId" value={session.branchId ?? ""} />}
+          {!isCompanyWide(session.roles) && <input type="hidden" name="branchId" value={session.branchId ?? ""} />}
           <div>
             <label className="label">Name</label>
             <input className="input" name="name" required />

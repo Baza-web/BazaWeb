@@ -16,7 +16,7 @@ export default async function StatementsPage({
   searchParams: Promise<{ from?: string; to?: string; branchId?: string; brandId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -46,7 +46,7 @@ export default async function StatementsPage({
     thisMonthExpensesByCategory,
     lastMonthExpensesByCategory,
   ] = await Promise.all([
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     db.saleItem.findMany({
       where: { sale: { ...scope, ...directBrandFilter, createdAt: { gte: fromDate, lte: toDate } } },
@@ -164,7 +164,7 @@ export default async function StatementsPage({
           <label className="label">To</label>
           <input className="input" type="date" name="to" defaultValue={toDate.toISOString().slice(0, 10)} />
         </div>
-        {isCompanyWide(session.role) && (
+        {isCompanyWide(session.roles) && (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>

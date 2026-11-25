@@ -27,7 +27,7 @@ const supplierSchema = z.object({
 
 export async function createSupplier(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePurchasing(session.role)) throw new Error("Forbidden");
+  if (!canManagePurchasing(session.roles)) throw new Error("Forbidden");
 
   const parsed = supplierSchema.parse({
     name: formData.get("name"),
@@ -63,9 +63,9 @@ function orderNumber() {
 
 export async function createPurchaseOrder(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePurchasing(session.role)) throw new Error("Forbidden");
+  if (!canManagePurchasing(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -101,13 +101,13 @@ const statusSchema = z.enum(["DRAFT", "ORDERED", "RECEIVED", "CANCELLED"]);
 
 export async function updatePurchaseOrderStatus(orderId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManagePurchasing(session.role)) throw new Error("Forbidden");
+  if (!canManagePurchasing(session.roles)) throw new Error("Forbidden");
 
   const order = await db.purchaseOrder.findUniqueOrThrow({
     where: { id: orderId },
     include: { supplier: true },
   });
-  if (!isCompanyWide(session.role) && order.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && order.branchId !== session.branchId) throw new Error("Forbidden");
 
   const status = statusSchema.parse(formData.get("status"));
   await db.purchaseOrder.update({ where: { id: orderId }, data: { status } });
@@ -138,13 +138,13 @@ const paymentSchema = z.object({
 
 export async function recordPurchaseOrderPayment(orderId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const order = await db.purchaseOrder.findUniqueOrThrow({
     where: { id: orderId },
     include: { supplier: true },
   });
-  if (!isCompanyWide(session.role) && order.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && order.branchId !== session.branchId) throw new Error("Forbidden");
 
   const { amount } = paymentSchema.parse({ amount: formData.get("amount") });
   const roundedAmount = round2(amount);

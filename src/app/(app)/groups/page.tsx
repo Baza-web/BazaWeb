@@ -7,7 +7,7 @@ import { UsersFour, X } from "@/components/icons";
 
 export default async function GroupsPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageGroups(session.role)) {
+  if (!canManageGroups(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -19,7 +19,7 @@ export default async function GroupsPage() {
       include: { members: true, branch: true },
       orderBy: { createdAt: "desc" },
     }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.staff.findMany({ where: { ...scope, active: true }, orderBy: { name: "asc" } }),
   ]);
 
@@ -41,7 +41,7 @@ export default async function GroupsPage() {
             <label className="label">Name</label>
             <input className="input" name="name" required placeholder="Custom Orders Team" />
           </div>
-          {isCompanyWide(session.role) && (
+          {isCompanyWide(session.roles) && (
             <div>
               <label className="label">Branch</label>
               <select className="input" name="branchId" required defaultValue={session.branchId ?? ""}>
@@ -70,7 +70,7 @@ export default async function GroupsPage() {
         {groups.map((group) => {
           const branchStaff = staff.filter(
             (s) =>
-              (isCompanyWide(session.role) || s.branchId === group.branchId) &&
+              (isCompanyWide(session.roles) || s.branchId === group.branchId) &&
               !group.members.some((m) => m.id === s.id),
           );
           return (
@@ -82,7 +82,7 @@ export default async function GroupsPage() {
                     <span className="badge bg-purple-100 text-purple-700">Creative team</span>
                   )}
                 </div>
-                {isCompanyWide(session.role) && (
+                {isCompanyWide(session.roles) && (
                   <span className="text-xs text-stone-400">{group.branch.name}</span>
                 )}
               </div>
@@ -95,7 +95,7 @@ export default async function GroupsPage() {
                     <div className="flex items-center gap-2">
                       <span className="avatar h-7 w-7 text-xs">{initials(m.name)}</span>
                       <span className="text-sm">{m.name}</span>
-                      {isCompanyWide(session.role) && memberBranch && m.branchId !== group.branchId && (
+                      {isCompanyWide(session.roles) && memberBranch && m.branchId !== group.branchId && (
                         <span className="badge bg-stone-100 text-stone-500">{memberBranch.name}</span>
                       )}
                     </div>

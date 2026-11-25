@@ -11,11 +11,11 @@ export default async function CompletedOrdersPage({
   searchParams: Promise<{ brand?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  const manageScoped = canManageOrdersScoped(session.role);
+  const manageScoped = canManageOrdersScoped(session.roles);
   const { brand } = await searchParams;
 
   const scopeWhere = manageScoped
-    ? isCompanyWide(session.role)
+    ? isCompanyWide(session.roles)
       ? {}
       : { branchId: session.branchId ?? undefined }
     : { OR: [{ primaryStaffId: session.staffId }, { supportingStaff: { some: { id: session.staffId } } }] };

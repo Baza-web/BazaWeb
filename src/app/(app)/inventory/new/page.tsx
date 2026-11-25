@@ -29,7 +29,7 @@ const OPTIONS = [
 
 export default async function NewInventoryChooserPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) {
+  if (!canManageInventory(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

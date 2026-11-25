@@ -12,7 +12,7 @@ export default async function GeneralLedgerPage({
   searchParams: Promise<{ from?: string; to?: string; accountId?: string; branchId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -23,13 +23,13 @@ export default async function GeneralLedgerPage({
 
   const [accounts, branches, lines] = await Promise.all([
     db.account.findMany({ orderBy: { code: "asc" } }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.journalLine.findMany({
       where: {
         ...(accountId ? { accountId } : {}),
         journalEntry: {
           date: { gte: fromDate, lte: toDate },
-          ...(isCompanyWide(session.role) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
+          ...(isCompanyWide(session.roles) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
         },
       },
       include: { account: true, journalEntry: { include: { branch: true, createdBy: true } } },
@@ -93,7 +93,7 @@ export default async function GeneralLedgerPage({
             ))}
           </select>
         </div>
-        {isCompanyWide(session.role) && (
+        {isCompanyWide(session.roles) && (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>

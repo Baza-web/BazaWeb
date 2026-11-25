@@ -24,7 +24,7 @@ export async function getBalanceSheet(session: SessionPayload, asOfDate: Date, b
         where: {
           journalEntry: {
             date: { lte: asOfDate },
-            ...(isCompanyWide(session.role) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
+            ...(isCompanyWide(session.roles) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
           },
         },
       },

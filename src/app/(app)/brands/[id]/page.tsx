@@ -21,7 +21,7 @@ function TrendBadge({ change }: { change: number }) {
 
 export default async function BrandDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrands(session.role)) {
+  if (!canManageBrands(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

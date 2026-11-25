@@ -10,7 +10,7 @@ export async function GET() {
   } catch {
     return new Response("Unauthenticated", { status: 401 });
   }
-  if (!canManagePurchasing(session.role) && !canManageAccounting(session.role)) {
+  if (!canManagePurchasing(session.roles) && !canManageAccounting(session.roles)) {
     return new Response("Forbidden", { status: 403 });
   }
 

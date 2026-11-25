@@ -31,7 +31,7 @@ const openingBalancesSchema = z.object({
  */
 export async function postOpeningBalances(formData: FormData): Promise<{ status: "posted" | "error"; message?: string }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const already = await db.journalEntry.findFirst({ where: { reference: OPENING_BALANCES_REFERENCE } });
   if (already) {
@@ -92,7 +92,7 @@ export async function postOpeningBalances(formData: FormData): Promise<{ status:
 
 export async function runBackfill(): Promise<{ salesPosted: number; expensesPosted: number }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const result = await backfillMissingJournalEntries(session);
   revalidatePath("/accounting/setup");

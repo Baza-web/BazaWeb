@@ -30,11 +30,11 @@ export default async function OrdersCommandCentrePage({
   const session = await requireSessionOrRedirect();
   const { brand: brandFilter } = await searchParams;
 
-  const manageScoped = canManageOrdersScoped(session.role);
-  const manageCompanyWide = canManageOrdersCompanyWide(session.role);
+  const manageScoped = canManageOrdersScoped(session.roles);
+  const manageCompanyWide = canManageOrdersCompanyWide(session.roles);
 
   const scopeWhere = manageScoped
-    ? isCompanyWide(session.role)
+    ? isCompanyWide(session.roles)
       ? {}
       : { branchId: session.branchId ?? undefined }
     : { OR: [{ primaryStaffId: session.staffId }, { supportingStaff: { some: { id: session.staffId } } }] };
@@ -194,7 +194,7 @@ export default async function OrdersCommandCentrePage({
               Apply
             </button>
           </form>
-          {canCreateOrders(session.role) && (
+          {canCreateOrders(session.roles) && (
             <Link href="/orders/new" className="btn-primary text-sm">
               <Plus size={16} aria-hidden="true" /> Create New Order
             </Link>
@@ -202,7 +202,7 @@ export default async function OrdersCommandCentrePage({
           <Link href="/orders/all" className="btn-secondary text-sm">
             All Orders <ArrowRight size={16} aria-hidden="true" />
           </Link>
-          {canManageOrdersCompanyWide(session.role) && (
+          {canManageOrdersCompanyWide(session.roles) && (
             <Link href="/orders/qc-settings" className="btn-secondary text-sm">
               QC Settings
             </Link>

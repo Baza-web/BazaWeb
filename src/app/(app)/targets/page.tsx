@@ -12,8 +12,8 @@ function daysRemaining(periodEnd: Date) {
 
 export default async function TargetsPage() {
   const session = await requireSessionOrRedirect();
-  const manager = canManageSalesTargets(session.role);
-  if (!manager && session.role !== "SALES") {
+  const manager = canManageSalesTargets(session.roles);
+  if (!manager && !session.roles.includes("SALES")) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
   const scope = branchScope(session);
@@ -27,14 +27,14 @@ export default async function TargetsPage() {
     manager
       ? db.staff.findMany({
           where: {
-            ...(isCompanyWide(session.role) ? {} : { branchId: session.branchId }),
+            ...(isCompanyWide(session.roles) ? {} : { branchId: session.branchId }),
             active: true,
             role: { in: ["SALES", "MANAGER"] },
           },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
-    manager && isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    manager && isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
   const rows = await Promise.all(
@@ -74,7 +74,7 @@ export default async function TargetsPage() {
                   ))}
                 </select>
               </div>
-              {isCompanyWide(session.role) ? (
+              {isCompanyWide(session.roles) ? (
                 <div>
                   <label className="label">Branch</label>
                   <select className="input" name="branchId" required defaultValue={session.branchId ?? ""}>
@@ -122,7 +122,7 @@ export default async function TargetsPage() {
                 <div>
                   <p className="font-medium text-ink-900">
                     {manager ? target.staff.name : "Your target"}
-                    {isCompanyWide(session.role) && (
+                    {isCompanyWide(session.roles) && (
                       <span className="ml-2 text-xs text-stone-400">{target.branch.name}</span>
                     )}
                   </p>

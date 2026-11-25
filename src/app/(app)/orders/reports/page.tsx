@@ -14,12 +14,12 @@ export default async function OrderReportsPage({
   searchParams: Promise<{ brand?: string; from?: string; to?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageOrdersScoped(session.role)) {
+  if (!canManageOrdersScoped(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
   const { brand, from, to } = await searchParams;
 
-  const scopeWhere: Prisma.OrderWhereInput = isCompanyWide(session.role) ? {} : { branchId: session.branchId ?? undefined };
+  const scopeWhere: Prisma.OrderWhereInput = isCompanyWide(session.roles) ? {} : { branchId: session.branchId ?? undefined };
   const brandWhere: Prisma.OrderWhereInput = brand ? { brandId: brand } : {};
   const dateWhere: Prisma.OrderWhereInput =
     from || to ? { orderDate: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to + "T23:59:59") } : {}) } } : {};

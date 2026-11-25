@@ -11,7 +11,7 @@ import { PrintButton } from "@/components/PrintButton";
 
 export default async function BrokersPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrokers(session.role)) {
+  if (!canManageBrokers(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -27,7 +27,7 @@ export default async function BrokersPage() {
       where: { ...scope, status: "IN_STOCK", quantity: { gt: 0 } },
       orderBy: { name: "asc" },
     }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
   const brokerStats = brokers.map((broker) => {
@@ -74,7 +74,7 @@ export default async function BrokersPage() {
             }))}
             brokers={brokers.map((b) => ({ id: b.id, name: b.name }))}
             branches={branches}
-            showBranchSelect={isCompanyWide(session.role)}
+            showBranchSelect={isCompanyWide(session.roles)}
             defaultBranchId={session.branchId ?? branches[0]?.id ?? ""}
           />
         </div>
@@ -108,7 +108,7 @@ export default async function BrokersPage() {
               <label className="label">Notes</label>
               <textarea className="input" name="notes" rows={2} />
             </div>
-            {isCompanyWide(session.role) && (
+            {isCompanyWide(session.roles) && (
               <div>
                 <label className="label">Branch</label>
                 <select className="input" name="branchId" required defaultValue={session.branchId ?? ""}>

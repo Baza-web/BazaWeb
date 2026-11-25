@@ -52,8 +52,8 @@ function LocationCell({
 
 export default async function AttendancePage() {
   const session = await requireSessionOrRedirect();
-  const canViewTeam = canViewAttendance(session.role);
-  const canEdit = canEditAttendance(session.role);
+  const canViewTeam = canViewAttendance(session.roles);
+  const canEdit = canEditAttendance(session.roles);
 
   const [myLogs, teamLogs] = await Promise.all([
     db.attendanceLog.findMany({
@@ -64,7 +64,7 @@ export default async function AttendancePage() {
     }),
     canViewTeam
       ? db.attendanceLog.findMany({
-          where: isCompanyWide(session.role) ? {} : { branchId: session.branchId ?? "__none__" },
+          where: isCompanyWide(session.roles) ? {} : { branchId: session.branchId ?? "__none__" },
           include: { staff: true, branch: true },
           orderBy: { clockInAt: "desc" },
           take: 50,

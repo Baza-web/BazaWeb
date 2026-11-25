@@ -15,7 +15,7 @@ export default async function BankReconciliationPage({
   searchParams: Promise<{ accountId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

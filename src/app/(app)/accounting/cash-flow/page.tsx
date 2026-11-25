@@ -19,7 +19,7 @@ export default async function CashFlowPage({
   searchParams: Promise<{ from?: string; to?: string; branchId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -29,7 +29,7 @@ export default async function CashFlowPage({
   toDate.setHours(23, 59, 59, 999);
 
   const [branches, flow] = await Promise.all([
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     getCashFlow(session, fromDate, toDate, branchId),
   ]);
   const { openingCash, buckets, rows, netChange, closingCash } = flow;
@@ -72,7 +72,7 @@ export default async function CashFlowPage({
           <label className="label">To</label>
           <input className="input" type="date" name="to" defaultValue={toDate.toISOString().slice(0, 10)} />
         </div>
-        {isCompanyWide(session.role) && (
+        {isCompanyWide(session.roles) && (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>

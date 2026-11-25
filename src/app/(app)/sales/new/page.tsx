@@ -5,7 +5,7 @@ import { SaleForm } from "@/components/SaleForm";
 
 export default async function NewSalePage() {
   const session = await requireSessionOrRedirect();
-  if (!canRecordSale(session.role)) {
+  if (!canRecordSale(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -18,7 +18,7 @@ export default async function NewSalePage() {
       orderBy: { name: "asc" },
     }),
     db.customer.findMany({ where: scope, orderBy: { name: "asc" }, select: { id: true, name: true, branchId: true } }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
@@ -36,7 +36,7 @@ export default async function NewSalePage() {
         }))}
         customers={customers}
         branches={branches}
-        showBranchSelect={isCompanyWide(session.role)}
+        showBranchSelect={isCompanyWide(session.roles)}
         defaultBranchId={defaultBranchId}
         brands={brands}
       />

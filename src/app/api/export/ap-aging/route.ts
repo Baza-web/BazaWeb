@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   } catch {
     return new Response("Unauthenticated", { status: 401 });
   }
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return new Response("Forbidden", { status: 403 });
   }
 

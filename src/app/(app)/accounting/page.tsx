@@ -48,7 +48,7 @@ export default async function AccountingPage({
   searchParams: Promise<{ from?: string; to?: string; branchId?: string; brandId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -58,7 +58,7 @@ export default async function AccountingPage({
   toDate.setHours(23, 59, 59, 999);
 
   const scope = branchScope(session, branchId);
-  const showPayroll = canManagePayroll(session.role);
+  const showPayroll = canManagePayroll(session.roles);
   const selectedBrandId = brandId || undefined;
   const ledgerBrandFilter = selectedBrandId
     ? { OR: [{ sale: { brandId: selectedBrandId } }, { expense: { brandId: selectedBrandId } }] }
@@ -88,7 +88,7 @@ export default async function AccountingPage({
       include: { branch: true, sale: true, expense: true },
       orderBy: { date: "desc" },
     }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     showPayroll ? db.payrollRun.count({ where: { status: "DRAFT" } }) : Promise.resolve(0),
     db.ledgerEntry.findMany({
@@ -158,7 +158,7 @@ export default async function AccountingPage({
     .map(([label, value]) => ({ label, value: round2(value) }));
 
   const branchProfitData =
-    isCompanyWide(session.role) && branches.length > 1
+    isCompanyWide(session.roles) && branches.length > 1
       ? Array.from(
           ledger
             .reduce((map, entry) => {
@@ -203,7 +203,7 @@ export default async function AccountingPage({
           <label className="label">To</label>
           <input className="input" type="date" name="to" defaultValue={toDate.toISOString().slice(0, 10)} />
         </div>
-        {isCompanyWide(session.role) && (
+        {isCompanyWide(session.roles) && (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>
@@ -490,7 +490,7 @@ export default async function AccountingPage({
             <label className="label">Monthly limit</label>
             <input className="input max-w-[140px]" name="monthlyLimit" type="number" step="0.01" min="0" required />
           </div>
-          {isCompanyWide(session.role) && (
+          {isCompanyWide(session.roles) && (
             <div>
               <label className="label">Branch</label>
               <select className="input" name="branchId" defaultValue={branches[0]?.id ?? ""}>
@@ -512,7 +512,7 @@ export default async function AccountingPage({
         <h2 className="mb-3 font-medium">Record an expense</h2>
         <ExpenseForm
           branches={branches}
-          showBranchSelect={isCompanyWide(session.role)}
+          showBranchSelect={isCompanyWide(session.roles)}
           defaultBranchId={session.branchId ?? branches[0]?.id ?? ""}
           brands={brands}
           defaultBrandId={selectedBrandId}
@@ -551,7 +551,7 @@ export default async function AccountingPage({
               <th>Type</th>
               <th>Description</th>
               <th>Amount</th>
-              {canManageAccounting(session.role) && <th className="print:hidden">Actions</th>}
+              {canManageAccounting(session.roles) && <th className="print:hidden">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -588,7 +588,7 @@ export default async function AccountingPage({
                   {entry.type === "INCOME" ? "+" : "-"}
                   {formatMoney(entry.amount)}
                 </td>
-                {canManageAccounting(session.role) && (
+                {canManageAccounting(session.roles) && (
                   <td className="print:hidden">
                     {entry.expense && (
                       <ExpenseActions
@@ -598,7 +598,7 @@ export default async function AccountingPage({
                         amount={entry.expense.amount}
                         date={entry.expense.date.toISOString()}
                         isOwner={session.role === "OWNER"}
-                        canDelete={canDeleteOrRequest(session.role)}
+                        canDelete={canDeleteOrRequest(session.roles)}
                         locked={!!entry.expense.purchaseOrderId}
                       />
                     )}
@@ -608,7 +608,7 @@ export default async function AccountingPage({
             ))}
             {ledger.length === 0 && (
               <tr>
-                <td colSpan={canManageAccounting(session.role) ? 7 : 6} className="py-6 text-center text-stone-400">
+                <td colSpan={canManageAccounting(session.roles) ? 7 : 6} className="py-6 text-center text-stone-400">
                   No activity in this range.
                 </td>
               </tr>

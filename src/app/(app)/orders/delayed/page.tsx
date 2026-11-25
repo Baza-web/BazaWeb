@@ -9,10 +9,10 @@ import { WarningCircle } from "@/components/icons";
 
 export default async function DelayedOrdersPage() {
   const session = await requireSessionOrRedirect();
-  const manageScoped = canManageOrdersScoped(session.role);
+  const manageScoped = canManageOrdersScoped(session.roles);
 
   const scopeWhere = manageScoped
-    ? isCompanyWide(session.role)
+    ? isCompanyWide(session.roles)
       ? {}
       : { branchId: session.branchId ?? undefined }
     : { OR: [{ primaryStaffId: session.staffId }, { supportingStaff: { some: { id: session.staffId } } }] };

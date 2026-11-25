@@ -11,7 +11,7 @@ import { DeleteBrandButton } from "@/components/DeleteBrandButton";
 
 export default async function BrandsPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrands(session.role)) {
+  if (!canManageBrands(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

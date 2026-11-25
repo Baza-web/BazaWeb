@@ -37,7 +37,7 @@ export async function GET() {
   } catch {
     return new Response("Unauthenticated", { status: 401 });
   }
-  if (!canRecordSale(session.role)) {
+  if (!canRecordSale(session.roles)) {
     return new Response("Forbidden", { status: 403 });
   }
 

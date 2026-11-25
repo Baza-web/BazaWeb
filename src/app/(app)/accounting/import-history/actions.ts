@@ -7,13 +7,13 @@ import { parseHistoricalTotalsFile, importHistoricalTotals, type HistoricalImpor
 
 export async function importHistoricalTotalsAction(formData: FormData): Promise<HistoricalImportResult & { error?: string }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { monthsPosted: [], monthsSkipped: [], rowErrors: [], error: "Attach a .xlsx or .csv file first." };
   }
-  const branchId = isCompanyWide(session.role) ? String(formData.get("branchId") || "") || null : session.branchId ?? null;
+  const branchId = isCompanyWide(session.roles) ? String(formData.get("branchId") || "") || null : session.branchId ?? null;
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const { rows, error } = await parseHistoricalTotalsFile(buffer, file.name);

@@ -19,7 +19,7 @@ const schema = z.object({
 
 export async function createBranch(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canAddOrDeleteBranches(session.role)) throw new Error("Forbidden");
+  if (!canAddOrDeleteBranches(session.roles)) throw new Error("Forbidden");
 
   const parsed = schema.parse({
     name: formData.get("name"),
@@ -42,7 +42,7 @@ export async function createBranch(formData: FormData) {
  */
 export async function deleteBranch(branchId: string): Promise<{ error: string } | { success: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canAddOrDeleteBranches(session.role)) throw new Error("Forbidden");
+  if (!canAddOrDeleteBranches(session.roles)) throw new Error("Forbidden");
 
   const branch = await db.branch.findUnique({
     where: { id: branchId },
@@ -94,7 +94,7 @@ export async function updateBranchDetails(
   formData: FormData,
 ): Promise<{ error: string } | { success: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
 
   const parsed = schema.safeParse({
     name: formData.get("name"),
@@ -110,7 +110,7 @@ export async function updateBranchDetails(
 
 export async function setMainBranch(branchId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
 
   await db.$transaction([
     db.branch.updateMany({ where: { isMain: true }, data: { isMain: false } }),
@@ -130,7 +130,7 @@ const geofenceSchema = z.object({
 
 export async function updateBranchGeofence(branchId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
 
   const parsed = geofenceSchema.parse({
     latitude: formData.get("latitude"),

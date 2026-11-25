@@ -32,7 +32,7 @@ const customerSchema = z.object({
 export async function createCustomer(formData: FormData) {
   const session = await requireSessionOrRedirect();
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -197,7 +197,7 @@ export async function redeemRewardsAction(customerId: string, formData: FormData
 
 export async function setRewardRateAction(formData: FormData): Promise<void> {
   const session = await requireSessionOrRedirect();
-  if (!canManageRewardProgram(session.role)) throw new Error("Forbidden");
+  if (!canManageRewardProgram(session.roles)) throw new Error("Forbidden");
 
   const rewardPer100k = Number(formData.get("rewardPer100k"));
   if (!Number.isFinite(rewardPer100k) || rewardPer100k < 0) throw new Error("Enter a valid, non-negative amount.");
@@ -210,7 +210,7 @@ export async function setRewardRateAction(formData: FormData): Promise<void> {
 /** Owner and Admin delete immediately; Sales staff can only request it, pending Admin/Owner approval. Refused if the customer has any sale/repair history. */
 export async function deleteCustomerPermanently(customerId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canDeleteOrRequestCustomer(session.role)) throw new Error("Forbidden");
+  if (!canDeleteOrRequestCustomer(session.roles)) throw new Error("Forbidden");
 
   const customer = await db.customer.findFirst({ where: { id: customerId, ...branchScope(session) } });
   if (!customer) throw new Error("Forbidden");

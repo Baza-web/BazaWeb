@@ -20,9 +20,9 @@ const createSchema = z.object({
 
 export async function createTask(formData: FormData): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
-  if (!canAssignTasks(session.role)) throw new Error("Forbidden");
+  if (!canAssignTasks(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -107,7 +107,7 @@ const projectSchema = z.object({ name: z.string().min(2).max(80) });
 /** Owner/Admin/Manager — same audience that can already assign tasks. Brand-linked projects are managed entirely through Brands (see applyBrandEdit); this is only for ad-hoc projects with no brand. */
 export async function createSpecialProject(formData: FormData): Promise<{ error: string } | { id: string }> {
   const session = await requireSessionOrRedirect();
-  if (!canAssignTasks(session.role)) throw new Error("Forbidden");
+  if (!canAssignTasks(session.roles)) throw new Error("Forbidden");
 
   const parsed = projectSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) return { error: "Enter a project name (at least 2 characters)." };
@@ -125,7 +125,7 @@ async function canActOnTask(
   session: SessionPayload,
 ) {
   if (task.assignedToId === session.staffId) return true;
-  if (canAssignTasks(session.role) && (isCompanyWide(session.role) || task.branchId === session.branchId)) {
+  if (canAssignTasks(session.roles) && (isCompanyWide(session.roles) || task.branchId === session.branchId)) {
     return true;
   }
   if (!task.groupId) return false;

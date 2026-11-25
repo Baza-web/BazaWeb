@@ -24,17 +24,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default async function WorkshopPage() {
   const session = await requireSessionOrRedirect();
-  if (!canCheckOutSuppliesOrTools(session.role) && !canManageSupplyCatalog(session.role)) {
+  if (!canCheckOutSuppliesOrTools(session.roles) && !canManageSupplyCatalog(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const canManage = canManageSupplyCatalog(session.role);
-  const canCheckOut = canCheckOutSuppliesOrTools(session.role);
+  const canManage = canManageSupplyCatalog(session.roles);
+  const canCheckOut = canCheckOutSuppliesOrTools(session.roles);
 
   const [supplies, tools, staff, branches] = await Promise.all([
     db.supplyItem.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
     db.workshopTool.findMany({ include: { assignedStaff: true, maintenanceLogs: { orderBy: { date: "desc" }, take: 3 } }, orderBy: { name: "asc" } }),
-    isCompanyWide(session.role)
+    isCompanyWide(session.roles)
       ? db.staff.findMany({ where: { active: true }, orderBy: { name: "asc" } })
       : db.staff.findMany({ where: { active: true, branchId: session.branchId ?? undefined }, orderBy: { name: "asc" } }),
     canManage ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),

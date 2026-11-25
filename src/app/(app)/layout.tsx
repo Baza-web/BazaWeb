@@ -88,7 +88,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   const visibleNav = applyNavOrder(
-    NAV.filter((item) => !item.roles || item.roles.includes(session.role)),
+    NAV.filter((item) => !item.roles || item.roles.some((r) => session.roles.includes(r))),
     navOrder,
   );
 
@@ -100,9 +100,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       unreadMessages={unreadMessages}
       unreadNotifications={unreadNotifications}
       isClockedIn={Boolean(openAttendanceLog)}
-      showClockButton={session.role !== "OWNER"}
+      showClockButton={!session.roles.includes("OWNER")}
       logoutAction={logout}
-      canEditNav={canEditNavOrder(session.role)}
+      canEditNav={canEditNavOrder(session.roles)}
       updateNavOrderAction={updateNavOrder}
     >
       {children}

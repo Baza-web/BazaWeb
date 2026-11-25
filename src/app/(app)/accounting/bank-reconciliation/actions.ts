@@ -9,7 +9,7 @@ import { round2 } from "@/lib/utils";
 
 export async function uploadBankStatement(formData: FormData): Promise<{ imported: number; skipped: number; error?: string }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const accountId = String(formData.get("accountId") || "");
   const account = await db.account.findUnique({ where: { id: accountId } });
@@ -54,7 +54,7 @@ export async function uploadBankStatement(formData: FormData): Promise<{ importe
 /** Links a bank statement line to a posted journal line — confirms the books agree with the bank, never creates or edits a journal entry. */
 export async function matchBankLine(bankLineId: string, journalLineId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const [bankLine, journalLine] = await Promise.all([
     db.bankStatementLine.findUniqueOrThrow({ where: { id: bankLineId } }),
@@ -79,7 +79,7 @@ export async function matchBankLine(bankLineId: string, journalLineId: string) {
 
 export async function unmatchBankLine(bankLineId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   await db.bankStatementLine.update({
     where: { id: bankLineId },
@@ -90,7 +90,7 @@ export async function unmatchBankLine(bankLineId: string) {
 
 export async function deleteBankStatementLine(bankLineId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const line = await db.bankStatementLine.findUniqueOrThrow({ where: { id: bankLineId } });
   if (line.reconciled) throw new Error("Unmatch this line before deleting it.");

@@ -6,11 +6,11 @@ import { HistoricalImportForm } from "@/components/HistoricalImportForm";
 
 export default async function ImportHistoryPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const branches = isCompanyWide(session.role) ? await db.branch.findMany({ orderBy: { name: "asc" } }) : [];
+  const branches = isCompanyWide(session.roles) ? await db.branch.findMany({ orderBy: { name: "asc" } }) : [];
 
   return (
     <div className="max-w-2xl space-y-6">

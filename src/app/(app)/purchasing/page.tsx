@@ -17,8 +17,8 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function PurchasingPage() {
   const session = await requireSessionOrRedirect();
-  const canManage = canManagePurchasing(session.role);
-  const canPay = canManageAccounting(session.role);
+  const canManage = canManagePurchasing(session.roles);
+  const canPay = canManageAccounting(session.roles);
   if (!canManage && !canPay) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
@@ -33,7 +33,7 @@ export default async function PurchasingPage() {
       take: 200,
     }),
     db.supplier.findMany({ orderBy: { name: "asc" } }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
   return (
@@ -56,7 +56,7 @@ export default async function PurchasingPage() {
               <PurchaseOrderForm
                 suppliers={suppliers}
                 branches={branches}
-                showBranchSelect={isCompanyWide(session.role)}
+                showBranchSelect={isCompanyWide(session.roles)}
                 defaultBranchId={session.branchId ?? branches[0]?.id ?? ""}
               />
             )}
@@ -186,7 +186,7 @@ export default async function PurchasingPage() {
                     <td className="font-medium text-ink-900">{order.orderNumber}</td>
                     <td>
                       {order.supplier.name}
-                      {isCompanyWide(session.role) && (
+                      {isCompanyWide(session.roles) && (
                         <p className="text-xs text-stone-400">{order.branch.name}</p>
                       )}
                     </td>

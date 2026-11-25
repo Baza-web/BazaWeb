@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canAccessCreativeHub, isCompanyWide, STAFF_MANAGER_ROLES } from "@/lib/rbac";
+import { canAccessCreativeHub, isCompanyWide, canManageStaff } from "@/lib/rbac";
 import { formatDateTime, initials } from "@/lib/utils";
 import { TaskBoard } from "@/components/TaskBoard";
 import { ContentCalendar } from "@/components/ContentCalendar";
@@ -18,11 +18,11 @@ export default async function CreativeHubPage({
   searchParams: Promise<{ month?: string; brand?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) {
+  if (!canAccessCreativeHub(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const isManager = STAFF_MANAGER_ROLES.includes(session.role);
+  const isManager = canManageStaff(session.roles);
 
   const { month: monthParam, brand: brandParam } = await searchParams;
   const now = new Date();
@@ -53,7 +53,7 @@ export default async function CreativeHubPage({
         where: {
           isCreativeTeam: true,
           ...(isManager
-            ? isCompanyWide(session.role)
+            ? isCompanyWide(session.roles)
               ? {}
               : { branchId: session.branchId ?? "__none__" }
             : { members: { some: { id: session.staffId } } }),
@@ -163,7 +163,7 @@ export default async function CreativeHubPage({
             <div className="card flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-ink-900">{group.name}</h2>
-                {isCompanyWide(session.role) && <p className="text-xs text-stone-400">{group.branch.name}</p>}
+                {isCompanyWide(session.roles) && <p className="text-xs text-stone-400">{group.branch.name}</p>}
               </div>
               <div className="flex -space-x-2">
                 {group.members.map((m) => (

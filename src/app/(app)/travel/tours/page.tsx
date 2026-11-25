@@ -36,7 +36,7 @@ export default async function ToursPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessTravel(session.role)) {
+  if (!canAccessTravel(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -53,7 +53,7 @@ export default async function ToursPage({
       orderBy: { updatedAt: "desc" },
       take: 200,
     }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
   return (
@@ -188,7 +188,7 @@ export default async function ToursPage({
               <label className="label">Price — child (LKR)</label>
               <input className="input" type="number" min="0" step="0.01" name="priceChild" />
             </div>
-            {isCompanyWide(session.role) && (
+            {isCompanyWide(session.roles) && (
               <div>
                 <label className="label">Branch (optional)</label>
                 <select className="input" name="branchId" defaultValue="">

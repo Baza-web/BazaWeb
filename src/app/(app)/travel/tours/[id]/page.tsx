@@ -39,7 +39,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default async function TourDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessTravel(session.role)) {
+  if (!canAccessTravel(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -52,7 +52,7 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
   });
   if (!tour) notFound();
 
-  const branches = isCompanyWide(session.role) ? await db.branch.findMany({ orderBy: { name: "asc" } }) : [];
+  const branches = isCompanyWide(session.roles) ? await db.branch.findMany({ orderBy: { name: "asc" } }) : [];
 
   return (
     <div className="space-y-6">
@@ -269,7 +269,7 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
               <label className="label">Price — child (LKR)</label>
               <input className="input" type="number" min="0" step="0.01" name="priceChild" defaultValue={tour.priceChild ?? ""} />
             </div>
-            {isCompanyWide(session.role) && (
+            {isCompanyWide(session.roles) && (
               <div>
                 <label className="label">Branch</label>
                 <select className="input" name="branchId" defaultValue={tour.branchId ?? ""}>

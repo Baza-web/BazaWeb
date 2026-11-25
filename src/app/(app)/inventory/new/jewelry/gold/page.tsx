@@ -6,12 +6,12 @@ import { Crown } from "@/components/icons";
 
 export default async function NewGoldJewelryPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageInventory(session.role)) {
+  if (!canManageInventory(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
   const [branches, brands] = await Promise.all([
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
@@ -25,7 +25,7 @@ export default async function NewGoldJewelryPage() {
         <h1 className="page-title">Add a gold jewelry item</h1>
       </div>
 
-      <JewelryIntakeForm metal="Gold" showBranchSelect={isCompanyWide(session.role)} branches={branches} brands={brands} />
+      <JewelryIntakeForm metal="Gold" showBranchSelect={isCompanyWide(session.roles)} branches={branches} brands={brands} />
     </div>
   );
 }

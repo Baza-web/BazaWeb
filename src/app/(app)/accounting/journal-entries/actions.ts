@@ -23,9 +23,9 @@ const entrySchema = z.object({
 
 export async function createJournalEntry(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role) ? String(formData.get("branchId") || "") || undefined : session.branchId ?? undefined;
+  const branchId = isCompanyWide(session.roles) ? String(formData.get("branchId") || "") || undefined : session.branchId ?? undefined;
 
   const parsed = entrySchema.parse({
     date: formData.get("date"),
@@ -55,7 +55,7 @@ export async function createJournalEntry(formData: FormData) {
 
 export async function reverseEntry(entryId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   await reverseJournalEntry(session, entryId);
   revalidatePath("/accounting/journal-entries");

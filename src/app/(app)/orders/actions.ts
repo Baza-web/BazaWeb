@@ -36,9 +36,9 @@ async function requireOrderAccess(orderId: string, session: Awaited<ReturnType<t
     include: { supportingStaff: true },
   });
   const isAssigned = order.primaryStaffId === session.staffId || order.supportingStaff.some((s) => s.id === session.staffId);
-  const canManage = canManageOrdersScoped(session.role);
+  const canManage = canManageOrdersScoped(session.roles);
   if (!canManage && !isAssigned) throw new Error("Forbidden");
-  if (!isCompanyWide(session.role) && order.branchId && order.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && order.branchId && order.branchId !== session.branchId) throw new Error("Forbidden");
   return { order, isAssigned, canManage };
 }
 
@@ -92,10 +92,10 @@ function parseOrderForm(formData: FormData) {
 
 export async function createOrder(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canCreateOrders(session.role)) throw new Error("Forbidden");
+  if (!canCreateOrders(session.roles)) throw new Error("Forbidden");
 
   const parsed = parseOrderForm(formData);
-  const branchId = parsed.branchId ?? (isCompanyWide(session.role) ? undefined : session.branchId ?? undefined);
+  const branchId = parsed.branchId ?? (isCompanyWide(session.roles) ? undefined : session.branchId ?? undefined);
 
   const primaryStaff = await db.staff.findFirst({ where: { id: parsed.primaryStaffId, active: true } });
   if (!primaryStaff) throw new Error("That staff member doesn't exist.");
@@ -147,10 +147,10 @@ export async function createOrder(formData: FormData) {
 export async function updateOrder(orderId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   const { order } = await requireOrderAccess(orderId, session);
-  if (!canManageOrdersScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageOrdersScoped(session.roles)) throw new Error("Forbidden");
 
   const parsed = parseOrderForm(formData);
-  const branchId = parsed.branchId ?? (isCompanyWide(session.role) ? undefined : session.branchId ?? undefined);
+  const branchId = parsed.branchId ?? (isCompanyWide(session.roles) ? undefined : session.branchId ?? undefined);
 
   const primaryStaff = await db.staff.findFirst({ where: { id: parsed.primaryStaffId, active: true } });
   if (!primaryStaff) throw new Error("That staff member doesn't exist.");
@@ -327,7 +327,7 @@ export async function submitForApproval(orderId: string) {
     where: {
       active: true,
       role: { in: ["OWNER", "ADMIN", "MANAGER"] },
-      ...(order.branchId && !isCompanyWide(session.role) ? { OR: [{ branchId: order.branchId }, { role: { in: ["OWNER", "ADMIN"] } }] } : {}),
+      ...(order.branchId && !isCompanyWide(session.roles) ? { OR: [{ branchId: order.branchId }, { role: { in: ["OWNER", "ADMIN"] } }] } : {}),
     },
   });
   await Promise.all(
@@ -342,10 +342,10 @@ export async function submitForApproval(orderId: string) {
 
 export async function decideApproval(approvalId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageOrdersScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageOrdersScoped(session.roles)) throw new Error("Forbidden");
 
   const approval = await db.orderApproval.findUniqueOrThrow({ where: { id: approvalId }, include: { order: true } });
-  if (!isCompanyWide(session.role) && approval.order.branchId && approval.order.branchId !== session.branchId) {
+  if (!isCompanyWide(session.roles) && approval.order.branchId && approval.order.branchId !== session.branchId) {
     throw new Error("Forbidden");
   }
   if (approval.decision) throw new Error("This approval was already decided.");
@@ -420,7 +420,7 @@ export async function createLinkedTask(orderId: string, formData: FormData) {
 
 export async function updatePrioritySettings(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageOrdersCompanyWide(session.role)) throw new Error("Forbidden");
+  if (!canManageOrdersCompanyWide(session.roles)) throw new Error("Forbidden");
 
   const criticalHours = Math.max(1, Number(formData.get("criticalHours")) || 24);
   const highHours = Math.max(criticalHours + 1, Number(formData.get("highHours")) || 48);

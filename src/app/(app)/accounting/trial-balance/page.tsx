@@ -11,7 +11,7 @@ export default async function TrialBalancePage({
   searchParams: Promise<{ asOf?: string; branchId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -20,14 +20,14 @@ export default async function TrialBalancePage({
   asOfDate.setHours(23, 59, 59, 999);
 
   const [branches, accounts] = await Promise.all([
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.account.findMany({
       include: {
         journalLines: {
           where: {
             journalEntry: {
               date: { lte: asOfDate },
-              ...(isCompanyWide(session.role) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
+              ...(isCompanyWide(session.roles) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
             },
           },
         },
@@ -73,7 +73,7 @@ export default async function TrialBalancePage({
           <label className="label">As of</label>
           <input className="input" type="date" name="asOf" defaultValue={asOfDate.toISOString().slice(0, 10)} />
         </div>
-        {isCompanyWide(session.role) && (
+        {isCompanyWide(session.roles) && (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>

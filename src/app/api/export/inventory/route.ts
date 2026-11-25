@@ -69,7 +69,7 @@ export async function GET(request: Request) {
   const status = searchParams.get("status") ?? undefined;
   const brandId = searchParams.get("brandId") ?? undefined;
   const items = await getItems(session, q, status, brandId);
-  const showCost = canViewCost(session.role);
+  const showCost = canViewCost(session.roles);
 
   const buffer = await buildExportSheet("Inventory", buildColumns(showCost), items, (r) => r.id);
   return xlsxResponse(buffer, timestampedFilename("inventory"));

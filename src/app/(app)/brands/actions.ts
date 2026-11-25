@@ -16,7 +16,7 @@ type ActionResult = { error: string } | { status: "applied" | "requested" };
 /** Owner's new brand goes live immediately; Admin's does too; anyone else's would be a pending request an Owner must approve first (in practice only Owner/Admin can reach this page at all). */
 export async function createBrand(formData: FormData): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+  if (!canManageBrands(session.roles)) throw new Error("Forbidden");
 
   const parsed = createSchema.safeParse({ name: String(formData.get("name") || "").trim() });
   if (!parsed.success) return { error: "Enter a brand name (at least 2 characters)." };
@@ -39,7 +39,7 @@ export async function createBrand(formData: FormData): Promise<ActionResult> {
 /** Owner's and Admin's renames apply immediately; anyone else's is a pending request an Owner must approve first. */
 export async function updateBrand(brandId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+  if (!canManageBrands(session.roles)) throw new Error("Forbidden");
 
   const parsed = createSchema.safeParse({ name: String(formData.get("name") || "").trim() });
   if (!parsed.success) return { error: "Enter a brand name (at least 2 characters)." };
@@ -58,7 +58,7 @@ export async function updateBrand(brandId: string, formData: FormData): Promise<
 /** Owner's and Admin's change applies immediately; anyone else's is a pending request an Owner must approve first. Configurable per brand (Maison D'or today) rather than a hardcoded brand-name check — see Order dispatch gating in src/lib/qc.ts. */
 export async function toggleRequiresGoldCertificates(brandId: string): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+  if (!canManageBrands(session.roles)) throw new Error("Forbidden");
 
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
   const result = await initiateEdit(
@@ -77,7 +77,7 @@ export async function toggleRequiresGoldCertificates(brandId: string): Promise<A
 /** Owner's and Admin's status change applies immediately; anyone else's is a pending request an Owner must approve first. */
 export async function toggleBrandActive(brandId: string): Promise<ActionResult> {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+  if (!canManageBrands(session.roles)) throw new Error("Forbidden");
 
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
   const result = await initiateEdit(
@@ -96,7 +96,7 @@ export async function toggleBrandActive(brandId: string): Promise<ActionResult> 
 /** Owner and Admin delete immediately; refuses if the brand is still in use anywhere (see performBrandDeletion in src/lib/deletion.ts). */
 export async function deleteBrand(brandId: string): Promise<{ error: string } | { status: "deleted" | "requested" }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageBrands(session.role)) throw new Error("Forbidden");
+  if (!canManageBrands(session.roles)) throw new Error("Forbidden");
 
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
   try {

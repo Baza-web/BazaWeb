@@ -9,7 +9,7 @@ export async function decideDeletionRequest(requestId: string, formData: FormDat
   const session = await requireSessionOrRedirect();
   // Coarse gate: Owner or Admin may be reviewing something. reviewDeletionRequest itself
   // enforces the fine-grained rule (Admin: Customer requests only).
-  if (!canReviewCustomerRequests(session.role)) throw new Error("Forbidden");
+  if (!canReviewCustomerRequests(session.roles)) throw new Error("Forbidden");
 
   const decision = String(formData.get("decision"));
   if (decision !== "APPROVED" && decision !== "REJECTED") throw new Error("Invalid decision.");

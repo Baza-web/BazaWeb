@@ -20,9 +20,9 @@ import type { MetalType, QCDecision } from "@prisma/client";
 async function requireOrderAccess(orderId: string, session: Awaited<ReturnType<typeof requireSessionOrRedirect>>) {
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { supportingStaff: true, brand: true } });
   const isAssigned = order.primaryStaffId === session.staffId || order.supportingStaff.some((s) => s.id === session.staffId);
-  const canManage = canManageOrdersScoped(session.role);
-  if (!canManage && !isAssigned && !canPerformQCInspection(session.role)) throw new Error("Forbidden");
-  if (!isCompanyWide(session.role) && order.branchId && order.branchId !== session.branchId) throw new Error("Forbidden");
+  const canManage = canManageOrdersScoped(session.roles);
+  if (!canManage && !isAssigned && !canPerformQCInspection(session.roles)) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && order.branchId && order.branchId !== session.branchId) throw new Error("Forbidden");
   return { order, isAssigned, canManage };
 }
 
@@ -178,7 +178,7 @@ export async function deleteOrderComponent(componentId: string) {
 
 export async function addQCChecklistTemplateItem(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canEditQCChecklistTemplate(session.role)) throw new Error("Forbidden");
+  if (!canEditQCChecklistTemplate(session.roles)) throw new Error("Forbidden");
 
   const label = z.string().min(1).parse(formData.get("label"));
   const count = await db.qCChecklistTemplate.count();
@@ -188,7 +188,7 @@ export async function addQCChecklistTemplateItem(formData: FormData) {
 
 export async function deactivateQCChecklistTemplateItem(templateId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canEditQCChecklistTemplate(session.role)) throw new Error("Forbidden");
+  if (!canEditQCChecklistTemplate(session.roles)) throw new Error("Forbidden");
   await db.qCChecklistTemplate.update({ where: { id: templateId }, data: { active: false } });
   revalidatePath("/orders/qc-settings");
 }
@@ -202,7 +202,7 @@ const DEFAULT_QC_CHECKLIST = [
 /** One-click starting point from the spec's own suggested checklist — editable afterward, never re-applied silently. */
 export async function seedDefaultQCChecklist() {
   const session = await requireSessionOrRedirect();
-  if (!canEditQCChecklistTemplate(session.role)) throw new Error("Forbidden");
+  if (!canEditQCChecklistTemplate(session.roles)) throw new Error("Forbidden");
   const existing = await db.qCChecklistTemplate.count();
   if (existing > 0) return;
   await db.qCChecklistTemplate.createMany({
@@ -227,7 +227,7 @@ const qcResultSchema = z.object({
  */
 export async function submitQCInspection(orderId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canPerformQCInspection(session.role)) throw new Error("Forbidden");
+  if (!canPerformQCInspection(session.roles)) throw new Error("Forbidden");
   const { order } = await requireOrderAccess(orderId, session);
   requireIndependentInspector(order, session.staffId);
 
@@ -329,7 +329,7 @@ export async function addGoldCertificate(orderId: string, formData: FormData) {
 
 export async function reviewGoldCertificate(certificateId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canVerifyGoldCertificates(session.role)) throw new Error("Forbidden");
+  if (!canVerifyGoldCertificates(session.roles)) throw new Error("Forbidden");
 
   const decision = z.enum(["VERIFIED", "REJECTED"]).parse(formData.get("decision"));
   const cert = await db.goldCertificate.update({
@@ -346,7 +346,7 @@ export async function reviewGoldCertificate(certificateId: string, formData: For
 
 export async function deleteGoldCertificate(certificateId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canVerifyGoldCertificates(session.role)) throw new Error("Forbidden");
+  if (!canVerifyGoldCertificates(session.roles)) throw new Error("Forbidden");
   const cert = await db.goldCertificate.findUniqueOrThrow({ where: { id: certificateId } });
   await db.goldCertificate.delete({ where: { id: certificateId } });
   revalidatePath(`/orders/${cert.orderId}`);

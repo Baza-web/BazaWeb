@@ -21,7 +21,7 @@ async function getLines(
       ...(accountId ? { accountId } : {}),
       journalEntry: {
         date: { gte: fromDate, lte: toDate },
-        ...(isCompanyWide(session.role) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
+        ...(isCompanyWide(session.roles) ? (branchId ? { branchId } : {}) : { branchId: session.branchId }),
       },
     },
     include: { account: true, journalEntry: true },
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   } catch {
     return new Response("Unauthenticated", { status: 401 });
   }
-  if (!canManageAccounting(session.role)) {
+  if (!canManageAccounting(session.roles)) {
     return new Response("Forbidden", { status: 403 });
   }
 

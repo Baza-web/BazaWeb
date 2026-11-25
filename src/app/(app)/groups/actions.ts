@@ -8,9 +8,9 @@ import { canManageGroups, isCompanyWide } from "@/lib/rbac";
 
 export async function createGroup(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageGroups(session.role)) throw new Error("Forbidden");
+  if (!canManageGroups(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -24,7 +24,7 @@ export async function createGroup(formData: FormData) {
 
 async function assertGroupInScope(groupId: string, session: SessionPayload) {
   const group = await db.staffGroup.findUniqueOrThrow({ where: { id: groupId } });
-  if (!isCompanyWide(session.role) && group.branchId !== session.branchId) {
+  if (!isCompanyWide(session.roles) && group.branchId !== session.branchId) {
     throw new Error("Forbidden");
   }
   return group;
@@ -32,14 +32,14 @@ async function assertGroupInScope(groupId: string, session: SessionPayload) {
 
 export async function addGroupMember(groupId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageGroups(session.role)) throw new Error("Forbidden");
+  if (!canManageGroups(session.roles)) throw new Error("Forbidden");
 
   const group = await assertGroupInScope(groupId, session);
   const staffId = String(formData.get("staffId"));
   if (!staffId) return;
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== group.branchId) {
+  if (!isCompanyWide(session.roles) && staff.branchId !== group.branchId) {
     throw new Error("Staff must belong to the group's branch.");
   }
 
@@ -53,7 +53,7 @@ export async function addGroupMember(groupId: string, formData: FormData) {
 
 export async function removeGroupMember(groupId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageGroups(session.role)) throw new Error("Forbidden");
+  if (!canManageGroups(session.roles)) throw new Error("Forbidden");
 
   await assertGroupInScope(groupId, session);
   const staffId = String(formData.get("staffId"));

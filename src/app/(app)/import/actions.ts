@@ -99,7 +99,7 @@ function inventoryFields(showCost: boolean): ImportFieldDef<InventoryRecord>[] {
 /** Parses the uploaded sheet, diffs it against live records, and stashes the result as an ImportBatch for the Apply step. Owner-only, same as the rest of this page. */
 export async function previewImport(entityType: ImportEntity, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (session.role !== "OWNER") throw new Error("Forbidden");
+  if (!session.roles.includes("OWNER")) throw new Error("Forbidden");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose a .xlsx file exported from this app first.");
@@ -113,7 +113,7 @@ export async function previewImport(entityType: ImportEntity, formData: FormData
     diffRows = buildDiff(parsedRows, new Map(records.map((r) => [r.id, r])), CUSTOMER_FIELDS, (r) => r.name);
   } else {
     const records = await db.inventoryItem.findMany({ where: { ...branchScope(session), id: { in: parsedRows.map((r) => r.id) } } });
-    diffRows = buildDiff(parsedRows, new Map(records.map((r) => [r.id, r])), inventoryFields(canViewCost(session.role)), (r) => `${r.sku} — ${r.name}`);
+    diffRows = buildDiff(parsedRows, new Map(records.map((r) => [r.id, r])), inventoryFields(canViewCost(session.roles)), (r) => `${r.sku} — ${r.name}`);
   }
 
   if (diffRows.length === 0) {
@@ -129,7 +129,7 @@ export async function previewImport(entityType: ImportEntity, formData: FormData
 /** Applies the selected rows from a previously-previewed batch. Each row goes through the normal initiateEdit path, so it applies immediately — this whole page is Owner-only, so that's always the outcome. */
 export async function applyImport(batchId: string, selectedIds: string[]) {
   const session = await requireSessionOrRedirect();
-  if (session.role !== "OWNER") throw new Error("Forbidden");
+  if (!session.roles.includes("OWNER")) throw new Error("Forbidden");
 
   const batch = await db.importBatch.findUniqueOrThrow({ where: { id: batchId } });
   if (batch.createdById !== session.staffId) throw new Error("Forbidden");

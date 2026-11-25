@@ -32,10 +32,10 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
   if (!item) notFound();
 
   const [pendingEdit, brands] = await Promise.all([
-    canManageInventory(session.role)
+    canManageInventory(session.roles)
       ? db.editRequest.findFirst({ where: { entityType: "INVENTORY", entityId: item.id, status: "PENDING" } })
       : Promise.resolve(null),
-    canManageInventory(session.role) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    canManageInventory(session.roles) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
   const detail: { label: string; value: string | null }[] = [
@@ -106,7 +106,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
             <p className="font-medium">{d.value}</p>
           </div>
         ))}
-        {canViewCost(session.role) && (
+        {canViewCost(session.roles) && (
           <div>
             <p className="text-xs text-stone-500">Cost price</p>
             <p className="font-medium">{formatMoney(item.costPrice)}</p>
@@ -136,7 +136,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      {canManageInventory(session.role) && (
+      {canManageInventory(session.roles) && (
         <div className="card">
           <p className="mb-2 text-sm font-medium">Status: {item.status.replace("_", " ")}</p>
           <form action={updateInventoryStatus.bind(null, item.id)} className="flex gap-2 print:hidden">
@@ -159,7 +159,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      {canManageInventory(session.role) && (
+      {canManageInventory(session.roles) && (
         <div className="card print:hidden">
           <p className="mb-3 text-sm font-medium">Edit item details</p>
           <form action={updateInventoryItem.bind(null, item.id)} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -217,7 +217,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
               <label className="label">Certification</label>
               <input className="input" name="certification" defaultValue={item.certification ?? ""} disabled={!!pendingEdit} />
             </div>
-            {canViewCost(session.role) && (
+            {canViewCost(session.roles) && (
               <div>
                 <label className="label">Cost price</label>
                 <input className="input" type="number" step="0.01" name="costPrice" defaultValue={item.costPrice} disabled={!!pendingEdit} required />
@@ -283,7 +283,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         ) : (
           <p className="mb-3 text-sm text-stone-400">No certificates or documents uploaded yet.</p>
         )}
-        {canManageInventory(session.role) && (
+        {canManageInventory(session.roles) && (
           <form
             action={addInventoryDocuments.bind(null, item.id)}
             encType="multipart/form-data"
@@ -315,7 +315,7 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
         ) : (
           <p className="mb-3 text-sm text-stone-400">No Drive link added yet.</p>
         )}
-        {canManageInventory(session.role) && (
+        {canManageInventory(session.roles) && (
           <form
             action={updateInventoryDriveLink.bind(null, item.id)}
             className="mt-3 flex flex-wrap items-center gap-2"

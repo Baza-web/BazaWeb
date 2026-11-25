@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
-import { canAccessCreativeHub, STAFF_MANAGER_ROLES } from "@/lib/rbac";
+import { canAccessCreativeHub, canManageStaff } from "@/lib/rbac";
 import { notifyStaff } from "@/lib/notifications";
 import { saveUploadedImages } from "@/lib/uploads";
 import { instagramConfigured } from "@/lib/instagram";
@@ -14,7 +14,7 @@ type GroupWithMembers = { id: string; name: string; members: { id: string }[] };
 
 /** A creative team's own members can act inside it; Owner/Admin can act on any team, even ones they don't belong to. */
 function canActOnGroup(group: GroupWithMembers, session: SessionPayload) {
-  return group.members.some((m) => m.id === session.staffId) || STAFF_MANAGER_ROLES.includes(session.role);
+  return group.members.some((m) => m.id === session.staffId) || canManageStaff(session.roles);
 }
 
 async function requireGroupAccess(groupId: string, session: SessionPayload) {
@@ -27,7 +27,7 @@ const messageSchema = z.object({ body: z.string().min(1) });
 
 export async function sendGroupMessage(groupId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) throw new Error("Forbidden");
+  if (!canAccessCreativeHub(session.roles)) throw new Error("Forbidden");
 
   const group = await requireGroupAccess(groupId, session);
   const { body } = messageSchema.parse({ body: formData.get("body") });
@@ -81,7 +81,7 @@ async function assertAssigneeInGroup(assignedToId: string | undefined, group: Gr
 
 export async function createSocialPost(groupId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) throw new Error("Forbidden");
+  if (!canAccessCreativeHub(session.roles)) throw new Error("Forbidden");
 
   const group = await requireGroupAccess(groupId, session);
   const parsed = postSchema.parse({
@@ -138,7 +138,7 @@ async function requirePostAccess(postId: string, session: SessionPayload) {
 
 export async function updateSocialPost(postId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) throw new Error("Forbidden");
+  if (!canAccessCreativeHub(session.roles)) throw new Error("Forbidden");
 
   const post = await requirePostAccess(postId, session);
   const parsed = postSchema.parse({
@@ -184,7 +184,7 @@ export async function updateSocialPost(postId: string, formData: FormData) {
 /** Owner/Admin only — required before an auto-publish post is eligible to actually post to Instagram. */
 export async function approveSocialPost(postId: string) {
   const session = await requireSessionOrRedirect();
-  if (!STAFF_MANAGER_ROLES.includes(session.role)) throw new Error("Forbidden");
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
 
   const post = await requirePostAccess(postId, session);
   if (!post.autoPublish) throw new Error("Turn on auto-publish for this post before approving it.");
@@ -205,7 +205,7 @@ export async function approveSocialPost(postId: string) {
 
 export async function updateSocialPostStatus(postId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) throw new Error("Forbidden");
+  if (!canAccessCreativeHub(session.roles)) throw new Error("Forbidden");
 
   await requirePostAccess(postId, session);
   const status = statusSchema.parse(formData.get("status"));
@@ -221,7 +221,7 @@ export async function updateSocialPostStatus(postId: string, formData: FormData)
 
 export async function deleteSocialPost(postId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) throw new Error("Forbidden");
+  if (!canAccessCreativeHub(session.roles)) throw new Error("Forbidden");
 
   await requirePostAccess(postId, session);
   await db.socialPost.delete({ where: { id: postId } });

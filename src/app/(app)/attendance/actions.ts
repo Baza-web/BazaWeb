@@ -50,7 +50,7 @@ async function checkGeofence(branchId: string, coords: Coords): Promise<{ error?
 
 export async function clockIn(coords: Coords): Promise<{ error?: string }> {
   const session = await requireSessionOrRedirect();
-  if (session.role === "OWNER") return { error: "Owners don't clock in." };
+  if (session.roles.includes("OWNER")) return { error: "Owners don't clock in." };
   if (!session.branchId) return { error: "Your account has no branch assigned." };
 
   const open = await db.attendanceLog.findFirst({
@@ -77,7 +77,7 @@ export async function clockIn(coords: Coords): Promise<{ error?: string }> {
 
 export async function clockOut(coords: Coords): Promise<{ error?: string }> {
   const session = await requireSessionOrRedirect();
-  if (session.role === "OWNER") return { error: "Owners don't clock in/out." };
+  if (session.roles.includes("OWNER")) return { error: "Owners don't clock in/out." };
 
   const open = await db.attendanceLog.findFirst({
     where: { staffId: session.staffId, clockOutAt: null },
@@ -107,7 +107,7 @@ const editSchema = z.object({
 /** Owner-only correction for a clock in/out record — e.g. a missed clock-out or a wrong time. */
 export async function updateAttendanceLog(logId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canEditAttendance(session.role)) throw new Error("Forbidden");
+  if (!canEditAttendance(session.roles)) throw new Error("Forbidden");
 
   const parsed = editSchema.parse({
     clockInAt: formData.get("clockInAt"),
@@ -136,7 +136,7 @@ export async function updateAttendanceLog(logId: string, formData: FormData) {
 /** Owner-only — removes a mistaken record (e.g. an accidental double clock-in) entirely. */
 export async function deleteAttendanceLog(logId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canEditAttendance(session.role)) throw new Error("Forbidden");
+  if (!canEditAttendance(session.roles)) throw new Error("Forbidden");
 
   await db.attendanceLog.delete({ where: { id: logId } });
   revalidatePath("/attendance");

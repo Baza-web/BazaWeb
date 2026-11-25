@@ -45,9 +45,9 @@ const createSchema = z.object({
 
 export async function createStaff(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
-  const companyWide = isCompanyWide(session.role);
+  const companyWide = isCompanyWide(session.roles);
   const branchId = companyWide ? String(formData.get("branchId")) : session.branchId ?? "";
 
   const parsed = createSchema.parse({
@@ -88,12 +88,12 @@ export async function createStaff(formData: FormData) {
 
 export async function toggleStaffActive(staffId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
   if (staffId === session.staffId) throw new Error("You can't deactivate your own account.");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
 
-  if (!isCompanyWide(session.role)) {
+  if (!isCompanyWide(session.roles)) {
     if (staff.branchId !== session.branchId) throw new Error("Forbidden");
     if (!MANAGER_GRANTABLE_ROLES.includes(staff.role)) throw new Error("Forbidden");
   }
@@ -110,7 +110,7 @@ export async function toggleStaffActive(staffId: string) {
  */
 export async function deleteStaffPermanently(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
   if (staffId === session.staffId) throw new Error("You can't delete your own account.");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
@@ -145,10 +145,10 @@ const hrSchema = z.object({
  */
 export async function updateStaffProfile(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && staff.branchId !== session.branchId) throw new Error("Forbidden");
 
   const parsed = hrSchema.parse({
     phone: emptyToUndefined(formData.get("phone")),
@@ -188,16 +188,14 @@ export async function updateStaffRole(
   formData: FormData,
 ): Promise<{ error: string } | { status: "applied" | "requested" }> {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
 
   const requestedRole = String(formData.get("role")) as Role;
-  const assignableRoles = session.role === "OWNER" ? (Object.keys(ROLE_LABELS) as Role[]) : ADMIN_GRANTABLE_ROLES;
+  const isOwner = session.roles.includes("OWNER");
+  const assignableRoles = isOwner ? (Object.keys(ROLE_LABELS) as Role[]) : ADMIN_GRANTABLE_ROLES;
   if (!assignableRoles.includes(requestedRole)) {
     return {
-      error:
-        session.role === "ADMIN" && requestedRole === "OWNER"
-          ? "Only an Owner can promote someone to Owner."
-          : "Invalid role.",
+      error: !isOwner && requestedRole === "OWNER" ? "Only an Owner can promote someone to Owner." : "Invalid role.",
     };
   }
 
@@ -218,6 +216,58 @@ export async function updateStaffRole(
   return result;
 }
 
+const MAX_ADDITIONAL_ROLES = 2;
+
+/**
+ * Owner/Admin only — same privilege-escalation limit as updateStaffRole: an Admin can
+ * never grant Owner, even as an extra role. Up to 2 extras on top of the primary role,
+ * so a staff member can hold up to 3 roles total (e.g. Craftsman primary + Sales extra).
+ * Permissions become the union of all of them — see src/lib/rbac.ts.
+ */
+export async function updateStaffAdditionalRoles(
+  staffId: string,
+  formData: FormData,
+): Promise<{ error: string } | { status: "applied" | "requested" }> {
+  const session = await requireSessionOrRedirect();
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
+
+  const requested = formData.getAll("additionalRoles").map((v) => String(v)) as Role[];
+  const isOwner = session.roles.includes("OWNER");
+  const assignableRoles = isOwner ? (Object.keys(ROLE_LABELS) as Role[]) : ADMIN_GRANTABLE_ROLES;
+
+  const invalid = requested.find((r) => !assignableRoles.includes(r));
+  if (invalid) {
+    return {
+      error: !isOwner && invalid === "OWNER" ? "Only an Owner can grant Owner as an extra role." : "Invalid role.",
+    };
+  }
+
+  const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
+  // The primary role already covers itself — drop it if it was also ticked as an "extra".
+  const additionalRoles = Array.from(new Set(requested.filter((r) => r !== staff.role)));
+  if (additionalRoles.length > MAX_ADDITIONAL_ROLES) {
+    return { error: `Choose at most ${MAX_ADDITIONAL_ROLES} extra roles.` };
+  }
+
+  const unchanged =
+    additionalRoles.length === staff.additionalRoles.length &&
+    additionalRoles.every((r) => staff.additionalRoles.includes(r));
+  if (unchanged) return { status: "applied" };
+
+  const result = await initiateEdit(
+    session,
+    "STAFF",
+    staffId,
+    staff.name,
+    `Extra roles: ${additionalRoles.length > 0 ? additionalRoles.map((r) => ROLE_LABELS[r]).join(", ") : "none"}`,
+    { additionalRoles },
+  );
+  revalidatePath(`/staff/${staffId}`);
+  revalidatePath("/staff");
+  revalidatePath("/edit-requests");
+  return result;
+}
+
 const paySchema = z.object({
   baseSalary: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().min(0).optional()),
   bankName: z.string().optional(),
@@ -228,7 +278,7 @@ const paySchema = z.object({
 /** Owner/Admin only — salary and bank details are more sensitive than the rest of the profile. */
 export async function updateStaffPay(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canViewSalary(session.role)) throw new Error("Forbidden");
+  if (!canViewSalary(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
   const parsed = paySchema.parse({
@@ -260,7 +310,7 @@ const passwordSchema = z.object({
 /** Owner/Admin only — resets a staff member's login password. Both apply immediately; anyone else requesting a Staff edit still queues, same as salary. */
 export async function setStaffPassword(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaff(session.role)) throw new Error("Forbidden");
+  if (!canManageStaff(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
   const { password } = passwordSchema.parse({ password: formData.get("password") });
@@ -273,10 +323,10 @@ export async function setStaffPassword(staffId: string, formData: FormData) {
 
 export async function addStaffDocuments(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && staff.branchId !== session.branchId) throw new Error("Forbidden");
 
   const files = formData.getAll("documents").filter((f) => f instanceof File) as File[];
   if (files.length === 0) return;
@@ -288,10 +338,10 @@ export async function addStaffDocuments(staffId: string, formData: FormData) {
 
 export async function toggleOnboardingTask(taskId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
   const task = await db.onboardingTask.findUniqueOrThrow({ where: { id: taskId }, include: { staff: true } });
-  if (!isCompanyWide(session.role) && task.staff.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && task.staff.branchId !== session.branchId) throw new Error("Forbidden");
 
   await db.onboardingTask.update({
     where: { id: taskId },
@@ -311,10 +361,10 @@ const reviewSchema = z.object({
 /** Owner/Admin manage reviews everywhere; Manager for their own branch's staff — the same tier that already manages the rest of a staff profile. Append-only history, so it applies immediately rather than going through edit-request approval. */
 export async function addPerformanceReview(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && staff.branchId !== session.branchId) throw new Error("Forbidden");
 
   const parsed = reviewSchema.parse({
     periodLabel: formData.get("periodLabel"),
@@ -340,10 +390,10 @@ const disciplinarySchema = z.object({
 /** Same tier as addPerformanceReview — Owner/Admin everywhere, Manager for their own branch. */
 export async function addDisciplinaryRecord(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && staff.branchId !== session.branchId) throw new Error("Forbidden");
 
   const parsed = disciplinarySchema.parse({
     severity: formData.get("severity"),
@@ -361,10 +411,10 @@ export async function addDisciplinaryRecord(staffId: string, formData: FormData)
 /** Which brand(s) this staff member works for — most are one, some work two. Surfaced to Accounting and Admins. */
 export async function setStaffBrands(staffId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageStaffScoped(session.role)) throw new Error("Forbidden");
+  if (!canManageStaffScoped(session.roles)) throw new Error("Forbidden");
 
   const staff = await db.staff.findUniqueOrThrow({ where: { id: staffId } });
-  if (!isCompanyWide(session.role) && staff.branchId !== session.branchId) throw new Error("Forbidden");
+  if (!isCompanyWide(session.roles) && staff.branchId !== session.branchId) throw new Error("Forbidden");
 
   const brandIds = formData.getAll("brandIds").map(String);
 

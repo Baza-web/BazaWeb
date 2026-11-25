@@ -191,7 +191,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
               Email
             </Link>
           )}
-          {canDeleteOrRequestCustomer(session.role) && (
+          {canDeleteOrRequestCustomer(session.roles) && (
             <DeleteRecordButton
               action={deleteCustomerPermanently.bind(null, customer.id)}
               label="customer"

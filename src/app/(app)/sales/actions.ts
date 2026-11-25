@@ -47,7 +47,7 @@ const normalizePhone = (s: string) => s.replace(/\D/g, "");
  */
 export async function scanOrder(branchId: string, formData: FormData): Promise<ScanOrderResult> {
   const session = await requireSessionOrRedirect();
-  if (!canRecordSale(session.role)) throw new Error("Forbidden");
+  if (!canRecordSale(session.roles)) throw new Error("Forbidden");
 
   const empty: ScanOrderResult = {
     customerId: null,
@@ -166,9 +166,9 @@ function invoiceNumber() {
 
 export async function createSale(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canRecordSale(session.role)) throw new Error("Forbidden");
+  if (!canRecordSale(session.roles)) throw new Error("Forbidden");
 
-  const branchId = isCompanyWide(session.role)
+  const branchId = isCompanyWide(session.roles)
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
@@ -346,7 +346,7 @@ export async function createSale(formData: FormData) {
  */
 export async function deleteSalePermanently(saleId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+  if (!canDeleteOrRequest(session.roles)) throw new Error("Forbidden");
 
   const sale = await db.sale.findFirst({ where: { id: saleId, ...branchScope(session) } });
   if (!sale) throw new Error("Forbidden");
@@ -376,7 +376,7 @@ const saleEditSchema = z.object({
  */
 export async function updateSale(saleId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canDeleteOrRequest(session.role)) throw new Error("Forbidden");
+  if (!canDeleteOrRequest(session.roles)) throw new Error("Forbidden");
   const sale = await db.sale.findFirst({ where: { id: saleId, ...branchScope(session) } });
   if (!sale) throw new Error("Forbidden");
 

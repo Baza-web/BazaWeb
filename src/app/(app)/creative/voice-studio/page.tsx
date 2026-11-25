@@ -9,7 +9,7 @@ import { CloneVoiceForm, GenerateVoiceOverForm, RemoveVoiceButton, RemoveGenerat
 
 export default async function VoiceStudioPage() {
   const session = await requireSessionOrRedirect();
-  if (!canAccessCreativeHub(session.role)) {
+  if (!canAccessCreativeHub(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

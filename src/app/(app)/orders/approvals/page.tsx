@@ -8,11 +8,11 @@ import { ThumbsUp, ThumbsDown, CheckCircle } from "@/components/icons";
 
 export default async function PendingApprovalsPage() {
   const session = await requireSessionOrRedirect();
-  if (!canManageOrdersScoped(session.role)) {
+  if (!canManageOrdersScoped(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const scopeWhere = isCompanyWide(session.role) ? {} : { order: { branchId: session.branchId ?? undefined } };
+  const scopeWhere = isCompanyWide(session.roles) ? {} : { order: { branchId: session.branchId ?? undefined } };
 
   const [pending, decided] = await Promise.all([
     db.orderApproval.findMany({

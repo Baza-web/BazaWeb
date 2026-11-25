@@ -6,7 +6,7 @@ import { buildExportSheet, buildCsv, xlsxResponse, csvResponse, timestampedFilen
 type Row = Awaited<ReturnType<typeof getOrders>>[number];
 
 async function getOrders(session: Awaited<ReturnType<typeof requireSession>>, brand?: string | null, from?: string | null, to?: string | null) {
-  const scopeWhere = isCompanyWide(session.role) ? {} : { branchId: session.branchId ?? undefined };
+  const scopeWhere = isCompanyWide(session.roles) ? {} : { branchId: session.branchId ?? undefined };
   return db.order.findMany({
     where: {
       ...scopeWhere,
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   } catch {
     return new Response("Unauthenticated", { status: 401 });
   }
-  if (!canManageOrdersScoped(session.role)) {
+  if (!canManageOrdersScoped(session.roles)) {
     return new Response("Forbidden", { status: 403 });
   }
 

@@ -13,9 +13,9 @@ export default async function RepairsPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  const canManage = canManageRepairs(session.role);
-  const canEditDelete = canEditDeleteRepairs(session.role);
-  const canUpdateStatus = canManage || session.role === "CRAFTSMAN";
+  const canManage = canManageRepairs(session.roles);
+  const canEditDelete = canEditDeleteRepairs(session.roles);
+  const canUpdateStatus = canManage || session.roles.includes("CRAFTSMAN");
   if (!canUpdateStatus) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
@@ -26,7 +26,7 @@ export default async function RepairsPage({
   const [orders, customers, branches, craftsmen, salesStaff, products] = await Promise.all([
     db.repairOrder.findMany({
       where: {
-        ...(session.role === "CRAFTSMAN" ? { assignedToId: session.staffId } : scope),
+        ...(session.roles.includes("CRAFTSMAN") ? { assignedToId: session.staffId } : scope),
         ...(status ? { status: status as never } : {}),
       },
       include: { customer: true, assignedTo: true, assignedSales: true, branch: true },
@@ -36,18 +36,18 @@ export default async function RepairsPage({
     canManage
       ? db.customer.findMany({ where: scope, orderBy: { name: "asc" }, take: 500 })
       : Promise.resolve([]),
-    canManage && isCompanyWide(session.role)
+    canManage && isCompanyWide(session.roles)
       ? db.branch.findMany({ orderBy: { name: "asc" } })
       : Promise.resolve([]),
     canManage
       ? db.staff.findMany({
-          where: { role: "CRAFTSMAN", active: true, ...(isCompanyWide(session.role) ? {} : { branchId: session.branchId }) },
+          where: { role: "CRAFTSMAN", active: true, ...(isCompanyWide(session.roles) ? {} : { branchId: session.branchId }) },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
     canManage
       ? db.staff.findMany({
-          where: { role: "SALES", active: true, ...(isCompanyWide(session.role) ? {} : { branchId: session.branchId }) },
+          where: { role: "SALES", active: true, ...(isCompanyWide(session.roles) ? {} : { branchId: session.branchId }) },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
@@ -72,7 +72,7 @@ export default async function RepairsPage({
             Intake new order
           </h2>
           <CreateRepairOrderForm
-            isCompanyWide={isCompanyWide(session.role)}
+            isCompanyWide={isCompanyWide(session.roles)}
             defaultBranchId={session.branchId ?? ""}
             branches={branches}
             customers={customers}
@@ -86,7 +86,7 @@ export default async function RepairsPage({
       <div id="repairs-table" className="card overflow-x-auto">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="section-title print:hidden">
-            {session.role === "CRAFTSMAN" ? "Assigned to me" : "All orders"}
+            {session.roles.includes("CRAFTSMAN") ? "Assigned to me" : "All orders"}
           </h2>
           <form action="/repairs" className="flex gap-2 print:hidden">
             <select className="input text-sm" name="status" defaultValue={status ?? ""}>
@@ -106,7 +106,7 @@ export default async function RepairsPage({
 
         <div className="print-report-header">
           <h2 className="font-display text-xl font-semibold">
-            {session.role === "CRAFTSMAN" ? "Assigned to me" : "Repairs & custom orders"}
+            {session.roles.includes("CRAFTSMAN") ? "Assigned to me" : "Repairs & custom orders"}
           </h2>
           <p className="text-sm text-stone-500">
             {status ? `Status: ${status.replace("_", " ")} — ` : ""}Printed {formatDate(new Date())} — {orders.length} order(s)
@@ -137,12 +137,12 @@ export default async function RepairsPage({
             <tbody>
               {orders.map((order) => {
                 const canUpdateThis =
-                  canManage || (session.role === "CRAFTSMAN" && order.assignedToId === session.staffId);
+                  canManage || (session.roles.includes("CRAFTSMAN") && order.assignedToId === session.staffId);
                 return (
                   <RepairOrderRow
                     key={order.id}
                     order={order}
-                    showBranch={isCompanyWide(session.role)}
+                    showBranch={isCompanyWide(session.roles)}
                     canManage={canManage}
                     canEditDelete={canEditDelete}
                     canUpdateThis={canUpdateThis}

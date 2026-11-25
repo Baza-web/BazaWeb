@@ -9,7 +9,7 @@ import { seedDefaultAccounts } from "@/lib/ledger";
 
 export async function seedDefaultChartOfAccounts() {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
   await seedDefaultAccounts();
   revalidatePath("/accounting/chart-of-accounts");
 }
@@ -22,7 +22,7 @@ const accountSchema = z.object({
 
 export async function createAccount(formData: FormData) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const parsed = accountSchema.parse({
     code: formData.get("code"),
@@ -39,7 +39,7 @@ export async function createAccount(formData: FormData) {
 
 export async function toggleAccountActive(accountId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const account = await db.account.findUniqueOrThrow({ where: { id: accountId } });
   await db.account.update({ where: { id: accountId }, data: { active: !account.active } });
@@ -49,7 +49,7 @@ export async function toggleAccountActive(accountId: string) {
 /** Refuses if the account has ever been posted to — accounts with journal history are deactivated, never deleted. */
 export async function deleteAccount(accountId: string) {
   const session = await requireSessionOrRedirect();
-  if (!canManageAccounting(session.role)) throw new Error("Forbidden");
+  if (!canManageAccounting(session.roles)) throw new Error("Forbidden");
 
   const account = await db.account.findUniqueOrThrow({ where: { id: accountId } });
   if (account.isSystem) throw new Error("Default accounts can't be deleted — deactivate it instead if it's not needed.");

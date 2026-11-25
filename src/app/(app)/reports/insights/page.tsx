@@ -12,7 +12,7 @@ export default async function ReportsInsightsPage({
   searchParams: Promise<{ branchId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canViewReports(session.role)) {
+  if (!canViewReports(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -21,7 +21,7 @@ export default async function ReportsInsightsPage({
   const now = new Date();
 
   const [branches, customers, stockItems, soldItems, recentSales] = await Promise.all([
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.customer.findMany({
       where: scope,
       include: { sales: { select: { total: true, createdAt: true } } },
@@ -150,7 +150,7 @@ export default async function ReportsInsightsPage({
         <p className="text-sm text-stone-500">Printed {formatDate(new Date())}</p>
       </div>
 
-      {isCompanyWide(session.role) && branches.length > 1 && (
+      {isCompanyWide(session.roles) && branches.length > 1 && (
         <form className="card flex flex-wrap items-end gap-3" action="/reports/insights">
           <div>
             <label className="label">Branch</label>

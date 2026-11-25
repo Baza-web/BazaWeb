@@ -3,7 +3,7 @@ import { ImportWizard } from "@/components/ImportWizard";
 
 export default async function ImportPage() {
   const session = await requireSessionOrRedirect();
-  if (session.role !== "OWNER") {
+  if (!session.roles.includes("OWNER")) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 

@@ -14,11 +14,11 @@ export default async function UpcomingDeadlinesPage({
   searchParams: Promise<{ brand?: string; employee?: string; department?: string; view?: string; month?: string; from?: string; to?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  const manageScoped = canManageOrdersScoped(session.role);
+  const manageScoped = canManageOrdersScoped(session.roles);
   const params = await searchParams;
 
   const scopeWhere: Prisma.OrderWhereInput = manageScoped
-    ? isCompanyWide(session.role)
+    ? isCompanyWide(session.roles)
       ? {}
       : { branchId: session.branchId ?? undefined }
     : { OR: [{ primaryStaffId: session.staffId }, { supportingStaff: { some: { id: session.staffId } } }] };
@@ -31,7 +31,7 @@ export default async function UpcomingDeadlinesPage({
 
   const [brands, staffList, departmentRows] = await Promise.all([
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
-    isCompanyWide(session.role)
+    isCompanyWide(session.roles)
       ? db.staff.findMany({ where: { active: true }, orderBy: { name: "asc" } })
       : db.staff.findMany({ where: { active: true, branchId: session.branchId ?? undefined }, orderBy: { name: "asc" } }),
     db.order.findMany({ where: { department: { not: null } }, select: { department: true }, distinct: ["department"] }),

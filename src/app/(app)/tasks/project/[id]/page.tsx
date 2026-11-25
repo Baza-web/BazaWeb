@@ -7,7 +7,7 @@ import { TaskBoard } from "@/components/TaskBoard";
 
 export default async function ProjectTasksPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSessionOrRedirect();
-  const manager = canAssignTasks(session.role);
+  const manager = canAssignTasks(session.roles);
   if (!manager) notFound();
 
   const { id } = await params;
@@ -28,12 +28,12 @@ export default async function ProjectTasksPage({ params }: { params: Promise<{ i
       orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
     }),
     db.staff.findMany({
-      where: isCompanyWide(session.role) ? { active: true } : { branchId: session.branchId, active: true },
+      where: isCompanyWide(session.roles) ? { active: true } : { branchId: session.branchId, active: true },
       orderBy: { name: "asc" },
     }),
-    isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.staffGroup.findMany({
-      where: isCompanyWide(session.role) ? {} : { branchId: session.branchId ?? "__none__" },
+      where: isCompanyWide(session.roles) ? {} : { branchId: session.branchId ?? "__none__" },
       include: { members: true },
       orderBy: { name: "asc" },
     }),
@@ -78,7 +78,7 @@ export default async function ProjectTasksPage({ params }: { params: Promise<{ i
           memberNames: g.members.map((m) => m.name),
         }))}
         branchOptions={branches.map((b) => ({ id: b.id, name: b.name }))}
-        showBranchSelect={isCompanyWide(session.role)}
+        showBranchSelect={isCompanyWide(session.roles)}
         defaultBranchId={session.branchId ?? ""}
         canAssign={manager && !isUnsorted}
         projectId={isUnsorted ? undefined : id}

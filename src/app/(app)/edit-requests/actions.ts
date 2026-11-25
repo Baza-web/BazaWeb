@@ -9,7 +9,7 @@ export async function decideEditRequest(requestId: string, formData: FormData) {
   const session = await requireSessionOrRedirect();
   // Coarse gate: Owner or Admin may be reviewing something. reviewEditRequest itself
   // enforces the fine-grained rule (Admin: Customer requests only).
-  if (!canReviewCustomerRequests(session.role)) throw new Error("Forbidden");
+  if (!canReviewCustomerRequests(session.roles)) throw new Error("Forbidden");
 
   const decision = String(formData.get("decision"));
   if (decision !== "APPROVED" && decision !== "REJECTED") throw new Error("Invalid decision.");

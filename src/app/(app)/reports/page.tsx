@@ -17,7 +17,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ from?: string; to?: string; branchId?: string }>;
 }) {
   const session = await requireSessionOrRedirect();
-  if (!canViewReports(session.role)) {
+  if (!canViewReports(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
@@ -47,7 +47,7 @@ export default async function ReportsPage({
         orderBy: { createdAt: "asc" },
         take: 10,
       }),
-      isCompanyWide(session.role) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+      isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
       db.purchaseOrder.findMany({
         where: { ...scope, status: { in: ["ORDERED", "RECEIVED"] } },
         include: { supplier: true },
@@ -127,7 +127,7 @@ export default async function ReportsPage({
           <label className="label">To</label>
           <input className="input" type="date" name="to" defaultValue={toDate.toISOString().slice(0, 10)} />
         </div>
-        {isCompanyWide(session.role) && (
+        {isCompanyWide(session.roles) && (
           <div>
             <label className="label">Branch</label>
             <select className="input" name="branchId" defaultValue={branchId ?? ""}>
