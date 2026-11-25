@@ -87,6 +87,11 @@ export default async function StaffPage() {
                 <td className="print:hidden">
                   {s.id !== session.staffId && (
                     <div className="flex items-center gap-3">
+                      {canDelete && (
+                        <Link href={`/staff/${s.id}`} className="text-xs text-brand-600 hover:underline">
+                          Edit
+                        </Link>
+                      )}
                       <form action={toggleStaffActive.bind(null, s.id)}>
                         <button type="submit" className="btn-secondary text-xs">
                           {s.active ? "Deactivate" : "Reactivate"}
