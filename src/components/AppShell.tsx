@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { SidebarNav } from "./SidebarNav";
 import { ClockButton } from "./ClockButton";
 import { LogoutButton } from "./LogoutButton";
-import { List, X, ChatCircle, Bell } from "./icons";
+import { List, X, ChatCircle, Bell, CaretLeft, CaretRight } from "./icons";
 import { initials } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; iconKey: string };
@@ -36,6 +37,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <div className="flex min-h-screen">
@@ -77,16 +79,34 @@ export function AppShell({
 
       <div className="min-w-0 flex-1">
         <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur print:hidden sm:px-6">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className="cursor-pointer text-stone-500 hover:text-ink-900 md:hidden"
+              className="cursor-pointer p-1.5 text-stone-500 hover:text-ink-900 md:hidden"
               aria-label="Open menu"
             >
               <List size={22} aria-hidden="true" />
             </button>
-            <span className="hidden text-sm text-stone-500 sm:inline">{roleLabel}</span>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="cursor-pointer rounded-lg p-2 text-stone-500 hover:bg-stone-100 hover:text-ink-900"
+              aria-label="Go back"
+              title="Go back"
+            >
+              <CaretLeft size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => router.forward()}
+              className="cursor-pointer rounded-lg p-2 text-stone-500 hover:bg-stone-100 hover:text-ink-900"
+              aria-label="Go forward"
+              title="Go forward"
+            >
+              <CaretRight size={18} aria-hidden="true" />
+            </button>
+            <span className="ml-2 hidden text-sm text-stone-500 sm:inline">{roleLabel}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {showClockButton && <ClockButton isClockedIn={isClockedIn} />}
