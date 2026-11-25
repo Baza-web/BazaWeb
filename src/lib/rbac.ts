@@ -147,12 +147,12 @@ export function canDeleteOrRequest(roles: Role | Role[]) {
   return hasAny(roles, STAFF_MANAGER_ROLES);
 }
 
-const CUSTOMER_DELETE_ROLES: Role[] = ["OWNER", "ADMIN", "SALES"];
+const CUSTOMER_DELETE_ROLES: Role[] = ["OWNER", "ADMIN"];
 
 /**
- * Customers specifically also let Sales staff request a deletion — unlike every other
- * record type above (Staff/Inventory/Sale), which stays Owner/Admin-only. Owner and
- * Admin both delete a customer immediately; Sales always goes through a request.
+ * Owner/Admin only — any staff can add a customer, but deleting one is reserved for
+ * Owner/Admin. Both apply immediately (Customer is in ADMIN_DIRECT_ENTITY_TYPES in
+ * src/lib/deletion.ts) — unlike Staff/Inventory/Sale, where Admin still queues for Owner.
  */
 export function canDeleteOrRequestCustomer(roles: Role | Role[]) {
   return hasAny(roles, CUSTOMER_DELETE_ROLES);
