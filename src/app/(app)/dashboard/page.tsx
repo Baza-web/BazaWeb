@@ -674,6 +674,8 @@ export default async function DashboardPage() {
         )}
       </div>
 
+      <ProjectsTasksWidget session={session} />
+
       <div className="card">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="section-title">Stock info</h2>
@@ -879,8 +881,6 @@ export default async function DashboardPage() {
           </Link>
         )}
       </div>
-
-      <ProjectsTasksWidget session={session} />
 
       {branches.length > 0 && (
         <div className="card">
