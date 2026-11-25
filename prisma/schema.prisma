@@ -444,6 +444,31 @@ model InventoryItem {
   @@index([brandId])
 }
 
+enum InventoryAttributeKind {
+  GEMSTONE_TYPE
+  CLARITY
+  CUT
+  CERTIFICATION
+}
+
+/// A locked-but-extensible vocabulary for the 4 Inventory fields a non-technical shop
+/// owner would otherwise type as free text (gemstone type, clarity, cut, certification) —
+/// anyone entering a "Natural Sapphire" and a "Purple Sapphire Unheated Tanzania" as two
+/// different gemstoneType strings fragments the Reports/Dashboard breakdown that groups by
+/// that field. Locking it to a picklist (still addable — see addInventoryAttributeOption)
+/// keeps the canonical name ("Sapphire") in gemstoneType and the descriptive detail in the
+/// item's own name field, so "how many sapphires do we have" rolls up correctly.
+model InventoryAttributeOption {
+  id        String                 @id @default(cuid())
+  kind      InventoryAttributeKind
+  name      String
+  active    Boolean                @default(true)
+  createdAt DateTime               @default(now())
+
+  @@unique([kind, name])
+  @@index([kind])
+}
+
 enum CustomerStage {
   LEAD
   PROSPECT

@@ -9,6 +9,21 @@ import { FileText, Plus, GoogleDriveLogo } from "@/components/icons";
 import { CancelRequestButton } from "@/components/CancelRequestButton";
 import { withdrawEditRequest } from "../../edit-requests/actions";
 import { PrintButton } from "@/components/PrintButton";
+import { LockedOptionSelect } from "@/components/LockedOptionSelect";
+
+/** Includes the item's current value even if it predates the locked list, so editing never silently drops it. */
+function withCurrentValue(options: string[], current: string | null | undefined) {
+  if (!current || options.includes(current)) return options;
+  return [current, ...options].sort((a, b) => a.localeCompare(b));
+}
+
+async function attributeOptions(kind: "GEMSTONE_TYPE" | "CLARITY" | "CUT" | "CERTIFICATION") {
+  const rows = await db.inventoryAttributeOption.findMany({
+    where: { kind, active: true },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((r) => r.name);
+}
 
 const CATEGORY_LABELS: Record<string, string> = {
   RING: "Ring",
@@ -31,11 +46,15 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
   });
   if (!item) notFound();
 
-  const [pendingEdit, brands] = await Promise.all([
+  const [pendingEdit, brands, gemstoneTypes, clarities, cuts, certifications] = await Promise.all([
     canManageInventory(session.roles)
       ? db.editRequest.findFirst({ where: { entityType: "INVENTORY", entityId: item.id, status: "PENDING" } })
       : Promise.resolve(null),
     canManageInventory(session.roles) ? db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    canManageInventory(session.roles) ? attributeOptions("GEMSTONE_TYPE") : Promise.resolve([]),
+    canManageInventory(session.roles) ? attributeOptions("CLARITY") : Promise.resolve([]),
+    canManageInventory(session.roles) ? attributeOptions("CUT") : Promise.resolve([]),
+    canManageInventory(session.roles) ? attributeOptions("CERTIFICATION") : Promise.resolve([]),
   ]);
 
   const detail: { label: string; value: string | null }[] = [
@@ -199,7 +218,14 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
             </div>
             <div>
               <label className="label">Gemstone type</label>
-              <input className="input" name="gemstoneType" defaultValue={item.gemstoneType ?? ""} disabled={!!pendingEdit} />
+              <LockedOptionSelect
+                name="gemstoneType"
+                kind="GEMSTONE_TYPE"
+                options={withCurrentValue(gemstoneTypes, item.gemstoneType)}
+                defaultValue={item.gemstoneType ?? ""}
+                allowEmpty
+                disabled={!!pendingEdit}
+              />
             </div>
             <div>
               <label className="label">Carat weight</label>
@@ -207,15 +233,36 @@ export default async function InventoryItemPage({ params }: { params: Promise<{ 
             </div>
             <div>
               <label className="label">Clarity</label>
-              <input className="input" name="clarity" defaultValue={item.clarity ?? ""} disabled={!!pendingEdit} />
+              <LockedOptionSelect
+                name="clarity"
+                kind="CLARITY"
+                options={withCurrentValue(clarities, item.clarity)}
+                defaultValue={item.clarity ?? ""}
+                allowEmpty
+                disabled={!!pendingEdit}
+              />
             </div>
             <div>
               <label className="label">Cut</label>
-              <input className="input" name="cut" defaultValue={item.cut ?? ""} disabled={!!pendingEdit} />
+              <LockedOptionSelect
+                name="cut"
+                kind="CUT"
+                options={withCurrentValue(cuts, item.cut)}
+                defaultValue={item.cut ?? ""}
+                allowEmpty
+                disabled={!!pendingEdit}
+              />
             </div>
             <div>
               <label className="label">Certification</label>
-              <input className="input" name="certification" defaultValue={item.certification ?? ""} disabled={!!pendingEdit} />
+              <LockedOptionSelect
+                name="certification"
+                kind="CERTIFICATION"
+                options={withCurrentValue(certifications, item.certification)}
+                defaultValue={item.certification ?? ""}
+                allowEmpty
+                disabled={!!pendingEdit}
+              />
             </div>
             {canViewCost(session.roles) && (
               <div>

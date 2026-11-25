@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import type { InventoryAttributeKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
 import { branchScope, canManageInventory, canDeleteOrRequest, isCompanyWide } from "@/lib/rbac";
@@ -10,6 +11,52 @@ import { saveUploadedImages } from "@/lib/uploads";
 import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
 import { formatMoney } from "@/lib/utils";
+
+/**
+ * Lets whoever can already create/edit inventory items add a new canonical name to one of
+ * the 4 locked picklists (gemstone type, clarity, cut, certification) — "locked" means these
+ * fields can't drift into free text that fragments the Reports/Dashboard breakdown, not that
+ * the list is frozen: anyone with inventory access can extend it.
+ */
+export async function addInventoryAttributeOption(
+  formData: FormData,
+): Promise<{ error: string } | { id: string; name: string }> {
+  const session = await requireSessionOrRedirect();
+  if (!canManageInventory(session.roles)) throw new Error("Forbidden");
+
+  const kind = formData.get("kind") as InventoryAttributeKind;
+  const name = String(formData.get("name") ?? "").trim();
+  if (name.length < 1 || name.length > 60) return { error: "Enter a name (1-60 characters)." };
+
+  const existing = await db.inventoryAttributeOption.findFirst({
+    where: { kind, name: { equals: name, mode: "insensitive" } },
+  });
+  if (existing) {
+    revalidatePath("/inventory/new/gemstone");
+    return { id: existing.id, name: existing.name };
+  }
+
+  const created = await db.inventoryAttributeOption.create({ data: { kind, name } });
+  revalidatePath("/inventory/new/gemstone");
+  return { id: created.id, name: created.name };
+}
+
+/** Keeps the picklists complete even if a value arrives another way (e.g. bulk import). */
+async function upsertAttributeOptions(values: { kind: InventoryAttributeKind; name: string | null | undefined }[]) {
+  const toAdd = values.filter(
+    (v): v is { kind: InventoryAttributeKind; name: string } => typeof v.name === "string" && v.name.trim().length > 0,
+  );
+  if (toAdd.length === 0) return;
+  await db.$transaction(
+    toAdd.map((v) =>
+      db.inventoryAttributeOption.upsert({
+        where: { kind_name: { kind: v.kind, name: v.name } },
+        update: {},
+        create: { kind: v.kind, name: v.name },
+      }),
+    ),
+  );
+}
 
 async function requireItemInScope(itemId: string, session: SessionPayload) {
   const item = await db.inventoryItem.findFirst({ where: { id: itemId, ...branchScope(session) } });
@@ -98,6 +145,14 @@ export async function createInventoryItem(formData: FormData) {
   const documents = await saveUploadedImages(docFiles, "inventory-documents", true);
 
   const item = await db.inventoryItem.create({ data: { ...parsed, brandId: parsed.brandId ?? null, images, documents } });
+
+  await upsertAttributeOptions([
+    { kind: "GEMSTONE_TYPE", name: parsed.gemstoneType },
+    { kind: "CLARITY", name: parsed.clarity },
+    { kind: "CUT", name: parsed.cut },
+    { kind: "CERTIFICATION", name: parsed.certification },
+  ]);
+
   redirect(`/inventory/${item.id}`);
 }
 
@@ -238,6 +293,14 @@ export async function updateInventoryItem(itemId: string, formData: FormData) {
     fieldSummary,
     { ...parsed, metalType: parsed.metalType ?? null, metalPurity: parsed.metalPurity ?? null, grossWeightG: parsed.grossWeightG ?? null, netWeightG: parsed.netWeightG ?? null, gemstoneType: parsed.gemstoneType ?? null, caratWeight: parsed.caratWeight ?? null, clarity: parsed.clarity ?? null, cut: parsed.cut ?? null, certification: parsed.certification ?? null, notes: parsed.notes ?? null, brandId: parsed.brandId ?? null },
   );
+
+  await upsertAttributeOptions([
+    { kind: "GEMSTONE_TYPE", name: parsed.gemstoneType },
+    { kind: "CLARITY", name: parsed.clarity },
+    { kind: "CUT", name: parsed.cut },
+    { kind: "CERTIFICATION", name: parsed.certification },
+  ]);
+
   revalidatePath(`/inventory/${itemId}`);
   revalidatePath("/inventory");
   revalidatePath("/edit-requests");

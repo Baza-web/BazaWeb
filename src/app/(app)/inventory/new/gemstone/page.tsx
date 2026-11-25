@@ -2,7 +2,16 @@ import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
 import { canManageInventory, isCompanyWide } from "@/lib/rbac";
 import { createInventoryItem } from "../../actions";
+import { LockedOptionSelect } from "@/components/LockedOptionSelect";
 import { Diamond } from "@/components/icons";
+
+async function attributeOptions(kind: "GEMSTONE_TYPE" | "CLARITY" | "CUT" | "CERTIFICATION") {
+  const rows = await db.inventoryAttributeOption.findMany({
+    where: { kind, active: true },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((r) => r.name);
+}
 
 export default async function NewGemstonePage() {
   const session = await requireSessionOrRedirect();
@@ -10,9 +19,13 @@ export default async function NewGemstonePage() {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
-  const [branches, brands] = await Promise.all([
+  const [branches, brands, gemstoneTypes, clarities, cuts, certifications] = await Promise.all([
     isCompanyWide(session.roles) ? db.branch.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
     db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    attributeOptions("GEMSTONE_TYPE"),
+    attributeOptions("CLARITY"),
+    attributeOptions("CUT"),
+    attributeOptions("CERTIFICATION"),
   ]);
 
   return (
@@ -64,13 +77,17 @@ export default async function NewGemstonePage() {
           </div>
           <div>
             <label className="label">Gemstone type</label>
-            <input className="input" name="gemstoneType" required placeholder="Diamond, Ruby, Emerald…" />
+            <LockedOptionSelect name="gemstoneType" kind="GEMSTONE_TYPE" options={gemstoneTypes} required placeholder="Diamond, Ruby, Sapphire…" />
           </div>
         </div>
 
         <div>
           <label className="label">Name / description</label>
-          <input className="input" name="name" required placeholder="0.5ct Round Brilliant Ruby" />
+          <input className="input" name="name" required placeholder="0.5ct Round Brilliant Natural Ruby" />
+          <p className="mt-1 text-xs text-stone-400">
+            Put the detail here (natural/heated, origin, colour…) — the type above stays the clean
+            category so analytics can roll it up correctly, e.g. every Sapphire together.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -80,17 +97,17 @@ export default async function NewGemstonePage() {
           </div>
           <div>
             <label className="label">Clarity</label>
-            <input className="input" name="clarity" placeholder="VS1, SI2…" />
+            <LockedOptionSelect name="clarity" kind="CLARITY" options={clarities} allowEmpty placeholder="VS1, SI2…" />
           </div>
           <div>
             <label className="label">Cut</label>
-            <input className="input" name="cut" placeholder="Round, Princess…" />
+            <LockedOptionSelect name="cut" kind="CUT" options={cuts} allowEmpty placeholder="Round, Princess…" />
           </div>
         </div>
 
         <div>
           <label className="label">Certification</label>
-          <input className="input" name="certification" placeholder="GIA report #, IGI, none…" />
+          <LockedOptionSelect name="certification" kind="CERTIFICATION" options={certifications} allowEmpty placeholder="GIA, IGI, none…" />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
