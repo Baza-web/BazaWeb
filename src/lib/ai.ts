@@ -1,18 +1,80 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
-let client: Anthropic | null = null;
+type Provider = "anthropic" | "gemini" | null;
 
-function ensureConfigured() {
-  if (client) return client;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
-  client = new Anthropic({ apiKey });
-  return client;
+/**
+ * Anthropic is tried first if configured (existing behavior unchanged for
+ * anyone already using it); Google Gemini is the free-tier fallback for
+ * businesses that don't want to add billing just for this feature.
+ */
+function activeProvider(): Provider {
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (process.env.GOOGLE_AI_API_KEY) return "gemini";
+  return null;
 }
 
 export function aiConfigured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return activeProvider() !== null;
+}
+
+let anthropicClient: Anthropic | null = null;
+function ensureAnthropic() {
+  if (anthropicClient) return anthropicClient;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  anthropicClient = new Anthropic({ apiKey });
+  return anthropicClient;
+}
+
+let geminiClient: GoogleGenAI | null = null;
+function ensureGemini() {
+  if (geminiClient) return geminiClient;
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) return null;
+  geminiClient = new GoogleGenAI({ apiKey });
+  return geminiClient;
+}
+
+/**
+ * Sends a prompt (optionally with an image) to whichever AI provider is
+ * configured and returns the raw text response — the one place that knows
+ * about Anthropic vs Gemini, so every feature below just writes its prompt
+ * and parses JSON back, the same way regardless of provider. Returns null
+ * if neither is configured, or if the call itself fails.
+ */
+async function runPrompt(prompt: string, image?: { buffer: Buffer; mediaType: string }): Promise<string | null> {
+  const provider = activeProvider();
+
+  if (provider === "anthropic") {
+    const anthropic = ensureAnthropic();
+    if (!anthropic) return null;
+    const content: Anthropic.MessageParam["content"] = image
+      ? [
+          { type: "image", source: { type: "base64", media_type: image.mediaType as "image/jpeg", data: image.buffer.toString("base64") } },
+          { type: "text", text: prompt },
+        ]
+      : prompt;
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-5-5",
+      max_tokens: 600,
+      messages: [{ role: "user", content }],
+    });
+    return response.content.find((b) => b.type === "text")?.text ?? "";
+  }
+
+  if (provider === "gemini") {
+    const gemini = ensureGemini();
+    if (!gemini) return null;
+    const contents = image
+      ? [{ inlineData: { data: image.buffer.toString("base64"), mimeType: image.mediaType } }, { text: prompt }]
+      : prompt;
+    const response = await gemini.models.generateContent({ model: "gemini-3.8-flash", contents });
+    return response.text ?? "";
+  }
+
+  return null;
 }
 
 export type ExtractedExpense = {
@@ -33,6 +95,8 @@ const EXTRACTION_PROMPT = `You are reading a receipt, invoice, or order confirma
 
 If this isn't a receipt/invoice/order at all, or you genuinely cannot read it, reply with {"amount": null, "description": null, "category": null, "date": null}.`;
 
+const EMPTY_EXPENSE: ExtractedExpense = { amount: null, description: null, category: null, date: null };
+
 function parseExtraction(text: string): ExtractedExpense {
   try {
     const match = text.match(/\{[\s\S]*\}/);
@@ -44,56 +108,31 @@ function parseExtraction(text: string): ExtractedExpense {
       date: typeof parsed.date === "string" ? parsed.date : null,
     };
   } catch {
-    return { amount: null, description: null, category: null, date: null };
+    return EMPTY_EXPENSE;
   }
 }
 
 /** Extracts expense fields from a receipt/invoice image. Returns all-null fields if AI isn't configured or extraction fails. */
 export async function extractExpenseFromImage(imageBuffer: Buffer, mediaType: string): Promise<ExtractedExpense> {
-  const anthropic = ensureConfigured();
-  if (!anthropic) return { amount: null, description: null, category: null, date: null };
-
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5-5",
-      max_tokens: 300,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType as "image/jpeg", data: imageBuffer.toString("base64") },
-            },
-            { type: "text", text: EXTRACTION_PROMPT },
-          ],
-        },
-      ],
-    });
-    const text = response.content.find((b) => b.type === "text")?.text ?? "";
+    const text = await runPrompt(EXTRACTION_PROMPT, { buffer: imageBuffer, mediaType });
+    if (text === null) return EMPTY_EXPENSE;
     return parseExtraction(text);
   } catch (err) {
     console.error("AI receipt extraction failed:", err);
-    return { amount: null, description: null, category: null, date: null };
+    return EMPTY_EXPENSE;
   }
 }
 
 /** Extracts expense fields from pasted text (an email body, a text order confirmation, etc). */
 export async function extractExpenseFromText(text: string): Promise<ExtractedExpense> {
-  const anthropic = ensureConfigured();
-  if (!anthropic) return { amount: null, description: null, category: null, date: null };
-
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5-5",
-      max_tokens: 300,
-      messages: [{ role: "user", content: `${EXTRACTION_PROMPT}\n\nText:\n${text}` }],
-    });
-    const content = response.content.find((b) => b.type === "text")?.text ?? "";
-    return parseExtraction(content);
+    const response = await runPrompt(`${EXTRACTION_PROMPT}\n\nText:\n${text}`);
+    if (response === null) return EMPTY_EXPENSE;
+    return parseExtraction(response);
   } catch (err) {
     console.error("AI receipt extraction failed:", err);
-    return { amount: null, description: null, category: null, date: null };
+    return EMPTY_EXPENSE;
   }
 }
 
@@ -126,17 +165,18 @@ If this isn't an order conversation at all, or you genuinely cannot read it, rep
 
 const VALID_PAYMENT_METHODS = new Set(["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"]);
 
+const EMPTY_ORDER: ExtractedOrder = {
+  customerName: null,
+  customerPhone: null,
+  orderNumber: null,
+  items: [],
+  discount: null,
+  amountPaid: null,
+  paymentMethod: null,
+  notes: null,
+};
+
 function parseOrderExtraction(text: string): ExtractedOrder {
-  const empty: ExtractedOrder = {
-    customerName: null,
-    customerPhone: null,
-    orderNumber: null,
-    items: [],
-    discount: null,
-    amountPaid: null,
-    paymentMethod: null,
-    notes: null,
-  };
   try {
     const match = text.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(match ? match[0] : text);
@@ -163,44 +203,15 @@ function parseOrderExtraction(text: string): ExtractedOrder {
       notes: typeof parsed.notes === "string" ? parsed.notes : null,
     };
   } catch {
-    return empty;
+    return EMPTY_ORDER;
   }
 }
 
-const EMPTY_ORDER: ExtractedOrder = {
-  customerName: null,
-  customerPhone: null,
-  orderNumber: null,
-  items: [],
-  discount: null,
-  amountPaid: null,
-  paymentMethod: null,
-  notes: null,
-};
-
 /** Extracts order fields from a WhatsApp order screenshot. Returns an empty order if AI isn't configured or extraction fails. */
 export async function extractOrderFromImage(imageBuffer: Buffer, mediaType: string): Promise<ExtractedOrder> {
-  const anthropic = ensureConfigured();
-  if (!anthropic) return EMPTY_ORDER;
-
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5-5",
-      max_tokens: 600,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType as "image/jpeg", data: imageBuffer.toString("base64") },
-            },
-            { type: "text", text: ORDER_EXTRACTION_PROMPT },
-          ],
-        },
-      ],
-    });
-    const text = response.content.find((b) => b.type === "text")?.text ?? "";
+    const text = await runPrompt(ORDER_EXTRACTION_PROMPT, { buffer: imageBuffer, mediaType });
+    if (text === null) return EMPTY_ORDER;
     return parseOrderExtraction(text);
   } catch (err) {
     console.error("AI order extraction failed:", err);
@@ -210,17 +221,10 @@ export async function extractOrderFromImage(imageBuffer: Buffer, mediaType: stri
 
 /** Extracts order fields from pasted WhatsApp chat text. */
 export async function extractOrderFromText(text: string): Promise<ExtractedOrder> {
-  const anthropic = ensureConfigured();
-  if (!anthropic) return EMPTY_ORDER;
-
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5-5",
-      max_tokens: 600,
-      messages: [{ role: "user", content: `${ORDER_EXTRACTION_PROMPT}\n\nChat:\n${text}` }],
-    });
-    const content = response.content.find((b) => b.type === "text")?.text ?? "";
-    return parseOrderExtraction(content);
+    const response = await runPrompt(`${ORDER_EXTRACTION_PROMPT}\n\nChat:\n${text}`);
+    if (response === null) return EMPTY_ORDER;
+    return parseOrderExtraction(response);
   } catch (err) {
     console.error("AI order extraction failed:", err);
     return EMPTY_ORDER;

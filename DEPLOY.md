@@ -522,10 +522,26 @@ expense yourself.**
 
 To enable both, add `ANTHROPIC_API_KEY` to your `.env` (get one at
 [console.anthropic.com](https://console.anthropic.com)), then redeploy:
-`docker compose up -d --build app`. Leave it blank and the Scan buttons
-still appear but explain it isn't set up yet — typing things in by hand
-always works either way. Each scan costs a small amount against your
-Anthropic account (a few cents at most); there's no other setup needed.
+`docker compose up -d --force-recreate --build app`. Leave it blank and
+the Scan buttons still appear but explain it isn't set up yet — typing
+things in by hand always works either way. Each scan costs a small
+amount against your Anthropic account (a few cents at most).
+
+**Free alternative — Google Gemini.** If you'd rather not add billing
+to Anthropic, set `GOOGLE_AI_API_KEY` instead (and leave
+`ANTHROPIC_API_KEY` blank) and the app uses Google's Gemini API, whose
+free tier covers this kind of usage with no payment method required:
+
+1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+   and sign in with any Google account.
+2. Click **Create API key** — no billing setup needed for the free tier.
+3. Add `GOOGLE_AI_API_KEY=<the key>` to `.env`, then redeploy:
+   `docker compose up -d --force-recreate --build app`.
+
+If both `ANTHROPIC_API_KEY` and `GOOGLE_AI_API_KEY` are set, Anthropic
+is used. Either way, **always use `--force-recreate` when changing
+these in `.env`** — `docker compose up -d --build` alone can skip
+recreating the container and leave it running on the old (missing) key.
 
 ## WhatsApp order ingestion (Business Platform / Cloud API)
 
