@@ -227,6 +227,27 @@ model Brand {
   sales       Sale[]
   inventoryItems InventoryItem[]
   orders      Order[]
+  project     Project?
+}
+
+// Groups tasks the way Airtable groups records: every Brand automatically
+// gets a matching Project (kept in sync on brand create/rename/delete, see
+// applyBrandEdit and performBrandDeletion) so brand-related work has a home
+// with no extra setup, and anyone who can already assign tasks can also
+// create a "special project" (brandId null) for one-off work like a
+// showroom opening that isn't tied to any single brand.
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  brandId     String?  @unique
+  createdById String
+  createdAt   DateTime @default(now())
+
+  brand     Brand?  @relation(fields: [brandId], references: [id])
+  createdBy Staff   @relation(fields: [createdById], references: [id])
+  tasks     Task[]
+
+  @@index([brandId])
 }
 
 model Staff {
@@ -275,6 +296,7 @@ model Staff {
   repairOrdersAssigned RepairOrder[] @relation("RepairAssignedTo")
   repairOrdersAssignedSales RepairOrder[] @relation("RepairAssignedSales")
   repairOrdersCreated  RepairOrder[] @relation("RepairCreatedBy")
+  projectsCreated      Project[]
   purchaseOrdersCreated PurchaseOrder[]
   groups            StaffGroup[]    @relation("GroupMembers")
   salesTargets      SalesTarget[]
@@ -640,6 +662,7 @@ model Task {
   assignedById String
   groupId      String?
   orderId      String?
+  projectId    String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   completedAt  DateTime?
@@ -649,12 +672,14 @@ model Task {
   assignedBy Staff         @relation("AssignedBy", fields: [assignedById], references: [id])
   group      StaffGroup?   @relation(fields: [groupId], references: [id])
   order      Order?        @relation(fields: [orderId], references: [id])
+  project    Project?      @relation(fields: [projectId], references: [id])
   comments   TaskComment[]
 
   @@index([branchId])
   @@index([assignedToId])
   @@index([groupId])
   @@index([orderId])
+  @@index([projectId])
 }
 
 model TaskComment {

@@ -48,17 +48,25 @@ async function applySaleEdit(id: string, data: Prisma.JsonObject, session: Sessi
   });
 }
 
-/** A BRAND request with no real record yet (`__create`) creates one on approval; otherwise it updates the existing brand. */
-async function applyBrandEdit(id: string, data: Prisma.JsonObject) {
+/**
+ * A BRAND request with no real record yet (`__create`) creates one on approval, along with its
+ * matching Project — every brand doubles as a project for task grouping with no extra setup
+ * step, kept in sync here and on rename below. Otherwise it updates the existing brand.
+ */
+async function applyBrandEdit(id: string, data: Prisma.JsonObject, session: SessionPayload) {
   const { __create, ...rest } = data as Prisma.JsonObject & { __create?: boolean };
   if (__create) {
     const name = String(rest.name);
     const existing = await db.brand.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
     if (existing) throw new Error(`A brand named "${name}" already exists.`);
-    await db.brand.create({ data: { name } });
+    const brand = await db.brand.create({ data: { name } });
+    await db.project.create({ data: { name, brandId: brand.id, createdById: session.staffId } });
     return;
   }
   await db.brand.update({ where: { id }, data: rest as Prisma.BrandUpdateInput });
+  if (typeof rest.name === "string") {
+    await db.project.updateMany({ where: { brandId: id }, data: { name: rest.name } });
+  }
 }
 
 /** Keeps the linked LedgerEntry's amount in sync, same reasoning as applySaleEdit. Refuses to edit an expense created from a Purchase Order payment — PurchaseOrder.amountPaid isn't recalculated from its linked expenses, so changing one here would silently desync how much is recorded as paid. */

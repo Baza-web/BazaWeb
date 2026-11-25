@@ -1,7 +1,6 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
@@ -16,9 +15,10 @@ const createSchema = z.object({
   dueDate: z.coerce.date().optional(),
   assignTarget: z.string().min(1),
   branchId: z.string().min(1),
+  projectId: z.string().optional(),
 });
 
-export async function createTask(formData: FormData) {
+export async function createTask(formData: FormData): Promise<{ error: string } | { ok: true }> {
   const session = await requireSessionOrRedirect();
   if (!canAssignTasks(session.role)) throw new Error("Forbidden");
 
@@ -26,7 +26,7 @@ export async function createTask(formData: FormData) {
     ? String(formData.get("branchId"))
     : session.branchId ?? String(formData.get("branchId"));
 
-  const parsed = createSchema.parse({
+  const rawParsed = createSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description") || undefined,
     type: formData.get("type"),
@@ -34,7 +34,10 @@ export async function createTask(formData: FormData) {
     dueDate: formData.get("dueDate") || undefined,
     assignTarget: formData.get("assignTarget"),
     branchId,
+    projectId: formData.get("projectId") || undefined,
   });
+  if (!rawParsed.success) return { error: "Fill in the required fields (title, assignee)." };
+  const parsed = rawParsed.data;
 
   const [kind, targetId] = parsed.assignTarget.split(":");
 
@@ -47,15 +50,22 @@ export async function createTask(formData: FormData) {
       where: { id: targetId },
       include: { members: true },
     });
-    if (group.branchId !== parsed.branchId) throw new Error("Forbidden");
-    if (group.members.length === 0) throw new Error("This group has no members yet.");
+    if (group.branchId !== parsed.branchId) return { error: "That group doesn't belong to this branch." };
+    if (group.members.length === 0) return { error: "This group has no members yet — add members before assigning it a task." };
     groupId = group.id;
     groupMemberIds = group.members.map((m) => m.id);
     assignedToId = groupMemberIds[0];
   } else {
-    const assignee = await db.staff.findUniqueOrThrow({ where: { id: targetId } });
-    if (assignee.branchId !== parsed.branchId || !assignee.active) throw new Error("Forbidden");
+    const assignee = await db.staff.findUnique({ where: { id: targetId } });
+    if (!assignee || assignee.branchId !== parsed.branchId || !assignee.active) {
+      return { error: "That staff member doesn't belong to this branch." };
+    }
     assignedToId = targetId;
+  }
+
+  if (parsed.projectId) {
+    const project = await db.project.findUnique({ where: { id: parsed.projectId } });
+    if (!project) return { error: "That project no longer exists." };
   }
 
   const task = await db.task.create({
@@ -69,6 +79,7 @@ export async function createTask(formData: FormData) {
       assignedToId,
       assignedById: session.staffId,
       groupId,
+      projectId: parsed.projectId ?? null,
     },
   });
 
@@ -86,7 +97,27 @@ export async function createTask(formData: FormData) {
     ),
   );
 
-  redirect("/tasks");
+  revalidatePath("/tasks");
+  if (parsed.projectId) revalidatePath(`/tasks/project/${parsed.projectId}`);
+  return { ok: true };
+}
+
+const projectSchema = z.object({ name: z.string().min(2).max(80) });
+
+/** Owner/Admin/Manager — same audience that can already assign tasks. Brand-linked projects are managed entirely through Brands (see applyBrandEdit); this is only for ad-hoc projects with no brand. */
+export async function createSpecialProject(formData: FormData): Promise<{ error: string } | { id: string }> {
+  const session = await requireSessionOrRedirect();
+  if (!canAssignTasks(session.role)) throw new Error("Forbidden");
+
+  const parsed = projectSchema.safeParse({ name: formData.get("name") });
+  if (!parsed.success) return { error: "Enter a project name (at least 2 characters)." };
+
+  const existing = await db.project.findFirst({ where: { name: { equals: parsed.data.name, mode: "insensitive" } } });
+  if (existing) return { error: `A project named "${parsed.data.name}" already exists.` };
+
+  const project = await db.project.create({ data: { name: parsed.data.name, createdById: session.staffId } });
+  revalidatePath("/tasks");
+  return { id: project.id };
 }
 
 async function canActOnTask(

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { createTask } from "@/app/(app)/tasks/actions";
 import { X } from "./icons";
 
 export function TaskAssignModal({
   open,
   onClose,
+  projectId,
   staffOptions,
   groupOptions,
   branchOptions,
@@ -15,14 +17,20 @@ export function TaskAssignModal({
 }: {
   open: boolean;
   onClose: () => void;
+  projectId?: string;
   staffOptions: { id: string; name: string }[];
   groupOptions: { id: string; name: string; memberNames: string[] }[];
   branchOptions: { id: string; name: string }[];
   showBranchSelect: boolean;
   defaultBranchId: string;
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    setError(null);
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
@@ -31,6 +39,25 @@ export function TaskAssignModal({
   }, [open, onClose]);
 
   if (!open) return null;
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const formData = new FormData(e.currentTarget);
+    startTransition(async () => {
+      try {
+        const result = await createTask(formData);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        onClose();
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Couldn't assign this task.");
+      }
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -59,7 +86,8 @@ export function TaskAssignModal({
           </button>
         </div>
 
-        <form action={createTask} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {projectId && <input type="hidden" name="projectId" value={projectId} />}
           {showBranchSelect ? (
             <div>
               <label className="label">Branch</label>
@@ -128,12 +156,13 @@ export function TaskAssignModal({
               </select>
             </div>
           </div>
+          {error && <p className="text-xs text-red-700">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancel
             </button>
-            <button type="submit" className="btn-primary">
-              Assign task
+            <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">
+              {pending ? "Assigning…" : "Assign task"}
             </button>
           </div>
         </form>

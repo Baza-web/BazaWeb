@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
@@ -16,6 +17,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       assignedTo: true,
       assignedBy: true,
       group: { include: { members: true } },
+      project: true,
       comments: { include: { staff: true }, orderBy: { createdAt: "asc" } },
     },
   });
@@ -31,6 +33,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="max-w-2xl space-y-6">
       <div>
+        {task.project && (
+          <Link href={`/tasks/project/${task.project.id}`} className="text-sm font-medium text-brand-600 hover:underline">
+            ← {task.project.name}
+          </Link>
+        )}
         <p className="text-sm text-stone-500">
           {task.type} · {task.priority}
         </p>

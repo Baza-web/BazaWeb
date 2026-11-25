@@ -20,6 +20,7 @@ export type BoardTask = {
   assignedTo: { id: string; name: string };
   assignedBy: { id: string; name: string };
   group: { id: string; name: string; members: { id: string; name: string }[] } | null;
+  project?: { id: string; name: string } | null;
 };
 
 const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
@@ -50,6 +51,7 @@ export function TaskBoard({
   showBranchSelect,
   defaultBranchId,
   canAssign,
+  projectId,
 }: {
   tasks: BoardTask[];
   canEditAny: boolean;
@@ -60,6 +62,7 @@ export function TaskBoard({
   showBranchSelect: boolean;
   defaultBranchId: string;
   canAssign: boolean;
+  projectId?: string;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(tasks);
@@ -152,7 +155,14 @@ export function TaskBoard({
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-stone-500">
-                      <span className="badge bg-stone-100 text-stone-500">{task.type}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="badge bg-stone-100 text-stone-500">{task.type}</span>
+                        {!projectId && task.project && (
+                          <Link href={`/tasks/project/${task.project.id}`} className="badge bg-brand-50 text-brand-700 hover:underline">
+                            {task.project.name}
+                          </Link>
+                        )}
+                      </span>
                       {task.dueDate && (
                         <span className={`flex items-center gap-1 ${overdue ? "text-red-600" : ""}`}>
                           {overdue ? (
@@ -216,6 +226,7 @@ export function TaskBoard({
         <TaskAssignModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
+          projectId={projectId}
           staffOptions={staffOptions}
           groupOptions={groupOptions}
           branchOptions={branchOptions}

@@ -127,10 +127,18 @@ async function performBrokerDeletion(entityId: string) {
 async function performBrandDeletion(entityId: string) {
   const brand = await db.brand.findUniqueOrThrow({
     where: { id: entityId },
-    include: { _count: { select: { staff: true, socialPosts: true, sales: true, expenses: true, inventoryItems: true, orders: true } } },
+    include: {
+      _count: { select: { staff: true, socialPosts: true, sales: true, expenses: true, inventoryItems: true, orders: true } },
+      project: { include: { _count: { select: { tasks: true } } } },
+    },
   });
-  if (Object.values(brand._count).some((n) => n > 0)) {
-    throw new Error("This brand is still in use (staff, posts, sales, expenses, inventory, or orders reference it) and can't be deleted — deactivate it instead.");
+  if (Object.values(brand._count).some((n) => n > 0) || (brand.project?._count.tasks ?? 0) > 0) {
+    throw new Error("This brand is still in use (staff, posts, sales, expenses, inventory, orders, or project tasks reference it) and can't be deleted — deactivate it instead.");
+  }
+  // Delete the brand's matching project first (it's now confirmed task-free above) —
+  // Project.brandId has no cascade, so it would otherwise block the brand's own delete.
+  if (brand.project) {
+    await db.project.delete({ where: { id: brand.project.id } });
   }
   await db.brand.delete({ where: { id: entityId } });
 }
