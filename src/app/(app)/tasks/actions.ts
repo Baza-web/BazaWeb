@@ -57,8 +57,8 @@ export async function createTask(formData: FormData): Promise<{ error: string } 
     assignedToId = groupMemberIds[0];
   } else {
     const assignee = await db.staff.findUnique({ where: { id: targetId } });
-    if (!assignee || assignee.branchId !== parsed.branchId || !assignee.active) {
-      return { error: "That staff member doesn't belong to this branch." };
+    if (!assignee || !assignee.active) {
+      return { error: "That staff member is no longer active." };
     }
     assignedToId = targetId;
   }
