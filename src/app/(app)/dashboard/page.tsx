@@ -11,6 +11,7 @@ import {
   canManageSalesTargets,
   canManageRepairs,
   canManageBrokers,
+  canAssignTasks,
 } from "@/lib/rbac";
 import { formatMoney, formatDate, round2 } from "@/lib/utils";
 import { RankedBarChart } from "@/components/RankedBarChart";
@@ -88,6 +89,128 @@ function TrendBadge({ current, previous, goodDirection = "up" }: { current: numb
       {up ? <CaretUp size={11} weight="bold" aria-hidden="true" /> : <CaretDown size={11} weight="bold" aria-hidden="true" />}
       {Math.abs(percent)}%
     </span>
+  );
+}
+
+/**
+ * Shared across every dashboard. Anyone who can assign tasks (Owner/Admin/Manager —
+ * via the union of their roles, so an extra Manager role picked up through multi-role
+ * grants this too) sees the branch/company-wide pending-task count plus a quick project
+ * breakdown; everyone else sees just their own open tasks, same scoping as /tasks?view=mine.
+ */
+async function ProjectsTasksWidget({ session }: { session: SessionPayload }) {
+  const manager = canAssignTasks(session.roles);
+
+  if (manager) {
+    const scope = branchScope(session);
+    const projects = await db.project.findMany({
+      include: { brand: true, tasks: { where: scope, select: { status: true } } },
+      orderBy: [{ brandId: "asc" }, { name: "asc" }],
+    });
+    const pendingTotal = projects.reduce((sum, p) => sum + p.tasks.filter((t) => t.status === "PENDING").length, 0);
+    const unsortedPending = await db.task.count({ where: { ...scope, projectId: null, status: "PENDING" } });
+    const topProjects = projects
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        isBrand: Boolean(p.brandId),
+        pending: p.tasks.filter((t) => t.status === "PENDING").length,
+      }))
+      .filter((p) => p.pending > 0)
+      .sort((a, b) => b.pending - a.pending)
+      .slice(0, 5);
+
+    return (
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="section-title flex items-center gap-2">
+            <ListChecks size={18} className="text-brand-600" aria-hidden="true" />
+            Projects &amp; Tasks
+          </h2>
+          <Link href="/tasks" className="text-xs font-medium text-brand-700 hover:underline">
+            View all
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/tasks" className="rounded-xl bg-stone-50 p-3 transition hover:bg-stone-100">
+            <p className="text-xs text-stone-500">Pending tasks</p>
+            <p className="text-xl font-semibold text-ink-900">{pendingTotal + unsortedPending}</p>
+          </Link>
+          <Link href="/tasks?view=projects" className="rounded-xl bg-stone-50 p-3 transition hover:bg-stone-100">
+            <p className="text-xs text-stone-500">Active projects</p>
+            <p className="text-xl font-semibold text-ink-900">{projects.length}</p>
+          </Link>
+        </div>
+        {topProjects.length > 0 ? (
+          <ul className="divide-y divide-stone-100 text-sm">
+            {topProjects.map((p) => (
+              <li key={p.id}>
+                <Link href={`/tasks/project/${p.id}`} className="flex items-center justify-between py-2 hover:text-brand-700">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{p.name}</span>
+                    <span className={`badge shrink-0 ${p.isBrand ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}`}>
+                      {p.isBrand ? "Brand" : "Special"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-stone-500">{p.pending} pending</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-stone-400">No pending tasks on any project right now.</p>
+        )}
+      </div>
+    );
+  }
+
+  const myTasksWhere = {
+    status: { not: "DONE" as const },
+    OR: [{ assignedToId: session.staffId }, { group: { members: { some: { id: session.staffId } } } }],
+  };
+  const [myOpenCount, myUpcoming] = await Promise.all([
+    db.task.count({ where: myTasksWhere }),
+    db.task.findMany({
+      where: myTasksWhere,
+      orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
+      take: 5,
+      include: { project: true },
+    }),
+  ]);
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="section-title flex items-center gap-2">
+          <ListChecks size={18} className="text-brand-600" aria-hidden="true" />
+          Your Tasks
+        </h2>
+        <Link href="/tasks?view=mine" className="text-xs font-medium text-brand-700 hover:underline">
+          View all
+        </Link>
+      </div>
+      <div className="rounded-xl bg-stone-50 p-3">
+        <p className="text-xs text-stone-500">Open tasks</p>
+        <p className="text-xl font-semibold text-ink-900">{myOpenCount}</p>
+      </div>
+      {myUpcoming.length > 0 ? (
+        <ul className="divide-y divide-stone-100 text-sm">
+          {myUpcoming.map((t) => (
+            <li key={t.id}>
+              <Link href={`/tasks/${t.id}`} className="flex items-center justify-between gap-2 py-2 hover:text-brand-700">
+                <span className="min-w-0 truncate">{t.title}</span>
+                <span className="flex shrink-0 items-center gap-2 text-xs text-stone-500">
+                  {t.project && <span className="badge bg-brand-50 text-brand-700">{t.project.name}</span>}
+                  {t.dueDate && formatDate(t.dueDate)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-stone-400">Nothing open right now.</p>
+      )}
+    </div>
   );
 }
 
@@ -198,6 +321,8 @@ async function SalesStaffDashboard({ session }: { session: SessionPayload }) {
           </div>
         </Link>
       </div>
+
+      <ProjectsTasksWidget session={session} />
 
       <div className="card">
         <h2 className="section-title mb-1">Your sales trend</h2>
@@ -754,6 +879,8 @@ export default async function DashboardPage() {
           </Link>
         )}
       </div>
+
+      <ProjectsTasksWidget session={session} />
 
       {branches.length > 0 && (
         <div className="card">
