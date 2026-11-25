@@ -34,7 +34,7 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
     iconKey: "reports",
     roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT"],
   },
-  { href: "/tasks", label: "Tasks", iconKey: "tasks" },
+  { href: "/tasks", label: "Project and Tasks", iconKey: "tasks" },
   { href: "/orders", label: "Orders Handling", iconKey: "orders" },
   {
     href: "/workshop",
