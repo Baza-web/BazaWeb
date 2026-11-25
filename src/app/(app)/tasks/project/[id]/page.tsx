@@ -57,7 +57,7 @@ export default async function ProjectTasksPage({ params }: { params: Promise<{ i
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/tasks" className="text-sm font-medium text-brand-600 hover:underline">
+        <Link href="/tasks?view=projects" className="text-sm font-medium text-brand-600 hover:underline">
           ← Projects
         </Link>
         <h1 className="page-title mt-1">{projectName}</h1>

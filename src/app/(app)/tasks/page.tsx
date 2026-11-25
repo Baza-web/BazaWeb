@@ -7,6 +7,24 @@ import { CreateSpecialProjectForm } from "@/components/CreateSpecialProjectForm"
 import { PrintButton } from "@/components/PrintButton";
 import { formatDate } from "@/lib/utils";
 
+function TaskTabs({ active }: { active: "all" | "projects" | "mine" }) {
+  return (
+    <div className="flex gap-2 text-sm print:hidden">
+      <Link href="/tasks" className={active === "all" ? "font-medium text-brand-700" : "text-stone-500"}>
+        Tasks
+      </Link>
+      <span className="text-stone-300">|</span>
+      <Link href="/tasks?view=projects" className={active === "projects" ? "font-medium text-brand-700" : "text-stone-500"}>
+        Projects
+      </Link>
+      <span className="text-stone-300">|</span>
+      <Link href="/tasks?view=mine" className={active === "mine" ? "font-medium text-brand-700" : "text-stone-500"}>
+        My tasks
+      </Link>
+    </div>
+  );
+}
+
 export default async function TasksPage({
   searchParams,
 }: {
@@ -17,18 +35,21 @@ export default async function TasksPage({
   const manager = canAssignTasks(session.roles);
   const mineOnly = view === "mine" || !manager;
 
-  if (!mineOnly) {
+  if (!mineOnly && view === "projects") {
     return <ProjectsList session={session} />;
   }
 
+  const scope = branchScope(session);
   const [tasks, staffForAssignment, branches, groupsForAssignment] = await Promise.all([
     db.task.findMany({
-      where: {
-        OR: [
-          { assignedToId: session.staffId },
-          { group: { members: { some: { id: session.staffId } } } },
-        ],
-      },
+      where: mineOnly
+        ? {
+            OR: [
+              { assignedToId: session.staffId },
+              { group: { members: { some: { id: session.staffId } } } },
+            ],
+          }
+        : scope,
       include: { assignedTo: true, assignedBy: true, group: { include: { members: true } }, project: true },
       orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
     }),
@@ -69,22 +90,12 @@ export default async function TasksPage({
         <h1 className="page-title">Tasks</h1>
         <div className="flex items-center gap-3">
           <PrintButton selector="#tasks-print-table" label="Print" />
-          {manager && (
-            <div className="flex gap-2 text-sm print:hidden">
-              <Link href="/tasks" className={!mineOnly ? "font-medium text-brand-700" : "text-stone-500"}>
-                Team tasks
-              </Link>
-              <span className="text-stone-300">|</span>
-              <Link href="/tasks?view=mine" className={mineOnly ? "font-medium text-brand-700" : "text-stone-500"}>
-                My tasks
-              </Link>
-            </div>
-          )}
+          {manager && <TaskTabs active={mineOnly ? "mine" : "all"} />}
         </div>
       </div>
 
       <div className="print-report-header">
-        <h2 className="font-display text-xl font-semibold">My tasks</h2>
+        <h2 className="font-display text-xl font-semibold">{mineOnly ? "My tasks" : "All tasks"}</h2>
         <p className="text-sm text-stone-500">Printed {formatDate(new Date())} — {boardTasks.length} task(s)</p>
       </div>
 
@@ -173,13 +184,7 @@ async function ProjectsList({ session }: { session: Awaited<ReturnType<typeof re
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Tasks</h1>
-        <div className="flex gap-2 text-sm print:hidden">
-          <span className="font-medium text-brand-700">Team tasks</span>
-          <span className="text-stone-300">|</span>
-          <Link href="/tasks?view=mine" className="text-stone-500">
-            My tasks
-          </Link>
-        </div>
+        <TaskTabs active="projects" />
       </div>
       <p className="text-sm text-stone-500">
         Every brand is automatically a project. Create a special project for one-off work that
