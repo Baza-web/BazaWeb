@@ -101,6 +101,7 @@ export type ExtractedOrderItem = { description: string; quantity: number; priceE
 export type ExtractedOrder = {
   customerName: string | null;
   customerPhone: string | null;
+  orderNumber: string | null;
   items: ExtractedOrderItem[];
   discount: number | null;
   amountPaid: number | null;
@@ -113,14 +114,15 @@ const ORDER_EXTRACTION_PROMPT = `You are reading a WhatsApp order conversation (
 {
   "customerName": <customer's name if mentioned, or null>,
   "customerPhone": <customer's phone number if visible, or null>,
+  "orderNumber": <an order reference/number the business itself wrote, e.g. "ORDER NO: SB 7371" -> "SB 7371", or null if none is shown>,
   "items": [ { "description": <item name/description exactly as written>, "quantity": <number, default 1 if unclear>, "priceEach": <price per unit as a plain number, or null if not stated> } ],
   "discount": <discount amount if mentioned, as a plain number, or null>,
   "amountPaid": <amount already paid or transferred if mentioned (a deposit or full payment), as a plain number, or null>,
   "paymentMethod": <one of "CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER", or null if not mentioned>,
-  "notes": <any other relevant context — delivery instructions, special requests — or null>
+  "notes": <any other relevant context — due date, delivery instructions, special requests — or null>
 }
 
-If this isn't an order conversation at all, or you genuinely cannot read it, reply with {"customerName": null, "customerPhone": null, "items": [], "discount": null, "amountPaid": null, "paymentMethod": null, "notes": null}.`;
+If this isn't an order conversation at all, or you genuinely cannot read it, reply with {"customerName": null, "customerPhone": null, "orderNumber": null, "items": [], "discount": null, "amountPaid": null, "paymentMethod": null, "notes": null}.`;
 
 const VALID_PAYMENT_METHODS = new Set(["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"]);
 
@@ -128,6 +130,7 @@ function parseOrderExtraction(text: string): ExtractedOrder {
   const empty: ExtractedOrder = {
     customerName: null,
     customerPhone: null,
+    orderNumber: null,
     items: [],
     discount: null,
     amountPaid: null,
@@ -149,6 +152,7 @@ function parseOrderExtraction(text: string): ExtractedOrder {
     return {
       customerName: typeof parsed.customerName === "string" ? parsed.customerName : null,
       customerPhone: typeof parsed.customerPhone === "string" ? parsed.customerPhone : null,
+      orderNumber: typeof parsed.orderNumber === "string" ? parsed.orderNumber : null,
       items,
       discount: typeof parsed.discount === "number" ? parsed.discount : null,
       amountPaid: typeof parsed.amountPaid === "number" ? parsed.amountPaid : null,
@@ -166,6 +170,7 @@ function parseOrderExtraction(text: string): ExtractedOrder {
 const EMPTY_ORDER: ExtractedOrder = {
   customerName: null,
   customerPhone: null,
+  orderNumber: null,
   items: [],
   discount: null,
   amountPaid: null,

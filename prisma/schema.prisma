@@ -104,6 +104,7 @@ enum NotificationType {
   ORDER_APPROVAL_REQUESTED
   ORDER_APPROVAL_DECIDED
   ORDER_DEADLINE_ALERT
+  WHATSAPP_ORDER_RECEIVED
 }
 
 enum LeaveType {
@@ -354,6 +355,7 @@ model Staff {
   toolMaintenanceLogged ToolMaintenanceLog[]
   suppliesIssued SupplyIssue[]
   qrCodesCreated QRCode[]
+  whatsappOrdersReviewed WhatsAppInboundOrder[]
 
   @@index([branchId])
 }
@@ -566,6 +568,7 @@ model Sale {
   journalEntry JournalEntry?
   rewardTransactions RewardTransaction[]
   orders       Order[]
+  whatsappOrder WhatsAppInboundOrder?
 
   @@index([branchId])
   @@index([brandId])
@@ -1978,4 +1981,39 @@ model QRScan {
 
   @@index([qrCodeId])
   @@index([scannedAt])
+}
+
+enum WhatsAppOrderStatus {
+  PENDING
+  CONVERTED
+  DISMISSED
+}
+
+// An inbound message received on the business's dedicated WhatsApp Business
+// Platform (Cloud API) number — captured via webhook, AI-extracted, and held
+// here for a staff member to review. Nothing here ever becomes a Sale on its
+// own; branch isn't known until a staff member picks one while reviewing
+// (same as the existing manual "Scan an order" flow on New Sale), so this
+// record isn't branch-scoped the way most of this app's data is.
+model WhatsAppInboundOrder {
+  id                 String              @id @default(cuid())
+  fromPhone          String
+  waMessageId        String              @unique
+  messageType        String
+  rawText            String?
+  mediaPath          String?
+  externalOrderNumber String?
+  customerNameGuess  String?
+  extractedJson      Json
+  status             WhatsAppOrderStatus @default(PENDING)
+  saleId             String?             @unique
+  reviewedById       String?
+  reviewedAt         DateTime?
+  receivedAt         DateTime            @default(now())
+
+  sale       Sale?  @relation(fields: [saleId], references: [id])
+  reviewedBy Staff? @relation(fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([fromPhone])
 }

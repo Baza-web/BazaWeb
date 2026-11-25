@@ -3,12 +3,17 @@ import { requireSessionOrRedirect } from "@/lib/auth";
 import { branchScope, canRecordSale, isCompanyWide } from "@/lib/rbac";
 import { SaleForm } from "@/components/SaleForm";
 
-export default async function NewSalePage() {
+export default async function NewSalePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ whatsappOrderId?: string }>;
+}) {
   const session = await requireSessionOrRedirect();
   if (!canRecordSale(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
 
+  const { whatsappOrderId } = await searchParams;
   const scope = branchScope(session);
   const defaultBranchId = session.branchId ?? "";
 
@@ -39,6 +44,7 @@ export default async function NewSalePage() {
         showBranchSelect={isCompanyWide(session.roles)}
         defaultBranchId={defaultBranchId}
         brands={brands}
+        whatsappOrderId={whatsappOrderId}
       />
     </div>
   );

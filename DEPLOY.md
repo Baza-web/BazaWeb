@@ -527,6 +527,79 @@ still appear but explain it isn't set up yet — typing things in by hand
 always works either way. Each scan costs a small amount against your
 Anthropic account (a few cents at most); there's no other setup needed.
 
+## WhatsApp order ingestion (Business Platform / Cloud API)
+
+**What this is not:** there is no official, safe way to have the app
+read an *existing* WhatsApp group chat automatically — WhatsApp has no
+API for that, and any tool that claims to do it works by automating a
+real phone/WhatsApp Web session, which risks that number being banned
+and exposes every other member of the group. This app does not do
+that.
+
+**What this is instead:** a new, separate WhatsApp Business number —
+not your existing group's number. **The day-to-day workflow:** staff
+keep confirming orders in the group exactly as today, then forward the
+final confirmed order message to this new dedicated number (one tap in
+WhatsApp — Forward). It arrives in the app within seconds, AI reads it
+the same way the existing **Scan an order** feature does, and it's held
+on the new **WhatsApp Orders** nav page for a staff member to review.
+Customers could also message the dedicated number directly if you ever
+want that, but forwarding from the group is the intended everyday use.
+**Nothing is ever saved as a sale automatically** — a human always
+checks the AI's reading against the original message, picks the right
+branch, and clicks Record sale themselves, exactly like the existing
+Scan feature.
+
+### One-time setup in Meta's dashboard
+
+1. At [developers.facebook.com](https://developers.facebook.com), under
+   your existing Meta Business Manager account, create an app and add
+   the **WhatsApp** product to it.
+2. Register the dedicated phone number you're giving this feature
+   (this cannot be the number your staff already use for the group —
+   Meta requires it never be registered in the regular WhatsApp or
+   WhatsApp Business consumer app).
+3. Under the app's WhatsApp > API Setup, generate a **permanent**
+   access token for a System User (not the temporary 24-hour token the
+   page shows by default) with the `whatsapp_business_messaging`
+   permission.
+4. Note the **Phone number ID** shown on that same page, and the
+   **App Secret** from App Settings > Basic.
+5. Under WhatsApp > Configuration, set the webhook URL to
+   `https://operation.baza-boutique.com/api/whatsapp/webhook`, set a
+   **Verify token** of your choosing (any random string — it just has
+   to match what you put in `.env` below), and subscribe to the
+   `messages` webhook field.
+
+### Configure the app
+
+Add these four to your `.env` on the VPS:
+
+```
+WHATSAPP_ACCESS_TOKEN=<the permanent System User token from step 3>
+WHATSAPP_PHONE_NUMBER_ID=<the Phone number ID from step 4>
+WHATSAPP_APP_SECRET=<the App Secret from step 4>
+WHATSAPP_VERIFY_TOKEN=<the same random string you set in step 5>
+```
+
+Then redeploy: `docker compose up -d --build app`. Leave any of these
+blank and the webhook simply rejects Meta's deliveries (403) rather
+than failing open — nothing in the rest of the app is affected either
+way.
+
+Every inbound message is verified against `WHATSAPP_APP_SECRET` (Meta
+signs each delivery; a request without a valid signature is rejected
+outright) before anything is read or stored, so the webhook URL can
+safely sit on the public internet the way `/api/whatsapp/webhook` does.
+
+### Who sees new orders
+
+Anyone who can record a sale (Owner, Admin, Manager, Sales, Accountant)
+gets a notification and sees the **WhatsApp Orders** nav item with a
+pending count. Reviewing one opens a pre-filled New Sale form, same as
+uploading a screenshot to the existing Scan feature — check it, add
+anything AI couldn't match, pick the branch, and record it.
+
 ## Customer reward program (Customers > CRM)
 
 Customers automatically earn a reward balance on every purchase — the

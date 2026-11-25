@@ -17,6 +17,12 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
     roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"],
   },
   {
+    href: "/whatsapp-orders",
+    label: "WhatsApp Orders",
+    iconKey: "whatsapp",
+    roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"],
+  },
+  {
     href: "/targets",
     label: "Targets",
     iconKey: "targets",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { createSale, scanOrder } from "@/app/(app)/sales/actions";
+import { createSale, scanOrder, reviewWhatsAppOrder, type ScanOrderResult } from "@/app/(app)/sales/actions";
 
 type InventoryOption = {
   id: string;
@@ -25,6 +25,7 @@ export function SaleForm({
   showBranchSelect,
   defaultBranchId,
   brands,
+  whatsappOrderId,
 }: {
   inventory: InventoryOption[];
   customers: CustomerOption[];
@@ -32,6 +33,7 @@ export function SaleForm({
   showBranchSelect: boolean;
   defaultBranchId: string;
   brands: BrandOption[];
+  whatsappOrderId?: string;
 }) {
   const [branchId, setBranchId] = useState(defaultBranchId);
   const [lines, setLines] = useState<Line[]>([]);
@@ -51,6 +53,37 @@ export function SaleForm({
 
   const branchInventory = useMemo(() => inventory.filter((i) => i.branchId === branchId), [inventory, branchId]);
   const branchCustomers = useMemo(() => customers.filter((c) => c.branchId === branchId), [customers, branchId]);
+
+  function applyScanResult(result: ScanOrderResult) {
+    if (result.error) {
+      setScanError(result.error);
+      return;
+    }
+    if (result.customerId) setCustomerId(result.customerId);
+    if (result.lines.length > 0) {
+      setLines(
+        result.lines
+          .filter((l) => l.inventoryItemId)
+          .map((l) => ({ inventoryItemId: l.inventoryItemId!, quantity: l.quantity, priceEach: l.priceEach ?? 0 })),
+      );
+    }
+    if (result.discount != null) setDiscount(result.discount);
+    if (result.amountPaid != null) setAmountPaid(result.amountPaid);
+    if (result.paymentMethod) setPaymentMethod(result.paymentMethod);
+    if (result.notes) setNotes(result.notes);
+
+    const notices: string[] = [];
+    if (result.customerNameGuess && !result.customerId) {
+      notices.push(`Found customer "${result.customerNameGuess}" but no match in your customer list — add them or pick manually.`);
+    }
+    if (result.unmatchedItems.length > 0) {
+      notices.push(`Couldn't match: ${result.unmatchedItems.join(", ")} — add these manually below.`);
+    }
+    if (notices.length === 0 && result.lines.length > 0) {
+      notices.push("Filled in below — check it over before recording the sale.");
+    }
+    if (notices.length > 0) setScanNotice(notices.join(" "));
+  }
 
   function runScan() {
     setScanError(null);
@@ -74,34 +107,23 @@ export function SaleForm({
         setScanError("That screenshot was too large or something went wrong — try a smaller image, or paste the chat text instead.");
         return;
       }
-      if (result.error) {
-        setScanError(result.error);
+      applyScanResult(result);
+    });
+  }
+
+  function loadWhatsAppOrder() {
+    if (!whatsappOrderId) return;
+    setScanError(null);
+    setScanNotice(null);
+    startScan(async () => {
+      let result;
+      try {
+        result = await reviewWhatsAppOrder(whatsappOrderId, branchId);
+      } catch {
+        setScanError("Couldn't load that WhatsApp order — someone else may have already reviewed it.");
         return;
       }
-      if (result.customerId) setCustomerId(result.customerId);
-      if (result.lines.length > 0) {
-        setLines(
-          result.lines
-            .filter((l) => l.inventoryItemId)
-            .map((l) => ({ inventoryItemId: l.inventoryItemId!, quantity: l.quantity, priceEach: l.priceEach ?? 0 })),
-        );
-      }
-      if (result.discount != null) setDiscount(result.discount);
-      if (result.amountPaid != null) setAmountPaid(result.amountPaid);
-      if (result.paymentMethod) setPaymentMethod(result.paymentMethod);
-      if (result.notes) setNotes(result.notes);
-
-      const notices: string[] = [];
-      if (result.customerNameGuess && !result.customerId) {
-        notices.push(`Found customer "${result.customerNameGuess}" but no match in your customer list — add them or pick manually.`);
-      }
-      if (result.unmatchedItems.length > 0) {
-        notices.push(`Couldn't match: ${result.unmatchedItems.join(", ")} — add these manually below.`);
-      }
-      if (notices.length === 0 && result.lines.length > 0) {
-        notices.push("Filled in below — check it over before recording the sale.");
-      }
-      if (notices.length > 0) setScanNotice(notices.join(" "));
+      applyScanResult(result);
     });
   }
 
@@ -141,37 +163,53 @@ export function SaleForm({
   return (
     <form action={createSale} className="card space-y-5">
       <input type="hidden" name="itemsJson" value={JSON.stringify(lines)} />
+      {whatsappOrderId && <input type="hidden" name="whatsappOrderId" value={whatsappOrderId} />}
 
-      <div className="rounded-lg border border-dashed border-brand-300 bg-brand-50/40 p-3">
-        <p className="mb-2 text-sm font-medium text-ink-900">Scan an order (optional)</p>
-        <p className="mb-2 text-xs text-stone-500">
-          Upload a screenshot of a WhatsApp order, or paste the chat text — AI will try to match the
-          customer and items against your records and fill in the form below for you to check.
-        </p>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <input ref={scanFileRef} className="input text-xs" type="file" accept="image/*" />
-          <button type="button" onClick={() => setPasteOpen((v) => !v)} className="btn-secondary text-xs">
-            {pasteOpen ? "Hide paste box" : "Paste text instead"}
+      {whatsappOrderId ? (
+        <div className="rounded-lg border border-dashed border-brand-300 bg-brand-50/40 p-3">
+          <p className="mb-2 text-sm font-medium text-ink-900">This order came from WhatsApp</p>
+          <p className="mb-2 text-xs text-stone-500">
+            Pick the right branch above, then load it — AI will try to match the customer and items against
+            that branch&apos;s records and fill in the form below for you to check before recording the sale.
+          </p>
+          <button type="button" onClick={loadWhatsAppOrder} disabled={scanning} className="btn-primary text-xs">
+            {scanning ? "Reading…" : "Load this WhatsApp order"}
           </button>
-          <button type="button" onClick={runScan} disabled={scanning} className="btn-primary text-xs">
-            {scanning ? "Reading…" : "Scan"}
-          </button>
+          {scanError && <p className="mt-2 text-xs text-red-600">{scanError}</p>}
+          {scanNotice && !scanError && <p className="mt-2 text-xs text-amber-700">{scanNotice}</p>}
         </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-brand-300 bg-brand-50/40 p-3">
+          <p className="mb-2 text-sm font-medium text-ink-900">Scan an order (optional)</p>
+          <p className="mb-2 text-xs text-stone-500">
+            Upload a screenshot of a WhatsApp order, or paste the chat text — AI will try to match the
+            customer and items against your records and fill in the form below for you to check.
+          </p>
 
-        {pasteOpen && (
-          <textarea
-            className="input mt-2 text-xs"
-            rows={3}
-            placeholder="Paste the WhatsApp chat text here…"
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-          />
-        )}
+          <div className="flex flex-wrap items-center gap-2">
+            <input ref={scanFileRef} className="input text-xs" type="file" accept="image/*" />
+            <button type="button" onClick={() => setPasteOpen((v) => !v)} className="btn-secondary text-xs">
+              {pasteOpen ? "Hide paste box" : "Paste text instead"}
+            </button>
+            <button type="button" onClick={runScan} disabled={scanning} className="btn-primary text-xs">
+              {scanning ? "Reading…" : "Scan"}
+            </button>
+          </div>
 
-        {scanError && <p className="mt-2 text-xs text-red-600">{scanError}</p>}
-        {scanNotice && !scanError && <p className="mt-2 text-xs text-amber-700">{scanNotice}</p>}
-      </div>
+          {pasteOpen && (
+            <textarea
+              className="input mt-2 text-xs"
+              rows={3}
+              placeholder="Paste the WhatsApp chat text here…"
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+            />
+          )}
+
+          {scanError && <p className="mt-2 text-xs text-red-600">{scanError}</p>}
+          {scanNotice && !scanError && <p className="mt-2 text-xs text-amber-700">{scanNotice}</p>}
+        </div>
+      )}
 
       {showBranchSelect ? (
         <div>

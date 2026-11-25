@@ -77,6 +77,7 @@ import {
   ChatText,
   Check,
   DotsSixVertical,
+  WhatsappLogo,
 } from "@phosphor-icons/react/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -109,6 +110,7 @@ export const NAV_ICONS: Record<string, Icon> = {
   orders: ClipboardText,
   workshop: Toolbox,
   qr: QrCode,
+  whatsapp: WhatsappLogo,
 };
 
 export {
@@ -190,4 +192,5 @@ export {
   ChatText,
   Check,
   DotsSixVertical,
+  WhatsappLogo,
 };

@@ -23,8 +23,8 @@ const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-type ScannedLine = { inventoryItemId: string | null; itemNameGuess: string; quantity: number; priceEach: number | null };
-type ScanOrderResult = {
+export type ScannedLine = { inventoryItemId: string | null; itemNameGuess: string; quantity: number; priceEach: number | null };
+export type ScanOrderResult = {
   customerId: string | null;
   customerNameGuess: string | null;
   lines: ScannedLine[];
@@ -39,6 +39,82 @@ type ScanOrderResult = {
 const normalize = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, " ").trim();
 const normalizePhone = (s: string) => s.replace(/\D/g, "");
 
+const EMPTY_SCAN_RESULT: ScanOrderResult = {
+  customerId: null,
+  customerNameGuess: null,
+  lines: [],
+  unmatchedItems: [],
+  discount: null,
+  amountPaid: null,
+  paymentMethod: null,
+  notes: null,
+};
+
+/**
+ * Matches already-AI-extracted order fields against one branch's real
+ * Customers/Inventory. Shared by the manual "Scan an order" flow (scanOrder,
+ * below) and reviewWhatsAppOrder — both end up with the same
+ * ExtractedOrder shape, just from a different source (a fresh upload vs. a
+ * previously-received WhatsApp message), so the matching logic itself only
+ * needs to live once.
+ */
+async function matchExtractedOrder(
+  extracted: Awaited<ReturnType<typeof extractOrderFromText>>,
+  branchId: string,
+): Promise<ScanOrderResult> {
+  const [inventory, customers] = await Promise.all([
+    db.inventoryItem.findMany({ where: { branchId, status: "IN_STOCK", quantity: { gt: 0 } } }),
+    db.customer.findMany({ where: { branchId } }),
+  ]);
+
+  let customerId: string | null = null;
+  if (extracted.customerPhone) {
+    const phoneDigits = normalizePhone(extracted.customerPhone);
+    const match = customers.find((c) => c.phone && normalizePhone(c.phone).endsWith(phoneDigits.slice(-9)));
+    if (match) customerId = match.id;
+  }
+  if (!customerId && extracted.customerName) {
+    const needle = normalize(extracted.customerName);
+    const match = customers.find((c) => normalize(c.name).includes(needle) || needle.includes(normalize(c.name)));
+    if (match) customerId = match.id;
+  }
+
+  const lines: ScannedLine[] = [];
+  const unmatchedItems: string[] = [];
+  for (const item of extracted.items) {
+    const needle = normalize(item.description);
+    const match = inventory.find(
+      (i) =>
+        normalize(i.name).includes(needle) ||
+        needle.includes(normalize(i.name)) ||
+        i.sku.toLowerCase() === item.description.toLowerCase().trim(),
+    );
+    if (match) {
+      lines.push({
+        inventoryItemId: match.id,
+        itemNameGuess: match.name,
+        quantity: Math.min(item.quantity, match.quantity),
+        priceEach: item.priceEach ?? match.sellingPrice,
+      });
+    } else {
+      unmatchedItems.push(item.description);
+    }
+  }
+
+  const notes = extracted.orderNumber ? `WhatsApp order ref: ${extracted.orderNumber}${extracted.notes ? ` — ${extracted.notes}` : ""}` : extracted.notes;
+
+  return {
+    customerId,
+    customerNameGuess: extracted.customerName,
+    lines,
+    unmatchedItems,
+    discount: extracted.discount,
+    amountPaid: extracted.amountPaid,
+    paymentMethod: extracted.paymentMethod,
+    notes,
+  };
+}
+
 /**
  * Reads a screenshot (or pasted text) of a WhatsApp order and asks AI to pull
  * out the customer, items, and payment details, then tries to match each
@@ -49,19 +125,8 @@ export async function scanOrder(branchId: string, formData: FormData): Promise<S
   const session = await requireSessionOrRedirect();
   if (!canRecordSale(session.roles)) throw new Error("Forbidden");
 
-  const empty: ScanOrderResult = {
-    customerId: null,
-    customerNameGuess: null,
-    lines: [],
-    unmatchedItems: [],
-    discount: null,
-    amountPaid: null,
-    paymentMethod: null,
-    notes: null,
-  };
-
   if (!aiConfigured()) {
-    return { ...empty, error: "Order scanning isn't set up yet — ask an Admin to add ANTHROPIC_API_KEY. You can still add items manually below." };
+    return { ...EMPTY_SCAN_RESULT, error: "Order scanning isn't set up yet — ask an Admin to add ANTHROPIC_API_KEY. You can still add items manually below." };
   }
 
   try {
@@ -73,72 +138,61 @@ export async function scanOrder(branchId: string, formData: FormData): Promise<S
       const buffer = Buffer.from(await file.arrayBuffer());
       const detected = detectFileKind(buffer);
       if (!detected || detected.kind !== "image") {
-        return { ...empty, error: "That doesn't look like a photo — try a JPG, PNG, GIF, or WEBP screenshot." };
+        return { ...EMPTY_SCAN_RESULT, error: "That doesn't look like a photo — try a JPG, PNG, GIF, or WEBP screenshot." };
       }
       extracted = await extractOrderFromImage(buffer, EXT_TO_MEDIA_TYPE[detected.ext]);
     } else if (typeof text === "string" && text.trim().length > 0) {
       extracted = await extractOrderFromText(text.trim());
     } else {
-      return { ...empty, error: "Add a screenshot or paste some chat text first." };
+      return { ...EMPTY_SCAN_RESULT, error: "Add a screenshot or paste some chat text first." };
     }
 
     if (extracted.items.length === 0 && !extracted.customerName) {
-      return { ...empty, error: "Couldn't find an order in that — enter the details manually below." };
+      return { ...EMPTY_SCAN_RESULT, error: "Couldn't find an order in that — enter the details manually below." };
     }
 
-    const [inventory, customers] = await Promise.all([
-      db.inventoryItem.findMany({ where: { branchId, status: "IN_STOCK", quantity: { gt: 0 } } }),
-      db.customer.findMany({ where: { branchId } }),
-    ]);
-
-    let customerId: string | null = null;
-    if (extracted.customerPhone) {
-      const phoneDigits = normalizePhone(extracted.customerPhone);
-      const match = customers.find((c) => c.phone && normalizePhone(c.phone).endsWith(phoneDigits.slice(-9)));
-      if (match) customerId = match.id;
-    }
-    if (!customerId && extracted.customerName) {
-      const needle = normalize(extracted.customerName);
-      const match = customers.find((c) => normalize(c.name).includes(needle) || needle.includes(normalize(c.name)));
-      if (match) customerId = match.id;
-    }
-
-    const lines: ScannedLine[] = [];
-    const unmatchedItems: string[] = [];
-    for (const item of extracted.items) {
-      const needle = normalize(item.description);
-      const match = inventory.find(
-        (i) =>
-          normalize(i.name).includes(needle) ||
-          needle.includes(normalize(i.name)) ||
-          i.sku.toLowerCase() === item.description.toLowerCase().trim(),
-      );
-      if (match) {
-        lines.push({
-          inventoryItemId: match.id,
-          itemNameGuess: match.name,
-          quantity: Math.min(item.quantity, match.quantity),
-          priceEach: item.priceEach ?? match.sellingPrice,
-        });
-      } else {
-        unmatchedItems.push(item.description);
-      }
-    }
-
-    return {
-      customerId,
-      customerNameGuess: extracted.customerName,
-      lines,
-      unmatchedItems,
-      discount: extracted.discount,
-      amountPaid: extracted.amountPaid,
-      paymentMethod: extracted.paymentMethod,
-      notes: extracted.notes,
-    };
+    return await matchExtractedOrder(extracted, branchId);
   } catch (err) {
     console.error("scanOrder failed:", err);
-    return { ...empty, error: "Something went wrong reading that — add the items manually below." };
+    return { ...EMPTY_SCAN_RESULT, error: "Something went wrong reading that — add the items manually below." };
   }
+}
+
+/**
+ * Loads a previously-received WhatsApp order (captured by the webhook) and
+ * matches it against the branch the reviewing staff member picked — WhatsApp
+ * messages aren't branch-scoped on arrival, so this is the first point a
+ * branch is known. Marks who reviewed it; actually recording the sale is
+ * still a separate, explicit step (createSale), same as the manual scan.
+ */
+export async function reviewWhatsAppOrder(whatsappOrderId: string, branchId: string): Promise<ScanOrderResult> {
+  const session = await requireSessionOrRedirect();
+  if (!canRecordSale(session.roles)) throw new Error("Forbidden");
+
+  const order = await db.whatsAppInboundOrder.findUniqueOrThrow({ where: { id: whatsappOrderId } });
+  if (order.status !== "PENDING") {
+    return { ...EMPTY_SCAN_RESULT, error: "This WhatsApp order was already reviewed by someone else." };
+  }
+
+  await db.whatsAppInboundOrder.update({
+    where: { id: whatsappOrderId },
+    data: { reviewedById: session.staffId, reviewedAt: new Date() },
+  });
+
+  const extracted = order.extractedJson as unknown as Awaited<ReturnType<typeof extractOrderFromText>>;
+  return await matchExtractedOrder(extracted, branchId);
+}
+
+/** Marks a pending WhatsApp order as not a real order (spam, a question, already handled elsewhere) without creating a sale. */
+export async function dismissWhatsAppOrder(whatsappOrderId: string) {
+  const session = await requireSessionOrRedirect();
+  if (!canRecordSale(session.roles)) throw new Error("Forbidden");
+
+  await db.whatsAppInboundOrder.update({
+    where: { id: whatsappOrderId },
+    data: { status: "DISMISSED", reviewedById: session.staffId, reviewedAt: new Date() },
+  });
+  revalidatePath("/whatsapp-orders");
 }
 
 const lineSchema = z.object({
@@ -173,6 +227,7 @@ export async function createSale(formData: FormData) {
     : session.branchId ?? String(formData.get("branchId"));
 
   const rawItems = JSON.parse(String(formData.get("itemsJson") || "[]"));
+  const whatsappOrderId = String(formData.get("whatsappOrderId") || "").trim() || null;
 
   const parsed = saleSchema.parse({
     customerId: formData.get("customerId") || undefined,
@@ -248,6 +303,20 @@ export async function createSale(formData: FormData) {
         },
       },
     });
+
+    if (whatsappOrderId) {
+      // Guarded update, same pattern as the inventory decrement below: only
+      // succeeds if this WhatsApp order is still PENDING at this exact
+      // moment, so two staff reviewing the same message can never both
+      // convert it into two separate sales.
+      const linked = await tx.whatsAppInboundOrder.updateMany({
+        where: { id: whatsappOrderId, status: "PENDING" },
+        data: { status: "CONVERTED", saleId: created.id, reviewedById: session.staffId, reviewedAt: new Date() },
+      });
+      if (linked.count !== 1) {
+        throw new Error("This WhatsApp order was already recorded as a sale — check Sales before recording it again.");
+      }
+    }
 
     const finalQuantities: Record<string, number> = {};
     for (const line of parsed.items) {
@@ -336,6 +405,7 @@ export async function createSale(formData: FormData) {
     }
   }
 
+  if (whatsappOrderId) revalidatePath("/whatsapp-orders");
   redirect(`/sales/${sale.created.id}`);
 }
 
