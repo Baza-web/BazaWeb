@@ -1,17 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+// Self-hosted (not next/font/google) so the Docker build never depends on reaching
+// Google Fonts over the network — both files are the same variable-font woff2 Google
+// itself serves for these families, just vendored into the repo. See DEPLOY.md.
+const cormorant = localFont({
+  src: "./fonts/cormorant-garamond-variable.woff2",
+  weight: "500 700",
   variable: "--font-display",
   display: "swap",
 });
 
-const montserrat = Montserrat({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const montserrat = localFont({
+  src: "./fonts/montserrat-variable.woff2",
+  weight: "400 700",
   variable: "--font-sans",
   display: "swap",
 });
