@@ -15,11 +15,13 @@ const PURITY_LABEL: Record<"Gold" | "Silver", string> = {
 export function JewelryIntakeForm({
   metal,
   showBranchSelect,
+  showCost,
   branches,
   brands,
 }: {
   metal: "Gold" | "Silver";
   showBranchSelect: boolean;
+  showCost: boolean;
   branches: { id: string; name: string }[];
   brands: { id: string; name: string }[];
 }) {
@@ -97,10 +99,14 @@ export function JewelryIntakeForm({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="label">Cost price</label>
-          <input className="input" name="costPrice" type="number" step="0.01" required />
-        </div>
+        {showCost ? (
+          <div>
+            <label className="label">Cost price</label>
+            <input className="input" name="costPrice" type="number" step="0.01" required />
+          </div>
+        ) : (
+          <input type="hidden" name="costPrice" value="0" />
+        )}
         <div>
           <label className="label">Selling price</label>
           <input className="input" name="sellingPrice" type="number" step="0.01" required />

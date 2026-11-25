@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { InventoryAttributeKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect, type SessionPayload } from "@/lib/auth";
-import { branchScope, canManageInventory, canDeleteOrRequest, isCompanyWide } from "@/lib/rbac";
+import { branchScope, canManageInventory, canDeleteOrRequest, canViewCost, isCompanyWide } from "@/lib/rbac";
 import { saveUploadedImages } from "@/lib/uploads";
 import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
@@ -128,7 +128,9 @@ export async function createInventoryItem(formData: FormData) {
     clarity: emptyToUndefined(formData.get("clarity")),
     cut: emptyToUndefined(formData.get("cut")),
     certification: emptyToUndefined(formData.get("certification")),
-    costPrice: formData.get("costPrice"),
+    // Whoever can't view cost prices can't set one either, however the request was built —
+    // the UI already hides this field for them, but don't rely on that alone.
+    costPrice: canViewCost(session.roles) ? formData.get("costPrice") : 0,
     sellingPrice: formData.get("sellingPrice"),
     quantity: formData.get("quantity") || 1,
     lowStockAt: formData.get("lowStockAt") || 1,
@@ -271,7 +273,10 @@ export async function updateInventoryItem(itemId: string, formData: FormData) {
     clarity: emptyToUndefined(formData.get("clarity")),
     cut: emptyToUndefined(formData.get("cut")),
     certification: emptyToUndefined(formData.get("certification")),
-    costPrice: formData.get("costPrice"),
+    // Whoever can't view cost prices doesn't get the field in the form at all, so there's
+    // nothing in formData to read — keep the item's existing cost rather than let a missing
+    // field coerce to 0 and silently wipe it.
+    costPrice: canViewCost(session.roles) ? formData.get("costPrice") : item.costPrice,
     sellingPrice: formData.get("sellingPrice"),
     lowStockAt: formData.get("lowStockAt") || 1,
     notes: emptyToUndefined(formData.get("notes")),

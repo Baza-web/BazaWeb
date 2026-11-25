@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageInventory, isCompanyWide } from "@/lib/rbac";
+import { canManageInventory, canViewCost, isCompanyWide } from "@/lib/rbac";
 import { createInventoryItem } from "../../actions";
 import { LockedOptionSelect } from "@/components/LockedOptionSelect";
 import { Diamond } from "@/components/icons";
@@ -111,10 +111,14 @@ export default async function NewGemstonePage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Cost price</label>
-            <input className="input" name="costPrice" type="number" step="0.01" required />
-          </div>
+          {canViewCost(session.roles) ? (
+            <div>
+              <label className="label">Cost price</label>
+              <input className="input" name="costPrice" type="number" step="0.01" required />
+            </div>
+          ) : (
+            <input type="hidden" name="costPrice" value="0" />
+          )}
           <div>
             <label className="label">Selling price</label>
             <input className="input" name="sellingPrice" type="number" step="0.01" required />

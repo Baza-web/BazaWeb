@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canManageInventory, isCompanyWide } from "@/lib/rbac";
+import { canManageInventory, canViewCost, isCompanyWide } from "@/lib/rbac";
 import { JewelryIntakeForm } from "@/components/JewelryIntakeForm";
 import { Crown } from "@/components/icons";
 
@@ -25,7 +25,13 @@ export default async function NewGoldJewelryPage() {
         <h1 className="page-title">Add a gold jewelry item</h1>
       </div>
 
-      <JewelryIntakeForm metal="Gold" showBranchSelect={isCompanyWide(session.roles)} branches={branches} brands={brands} />
+      <JewelryIntakeForm
+        metal="Gold"
+        showBranchSelect={isCompanyWide(session.roles)}
+        showCost={canViewCost(session.roles)}
+        branches={branches}
+        brands={brands}
+      />
     </div>
   );
 }
