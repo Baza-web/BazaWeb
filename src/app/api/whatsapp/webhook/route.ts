@@ -68,6 +68,8 @@ export async function POST(request: Request) {
           discount: null,
           amountPaid: null,
           paymentMethod: null,
+          dueDate: null,
+          handledBy: null,
           notes: message.text,
         };
       } else if (message.messageType === "image" && message.imageMediaId && accessToken) {
@@ -85,6 +87,8 @@ export async function POST(request: Request) {
             discount: null,
             amountPaid: null,
             paymentMethod: null,
+            dueDate: null,
+            handledBy: null,
             notes: message.text,
           };
         }

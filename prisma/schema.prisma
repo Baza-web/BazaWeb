@@ -1546,6 +1546,7 @@ model Order {
   goldCertificates GoldCertificate[]
   handovers        OrderHandover[]
   supplyIssues     SupplyIssue[]
+  whatsappOrder    WhatsAppInboundOrder?
 
   @@index([branchId])
   @@index([brandId])
@@ -2007,11 +2008,13 @@ model WhatsAppInboundOrder {
   extractedJson      Json
   status             WhatsAppOrderStatus @default(PENDING)
   saleId             String?             @unique
+  orderId            String?             @unique
   reviewedById       String?
   reviewedAt         DateTime?
   receivedAt         DateTime            @default(now())
 
   sale       Sale?  @relation(fields: [saleId], references: [id])
+  order      Order? @relation(fields: [orderId], references: [id])
   reviewedBy Staff? @relation(fields: [reviewedById], references: [id])
 
   @@index([status])

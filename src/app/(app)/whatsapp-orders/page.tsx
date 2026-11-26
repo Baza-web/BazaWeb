@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireSessionOrRedirect } from "@/lib/auth";
-import { canRecordSale } from "@/lib/rbac";
+import { canRecordSale, canCreateOrders } from "@/lib/rbac";
 import { db } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/utils";
 import { WhatsappLogo } from "@/components/icons";
@@ -9,9 +9,11 @@ import type { ExtractedOrder } from "@/lib/ai";
 
 export default async function WhatsAppOrdersPage() {
   const session = await requireSessionOrRedirect();
-  if (!canRecordSale(session.roles)) {
+  if (!canRecordSale(session.roles) && !canCreateOrders(session.roles)) {
     return <p className="text-sm text-stone-500">You don&apos;t have access to this page.</p>;
   }
+  const showRecordSale = canRecordSale(session.roles);
+  const showCreateOrder = canCreateOrders(session.roles);
 
   const orders = await db.whatsAppInboundOrder.findMany({
     where: { status: "PENDING" },
@@ -25,9 +27,10 @@ export default async function WhatsAppOrdersPage() {
         WhatsApp Orders
       </h1>
       <p className="text-sm text-stone-500">
-        Orders sent to the business WhatsApp number, read by AI and waiting for a staff member to review before
-        they become a real sale. Nothing here is ever saved automatically — pick one, check the details against
-        the original message, choose a branch, and record the sale yourself.
+        Orders sent to the business WhatsApp number, read by AI and waiting for a staff member to review. Nothing
+        here is ever saved automatically — pick one, check the details against the original message, choose a
+        branch, and either record it as a sale (an existing stock item) or create a custom order (a bespoke piece
+        to be made) yourself.
       </p>
 
       <div className="card">
@@ -64,10 +67,17 @@ export default async function WhatsAppOrdersPage() {
                         {order.rawText && <p className="text-xs text-stone-400 truncate">{order.rawText}</p>}
                       </td>
                       <td className="whitespace-nowrap">
-                        <div className="flex gap-2">
-                          <Link href={`/sales/new?whatsappOrderId=${order.id}`} className="btn-primary text-xs">
-                            Review
-                          </Link>
+                        <div className="flex flex-wrap gap-2">
+                          {showRecordSale && (
+                            <Link href={`/sales/new?whatsappOrderId=${order.id}`} className="btn-primary text-xs">
+                              Record sale
+                            </Link>
+                          )}
+                          {showCreateOrder && (
+                            <Link href={`/orders/new?whatsappOrderId=${order.id}`} className="btn-secondary text-xs">
+                              Custom order
+                            </Link>
+                          )}
                           <form action={dismissWhatsAppOrder.bind(null, order.id)}>
                             <button type="submit" className="btn-secondary text-xs">Dismiss</button>
                           </form>

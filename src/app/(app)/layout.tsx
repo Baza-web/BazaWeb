@@ -16,12 +16,9 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
     iconKey: "sales",
     roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"],
   },
-  {
-    href: "/whatsapp-orders",
-    label: "WhatsApp Orders",
-    iconKey: "whatsapp",
-    roles: ["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTANT"],
-  },
+  // WhatsApp Orders: hidden from nav for now per owner request (Meta Business
+  // API setup not finished yet) — also blocked in middleware.ts. Remove both
+  // to bring it back once it's actually in use.
   {
     href: "/targets",
     label: "Targets",
@@ -77,7 +74,9 @@ const NAV: { href: string; label: string; iconKey: string; roles?: Role[] }[] = 
   { href: "/brokers", label: "Brokers & Memos", iconKey: "brokers", roles: ["OWNER", "ADMIN"] },
   { href: "/deletion-requests", label: "Deletion requests", iconKey: "deletions", roles: ["OWNER", "ADMIN"] },
   { href: "/edit-requests", label: "Edit requests", iconKey: "edits", roles: ["OWNER", "ADMIN"] },
-  { href: "/creative", label: "Creative Hub", iconKey: "creative", roles: ["OWNER", "ADMIN", "CREATIVE"] },
+  // Creative Hub: hidden from nav for now per owner request (moving to a
+  // separate growth.baza-boutique.com app) — also blocked in middleware.ts.
+  // Remove both to bring it back.
   { href: "/travel", label: "Travel & Experiences", iconKey: "travel", roles: ["OWNER", "ADMIN"] },
   { href: "/import", label: "Bulk import", iconKey: "import", roles: ["OWNER"] },
   { href: "/settings", label: "Settings", iconKey: "settings", roles: ["OWNER"] },

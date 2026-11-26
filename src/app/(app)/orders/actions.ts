@@ -10,6 +10,8 @@ import { canManageOrdersScoped, canManageOrdersCompanyWide, canCreateOrders, isC
 import { saveUploadedImages } from "@/lib/uploads";
 import { notifyStaff } from "@/lib/notifications";
 import { assertDispatchAllowed } from "@/lib/qc";
+import { normalize, normalizePhone } from "@/lib/matching";
+import type { ExtractedOrder } from "@/lib/ai";
 import type { OrderStatus, OrderApprovalDecision } from "@prisma/client";
 
 function orderNumber() {
@@ -100,6 +102,14 @@ export async function createOrder(formData: FormData) {
   const primaryStaff = await db.staff.findFirst({ where: { id: parsed.primaryStaffId, active: true } });
   if (!primaryStaff) throw new Error("That staff member doesn't exist.");
 
+  const whatsappOrderId = String(formData.get("whatsappOrderId") || "").trim() || null;
+  if (whatsappOrderId) {
+    const waOrder = await db.whatsAppInboundOrder.findUnique({ where: { id: whatsappOrderId } });
+    if (!waOrder || waOrder.status !== "PENDING") {
+      throw new Error("This WhatsApp order was already recorded by someone else.");
+    }
+  }
+
   const supportingStaffIds = formData.getAll("supportingStaffIds").map(String).filter(Boolean);
 
   const referenceImageFiles = formData.getAll("referenceImages").filter((f) => f instanceof File) as File[];
@@ -126,6 +136,24 @@ export async function createOrder(formData: FormData) {
     },
   });
 
+  if (whatsappOrderId) {
+    // Guarded update, same idea as the inventory-decrement pattern elsewhere:
+    // only succeeds if this WhatsApp order is still PENDING right now, so two
+    // staff reviewing the same message can't both convert it. createOrder
+    // isn't wrapped in a transaction (matching its existing behavior above),
+    // so on the rare lost-race case the Order itself still stands — only the
+    // link back to the WhatsApp message is missed, which is logged, not fatal.
+    const linked = await db.whatsAppInboundOrder.updateMany({
+      where: { id: whatsappOrderId, status: "PENDING" },
+      data: { status: "CONVERTED", orderId: order.id, reviewedById: session.staffId, reviewedAt: new Date() },
+    });
+    if (linked.count !== 1) {
+      console.error(`createOrder: WhatsAppInboundOrder ${whatsappOrderId} was converted by someone else between check and order ${order.id} being created.`);
+    } else {
+      revalidatePath("/whatsapp-orders");
+    }
+  }
+
   const notifyTargets = new Set([parsed.primaryStaffId, ...supportingStaffIds]);
   await Promise.all(
     Array.from(notifyTargets).map((staffId) =>
@@ -142,6 +170,104 @@ export async function createOrder(formData: FormData) {
   revalidatePath("/orders");
   revalidatePath("/orders/all");
   redirect(`/orders/${order.id}`);
+}
+
+export type CustomOrderPrefill = {
+  customerId: string | null;
+  customerContact: string | null;
+  productOrService: string;
+  description: string | null;
+  orderValue: number | null;
+  originalDeadline: string | null;
+  internalInstructions: string | null;
+  primaryStaffId: string | null;
+  error?: string;
+};
+
+const EMPTY_CUSTOM_ORDER_PREFILL: CustomOrderPrefill = {
+  customerId: null,
+  customerContact: null,
+  productOrService: "",
+  description: null,
+  orderValue: null,
+  originalDeadline: null,
+  internalInstructions: null,
+  primaryStaffId: null,
+};
+
+/**
+ * Loads a previously-received WhatsApp order (captured by the webhook) and
+ * prefills a custom/production order from it — for bespoke pieces (a
+ * photo-engraved custom necklace, say) rather than an off-the-shelf item, so
+ * this routes to Orders Handling instead of a plain Sale. Matches the
+ * customer against this branch's records the same way the Sales-side
+ * reviewWhatsAppOrder does; marks who reviewed it, but actually creating the
+ * order is still a separate, explicit step (createOrder).
+ */
+export async function reviewWhatsAppOrderAsCustomOrder(whatsappOrderId: string, branchId: string): Promise<CustomOrderPrefill> {
+  const session = await requireSessionOrRedirect();
+  if (!canCreateOrders(session.roles)) throw new Error("Forbidden");
+
+  const order = await db.whatsAppInboundOrder.findUniqueOrThrow({ where: { id: whatsappOrderId } });
+  if (order.status !== "PENDING") {
+    return { ...EMPTY_CUSTOM_ORDER_PREFILL, error: "This WhatsApp order was already reviewed by someone else." };
+  }
+
+  await db.whatsAppInboundOrder.update({
+    where: { id: whatsappOrderId },
+    data: { reviewedById: session.staffId, reviewedAt: new Date() },
+  });
+
+  const extracted = order.extractedJson as unknown as ExtractedOrder;
+
+  let customerId: string | null = null;
+  if (extracted.customerPhone || extracted.customerName) {
+    const customers = await db.customer.findMany({ where: { branchId } });
+    if (extracted.customerPhone) {
+      const phoneDigits = normalizePhone(extracted.customerPhone);
+      const match = customers.find((c) => c.phone && normalizePhone(c.phone).endsWith(phoneDigits.slice(-9)));
+      if (match) customerId = match.id;
+    }
+    if (!customerId && extracted.customerName) {
+      const needle = normalize(extracted.customerName);
+      const match = customers.find((c) => normalize(c.name).includes(needle) || needle.includes(normalize(c.name)));
+      if (match) customerId = match.id;
+    }
+  }
+
+  let primaryStaffId: string | null = null;
+  if (extracted.handledBy) {
+    const staffMembers = await db.staff.findMany({ where: { active: true } });
+    const needle = normalize(extracted.handledBy);
+    const match = staffMembers.find((s) => normalize(s.name).includes(needle) || needle.includes(normalize(s.name)));
+    if (match) primaryStaffId = match.id;
+  }
+
+  const [firstItem, ...restItems] = extracted.items;
+  const productOrService = firstItem?.description || "Custom order (see description)";
+  const extraItemsNote = restItems.length ? `Also: ${restItems.map((i) => `${i.quantity} x ${i.description}`).join(", ")}` : null;
+  const description = [extracted.notes, extraItemsNote].filter(Boolean).join(" — ") || null;
+
+  const refNotes = [
+    extracted.orderNumber ? `WhatsApp order ref: ${extracted.orderNumber}` : null,
+    extracted.customerPhone ? `Customer phone: ${extracted.customerPhone}` : null,
+    extracted.amountPaid ? `Advance paid: ${extracted.amountPaid} (${extracted.paymentMethod ?? "payment method not stated"})` : null,
+    extracted.handledBy && !primaryStaffId ? `Order handled by (no staff match): ${extracted.handledBy}` : null,
+  ].filter(Boolean);
+
+  return {
+    customerId,
+    customerContact:
+      !customerId && (extracted.customerName || extracted.customerPhone)
+        ? [extracted.customerName, extracted.customerPhone].filter(Boolean).join(" — ")
+        : null,
+    productOrService,
+    description,
+    primaryStaffId,
+    orderValue: firstItem?.priceEach ?? null,
+    originalDeadline: extracted.dueDate,
+    internalInstructions: refNotes.length ? refNotes.join("\n") : null,
+  };
 }
 
 export async function updateOrder(orderId: string, formData: FormData) {

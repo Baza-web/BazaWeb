@@ -145,23 +145,29 @@ export type ExtractedOrder = {
   discount: number | null;
   amountPaid: number | null;
   paymentMethod: "CASH" | "CARD" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER" | null;
+  dueDate: string | null;
+  handledBy: string | null;
   notes: string | null;
 };
 
-const ORDER_EXTRACTION_PROMPT = `You are reading a WhatsApp order conversation (as a screenshot or pasted chat text) for a jewelry business, to help staff record the sale. Extract these fields and reply with ONLY a JSON object, no other text:
+const ORDER_EXTRACTION_PROMPT = `You are reading a WhatsApp order conversation (as a screenshot or pasted chat text) for a jewelry business, to help staff record the sale or set up a custom production order. Extract these fields and reply with ONLY a JSON object, no other text:
 
 {
   "customerName": <customer's name if mentioned, or null>,
   "customerPhone": <customer's phone number if visible, or null>,
   "orderNumber": <an order reference/number the business itself wrote, e.g. "ORDER NO: SB 7371" -> "SB 7371", or null if none is shown>,
-  "items": [ { "description": <item name/description exactly as written>, "quantity": <number, default 1 if unclear>, "priceEach": <price per unit as a plain number, or null if not stated> } ],
+  "items": [ { "description": <item name/description exactly as written — for a custom/bespoke piece, one item covering the whole design is fine>, "quantity": <number, default 1 if unclear>, "priceEach": <price per unit (or total price, for a one-off custom piece) as a plain number, or null if not stated> } ],
   "discount": <discount amount if mentioned, as a plain number, or null>,
   "amountPaid": <amount already paid or transferred if mentioned (a deposit or full payment), as a plain number, or null>,
   "paymentMethod": <one of "CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER", or null if not mentioned>,
-  "notes": <any other relevant context — due date, delivery instructions, special requests — or null>
+  "dueDate": <a promised/due/delivery date for the order, converted to YYYY-MM-DD regardless of how it was written (e.g. "03:12:2026" or "03/12/2026" -> "2026-12-03" — Sri Lankan documents write day first, then month, then year), or null if no date is mentioned>,
+  "handledBy": <the business's own staff member's name if the message says who took/handled the order, e.g. "Order handled By: Ashmal" -> "Ashmal", or null if not mentioned — never the customer's or delivery contact's name>,
+  "notes": <any other relevant context — delivery instructions, special requests, materials/weight/customization details — or null>
 }
 
-If this isn't an order conversation at all, or you genuinely cannot read it, reply with {"customerName": null, "customerPhone": null, "orderNumber": null, "items": [], "discount": null, "amountPaid": null, "paymentMethod": null, "notes": null}.`;
+Ignore any marketing/promotional text (e.g. a "join us online" blurb) — only extract the actual order details.
+
+If this isn't an order conversation at all, or you genuinely cannot read it, reply with {"customerName": null, "customerPhone": null, "orderNumber": null, "items": [], "discount": null, "amountPaid": null, "paymentMethod": null, "dueDate": null, "handledBy": null, "notes": null}.`;
 
 const VALID_PAYMENT_METHODS = new Set(["CASH", "CARD", "BANK_TRANSFER", "MOBILE_MONEY", "OTHER"]);
 
@@ -173,8 +179,12 @@ const EMPTY_ORDER: ExtractedOrder = {
   discount: null,
   amountPaid: null,
   paymentMethod: null,
+  dueDate: null,
+  handledBy: null,
   notes: null,
 };
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function parseOrderExtraction(text: string): ExtractedOrder {
   try {
@@ -200,6 +210,8 @@ function parseOrderExtraction(text: string): ExtractedOrder {
         typeof parsed.paymentMethod === "string" && VALID_PAYMENT_METHODS.has(parsed.paymentMethod)
           ? (parsed.paymentMethod as ExtractedOrder["paymentMethod"])
           : null,
+      dueDate: typeof parsed.dueDate === "string" && ISO_DATE.test(parsed.dueDate) ? parsed.dueDate : null,
+      handledBy: typeof parsed.handledBy === "string" ? parsed.handledBy : null,
       notes: typeof parsed.notes === "string" ? parsed.notes : null,
     };
   } catch {

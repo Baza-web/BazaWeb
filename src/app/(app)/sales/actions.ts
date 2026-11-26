@@ -11,6 +11,7 @@ import { notifyStaff } from "@/lib/notifications";
 import { round2, formatMoney } from "@/lib/utils";
 import { detectFileKind } from "@/lib/uploads";
 import { extractOrderFromImage, extractOrderFromText, aiConfigured } from "@/lib/ai";
+import { normalize, normalizePhone } from "@/lib/matching";
 import { initiateDeletion } from "@/lib/deletion";
 import { initiateEdit } from "@/lib/editRequests";
 import { postSaleJournalEntry } from "@/lib/ledger";
@@ -35,9 +36,6 @@ export type ScanOrderResult = {
   notes: string | null;
   error?: string;
 };
-
-const normalize = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, " ").trim();
-const normalizePhone = (s: string) => s.replace(/\D/g, "");
 
 const EMPTY_SCAN_RESULT: ScanOrderResult = {
   customerId: null,
